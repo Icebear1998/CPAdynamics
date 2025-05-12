@@ -27,9 +27,9 @@ EBindingNumber = 6;
 disp('done compute steady states');
 
 % Linear range for kPmin
-kPmin_min = 1;  % Minimum kPmin value
-kPmin_max = 2;   % Maximum kPmin value
-num_kPmin = 4;   % Number of kPmin points
+kPmin_min = 0.6;  % Minimum kPmin value
+kPmin_max = 1.4;   % Maximum kPmin value
+num_kPmin = 6;   % Number of kPmin points
 kPmin_range = linspace(kPmin_min, kPmin_max, num_kPmin);
 
 % Arrays to store results

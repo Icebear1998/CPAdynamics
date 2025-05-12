@@ -13,7 +13,7 @@ P.Pol_total = 70000;
 P.kHon = 0.1; % based on typical k bind and estimated J factor for H.
 P.kHoff = 0.0025; 
 P.kc = 0.8; %not sure
-P.kPmin   = 1; %not sure
+P.kPmin   = 0.5; %not sure
 P.kPmax   = 40; %not sure
 
 geneLength_bp = 25000;
@@ -22,7 +22,7 @@ N      = floor(geneLength_bp / L_a);  % total nodes
 PAS    = floor(PASposition   / L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 
-EBindingNumber = 3; 
+EBindingNumber = 2; 
 [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 
@@ -49,7 +49,7 @@ X0 = zeros(N + N_PAS, 1);
 
 X = fsolve(@(xx) ode_dynamics(xx, P), X0);
 disp('done compute fsolve');
-% Extract solutions
+%Extract solutions
 R_sol   = X(1:N);
 REH_sol = X(N+1 : N+N_PAS);
 
@@ -62,7 +62,9 @@ for e = 1:EBindingNumber+1
     end
 end
 
-%disp(P.RE_val_bind_E(Ef_ss));
+avg_E_bound = P.RE_val_bind_E(Ef_ss);
+disp(Ef_ss);
+disp(avg_E_bound(end));
 
 disp('done compute RE_vals');
 % ------------ PLOT RESULTS ------------
@@ -96,14 +98,9 @@ kHon_t = P.kHon;
 
 R   = X(1:N);
 REH = X(N+1:end);
-E_f = double(P.E_total);
 
 % Convert symbolic expression to a numerical function
-
-E_used_Ef = RE_val_bind_E(E_f);
-E_used = sum(R(1:PAS)'.* E_used_Ef);
-%disp(size(E_used));
-
+E_used = sum(R(1:PAS)'.* RE_val_bind_E(Ef_ss));
 E_f = P.E_total - E_used;
 Ef_ss = E_f;
 
