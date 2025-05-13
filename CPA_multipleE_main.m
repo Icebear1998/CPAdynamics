@@ -21,6 +21,8 @@ PASposition   = 20000;
 N      = floor(geneLength_bp / L_a);  % total nodes
 PAS    = floor(PASposition   / L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
+Ef_ss = 0;
+
 
 EBindingNumber = 2; 
 [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1); 
@@ -98,6 +100,11 @@ kHon_t = P.kHon;
 
 R   = X(1:N);
 REH = X(N+1:end);
+
+% Set initial Ef_ss once (using P.E_total as a starting guess)
+if Ef_ss == 0
+    Ef_ss = P.E_total; % Initial guess
+end
 
 % Convert symbolic expression to a numerical function
 E_used = sum(R(1:PAS)'.* RE_val_bind_E(Ef_ss));
