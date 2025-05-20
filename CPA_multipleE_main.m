@@ -1,4 +1,4 @@
-global N PAS N_PAS Ef_ss kHon_ss;
+global N PAS N_PAS Ef_ss FirstRun;
 syms Ef real;
 % ------------ MODEL PARAMETERS ------------
 L_a = 100;
@@ -13,7 +13,7 @@ P.Pol_total = 70000;
 P.kHon = 0.1; % based on typical k bind and estimated J factor for H.
 P.kHoff = 0.0025; 
 P.kc = 0.8; %not sure
-P.kPmin   = 0.5; %not sure
+P.kPmin   = 0.1; %not sure
 P.kPmax   = 40; %not sure
 
 geneLength_bp = 25000;
@@ -28,9 +28,9 @@ EBindingNumber = 2;
 [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 
-KpOver_vals = linspace(1/P.kPmax, 1/P.kPmin, PAS); % Range of Kp
-Kp_vals = 1./KpOver_vals;
-%Kp_vals = linspace(P.kPmax, P.kPmin, PAS); % Range of Kp
+%KpOver_vals = linspace(1/P.kPmax, 1/P.kPmin, PAS); % Range of Kp for kPon increases linearly
+%Kp_vals = 1./KpOver_vals;
+Kp_vals = linspace(P.kPmax, P.kPmin, PAS); % Range of Kp for kPoff increases linearly 
 RE_vals = sym(zeros(EBindingNumber, PAS));
 
 for e = 1:EBindingNumber+1
@@ -44,6 +44,7 @@ disp('done compute EBindingNumber');
 P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
 disp('done compute RE_val_bind_E');
 % ------------ SOLVE THE STEADY STATE ------------
+FirstRun = true;
 %tspan = [0 1000]; % Increased time span for better steady-state approximation
 X0 = zeros(N + N_PAS, 1);
 % [t, X_ode] = ode45(@(t, x) ode_backbone(t, x, P), tspan, X0);
@@ -51,6 +52,17 @@ X0 = zeros(N + N_PAS, 1);
 
 X = fsolve(@(xx) ode_dynamics(xx, P), X0);
 disp('done compute fsolve');
+
+disp(Ef_ss);
+avg_E_bound = P.RE_val_bind_E(Ef_ss);
+disp(avg_E_bound(end));
+
+disp('Recalculate kHon');
+% Recalculate kHon (calculate kHon_tt)
+FirstRun = false;
+P.kHon = P.kHon * 5;
+X = fsolve(@(xx) ode_dynamics(xx, P), X);
+
 %Extract solutions
 R_sol   = X(1:N);
 REH_sol = X(N+1 : N+N_PAS);
@@ -63,11 +75,6 @@ for e = 1:EBindingNumber+1
         avg_E_bound(i) = avg_E_bound(i) + (e-1)*(RE_vals(e, i)/R_sol(i));
     end
 end
-
-avg_E_bound = P.RE_val_bind_E(Ef_ss);
-disp(Ef_ss);
-disp(avg_E_bound(end));
-
 disp('done compute RE_vals');
 % ------------ PLOT RESULTS ------------
 % 1. Time evolution plot
@@ -88,7 +95,7 @@ title('Time Evolution of R and REH');
 
 %% ------------ ODE DYNAMICS FUNCTION ------------
 function dxdt = ode_dynamics(X, P)
-global N PAS Ef_ss kHon_ss
+global N PAS Ef_ss FirstRun
 
 k_in   = P.k_in;
 k_e    = P.k_e;
@@ -101,19 +108,22 @@ kHon_t = P.kHon;
 R   = X(1:N);
 REH = X(N+1:end);
 
-% Set initial Ef_ss once (using P.E_total as a starting guess)
-if Ef_ss == 0
-    Ef_ss = P.E_total; % Initial guess
-end
+if FirstRun
+    % Set initial Ef_ss once (using P.E_total as a starting guess)
+    if Ef_ss == 0
+        Ef_ss = P.E_total; % Initial guess
+    end
 
-% Convert symbolic expression to a numerical function
-E_used = sum(R(1:PAS)'.* RE_val_bind_E(Ef_ss));
-E_f = P.E_total - E_used;
-Ef_ss = E_f;
+    % Convert symbolic expression to a numerical function
+    E_used = sum(R(1:PAS)'.* RE_val_bind_E(Ef_ss));
+    E_f = P.E_total - E_used;
+    Ef_ss = E_f;
+    %disp({sum(RE_val_bind_E(Ef_ss)), sum(R(1:PAS)), Ef_ss});
 
-% If E_f < 0, throw error and stop solver
-if Ef_ss < 0
-    error('Negative E_f at t = %g (E_f = %g). Stopping simulation.', t, E_f);
+    % If E_f < 0, throw error and stop solver
+    if Ef_ss < 0
+        error('Negative E_f at t = %g (E_f = %g). Stopping simulation.', t, E_f);
+    end
 end
 
 Pol_f = P.Pol_total - sum(R) - sum(REH);
