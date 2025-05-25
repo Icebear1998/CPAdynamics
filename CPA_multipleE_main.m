@@ -10,7 +10,7 @@ P.k_e2    = 30/L_a;
 P.E_total = 70000;
 P.L_total = 100000;
 P.Pol_total = 70000;
-P.kHon = 0.1; % based on typical k bind and estimated J factor for H.
+P.kHon = 0.05; % based on typical k bind and estimated J factor for H.
 P.kHoff = 0.0025; 
 P.kc = 0.8; %not sure
 P.kPmin   = 0.1; %not sure
@@ -28,8 +28,8 @@ EBindingNumber = 2;
 [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 
-%KpOver_vals = linspace(1/P.kPmax, 1/P.kPmin, PAS); % Range of Kp for kPon increases linearly
-%Kp_vals = 1./KpOver_vals;
+% KpOver_vals = linspace(1/P.kPmax, 1/P.kPmin, PAS); % Range of Kp for kPon increases linearly
+% Kp_vals = 1./KpOver_vals;
 Kp_vals = linspace(P.kPmax, P.kPmin, PAS); % Range of Kp for kPoff increases linearly 
 RE_vals = sym(zeros(EBindingNumber, PAS));
 
@@ -60,7 +60,7 @@ disp(avg_E_bound(end));
 disp('Recalculate kHon');
 % Recalculate kHon (calculate kHon_tt)
 FirstRun = false;
-P.kHon = P.kHon * 5;
+P.kHon = P.kHon * avg_E_bound(end);
 X = fsolve(@(xx) ode_dynamics(xx, P), X);
 
 %Extract solutions

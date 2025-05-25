@@ -11,7 +11,7 @@ P.Pol_total = 70000;
 kHon = 0.1;
 P.kHoff = 0.0025;
 P.kc = 0.8;
-P.kPmin = 0.01;
+P.kPmin = 0.05;
 P.kPmax = 40;
 geneLength_bp = 25000;
 PASposition = 20000;
@@ -44,7 +44,7 @@ figure;
 plot(avg_E_bound_PAS_values, cutoff_values, 'o-', 'LineWidth', 2, 'MarkerSize', 8);
 hold on;
 for i = 1:length(avg_E_bound_PAS_values)
-    text(avg_E_bound_PAS_values(i), cutoff_values(i), sprintf('REH=%.2f', REH_at_800bp(i)), ...
+    text(avg_E_bound_PAS_values(i), cutoff_values(i), sprintf('Sum REH=%.2f', REH_at_800bp(i)), ...
         'FontSize', 8, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom');
 end
 xlabel('Average E Bound at PAS');
