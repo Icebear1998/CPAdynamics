@@ -25,10 +25,12 @@ PAS = floor(PASposition / L_a);
 N_PAS = N - PAS + 1;
 
 % List of parameters to sweep
-param_list = {'k_e', 'k_e2', 'E_total', 'kc', 'k_in', 'kEon', 'kEoff', 'kHon', 'kHoff', 'kPmin', 'kPmax'};
+% 'k_e2', 'k_in', 'kHoff', 'kPmax'
+% important: 'E_total', 'k_e', 'kPmin', 'kc'
+param_list = {'kEon','kEoff', 'kHon'};
 
 % Iterate over EBindingNumber
-for EBindingNumber = 2:5
+for EBindingNumber = 5:6
     fprintf('Running for EBindingNumber = %d\n', EBindingNumber);
     
     % Iterate over each parameter to sweep
@@ -50,31 +52,40 @@ for EBindingNumber = 2:5
         
         param_to_sweep = param_list{param_idx};
         default_value = P.(param_to_sweep);
+        kHon_default = P.kHon;
         
         % Define sweep range (linear for k_e, k_e2, E_total, kc; log for others)
         switch param_to_sweep
             case 'k_e'
-                param_values = 55/L_a:10/L_a:75/L_a; % Linear range
+                param_values = 35/L_a:10/L_a:95/L_a; % Linear range
             case 'k_e2'
-                param_values = 25/L_a:10/L_a:55/L_a; % Linear range
+                base_range = 15/L_a:10/L_a:65/L_a; % Linear range
+                param_values = sort(unique([base_range, default_value]));
             case 'E_total'
-                param_values = 60000:10000:80000; % Linear range
+                param_values = 40000:10000:120000; % Linear range
             case 'kc'
-                param_values = 0.2:0.2:1.0; % Linear range
+                param_values = 0.2:0.1:1.0; % Linear range
             case 'k_in'
-                param_values = logspace(log10(0.2), log10(10), 8); % Log range
+                base_range = logspace(log10(0.2), log10(10), 8); % Log range
+                param_values = sort(unique([base_range, default_value]));
             case 'kEon'
-                param_values = logspace(-5, -2, 8); % Log range
+                base_range = logspace(-5, -2, 8); % Log range
+                param_values = sort(unique([base_range, default_value]));
             case 'kEoff'
-                param_values = logspace(0, log10(100), 8); % Log range
+                base_range = logspace(0, log10(100), 8); % Log range
+                param_values = sort(unique([base_range, default_value]));
             case 'kHon'
-                param_values = logspace(-2, 0, 8); % Log range
+                base_range = logspace(-2, 0, 8); % Log range
+                param_values = sort(unique([base_range, default_value]));
             case 'kHoff'
-                param_values = logspace(-3, -1.5, 8); % Log range
+                base_range = logspace(-3, -1.5, 8); % Log range
+                param_values = sort(unique([base_range, default_value]));
             case 'kPmin'
-                param_values = logspace(-2, 0, 8); % Log range
+                base_range = logspace(-2, 0, 8); % Log range
+                param_values = sort(unique([base_range, default_value]));
             case 'kPmax'
-                param_values = logspace(1, 2, 5); % Log range
+                base_range = logspace(1, 2, 8); % Log range
+                param_values = sort(unique([base_range, default_value]));
             otherwise
                 error('Invalid parameter selected');
         end
@@ -86,9 +97,18 @@ for EBindingNumber = 2:5
         % Parameter sweep
         for k = 1:length(param_values)
             Ef_ss = 0;
+            P.kHon = kHon_default;
             % Update the parameter
             P.(param_to_sweep) = param_values(k);
             
+            if strcmp(param_to_sweep,'kHon')
+                kHon_default = param_values(k);
+            end
+            
+            if P.(param_to_sweep) == default_value
+                disp(P);
+            end
+                  
             [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1);
             disp('done compute steady states');
 
@@ -118,7 +138,7 @@ for EBindingNumber = 2:5
 
             % Recalculate kHon
             P.FirstRun = false;
-            P.kHon = P.kHon * avg_E_bound(end);
+            P.kHon = kHon_default * avg_E_bound(end);
             X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X);
 
             R_sol = X(1:N);
@@ -143,6 +163,9 @@ for EBindingNumber = 2:5
 
         % Plot
         figure;
+        if ismember(param_to_sweep, {'k_in', 'kEon', 'kEoff', 'kHon', 'kHoff', 'kPmin', 'kPmax'})
+            set(gca, 'XScale', 'log');
+        end
         plot(param_values, cutoff_values, 'o-', 'LineWidth', 2, 'MarkerSize', 8);
         hold on;
         % Highlight default parameter value
@@ -154,7 +177,7 @@ for EBindingNumber = 2:5
                 'FontSize', 5, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom');
         end
         xlabel([strrep(param_to_sweep, '_', '\_'), ' Value']);
-        ylabel('Fraction of Polymerases Processed by 800 bp');
+        ylabel('Position at which 50% cleavage (*100 bp)');
         title(['CPA Cutoff vs ', strrep(param_to_sweep, '_', '\_'), ' (EBindingNumber=', num2str(EBindingNumber), ')']);
         grid on;
         

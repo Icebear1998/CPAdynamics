@@ -30,7 +30,7 @@ disp('done compute steady states');
 
 % KpOver_vals = linspace(1/P.kPmax, 1/P.kPmin, PAS); % Range of Kp for kPon increases linearly
 % Kp_vals = 1./KpOver_vals;
-Kp_vals = linspace(P.kPmax, P.kPmin, PAS); % Range of Kp for kPoff increases linearly 
+Kp_vals = linspace(P.kPmax, P.kPmin, PAS); % Range of Kp for kPoff decreases linearly 
 RE_vals = sym(zeros(EBindingNumber, PAS));
 
 for e = 1:EBindingNumber+1
