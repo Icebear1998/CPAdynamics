@@ -32,11 +32,13 @@ disp('done compute steady states');
 % Kp_vals = 1./KpOver_vals;
 Kp_vals = linspace(P.kPmax, P.kPmin, PAS); % Range of Kp for kPoff decreases linearly 
 RE_vals = sym(zeros(EBindingNumber, PAS));
+P_vals = sym(zeros(EBindingNumber, PAS));
 
 for e = 1:EBindingNumber+1
     for i = 1:length(Kp_vals)
         kP_val = Kp_vals(i);
         RE_vals(e, i) = subs(r_E_BeforePas(e), {'kP'}, {kP_val});
+        P_vals(e, i) = subs(r_P(e), {'kP'}, {kP_val});
     end
 end
 disp('done compute EBindingNumber');
@@ -71,11 +73,37 @@ avg_E_bound = zeros(1, PAS); % Row vector for positions 1 to PAS
 for e = 1:EBindingNumber+1
     for i = 1:PAS
         RE_vals(e, i) = double(R_sol(i)*double(subs(RE_vals(e, i), {'Ef'}, {Ef_ss})));
+        P_vals(e, i) = double(R_sol(i)*double(subs(P_vals(e, i), {'Ef'}, {Ef_ss})));
         % Compute the average number of E molecules bound at each position
         avg_E_bound(i) = avg_E_bound(i) + (e-1)*(RE_vals(e, i)/R_sol(i));
     end
 end
 disp('done compute RE_vals');
+% Compute the average number Ser2P at each position
+avg_P_bound = zeros(1, PAS); % Row vector for positions 1 to PAS
+for i = 1:PAS
+    total_P_bound = 0;
+    total_P = 0;
+    for e = 1:EBindingNumber+1
+        num_E = e - 1; % Number of E molecules bound (0 to EBindingNumber)       
+        P_e = double(P_vals(e, i)); % Amount of Pol II with num_E E molecules
+        total_P_bound = total_P_bound + num_E * P_e;
+        total_P = total_P + P_e;
+    end
+    if total_P > 0
+        avg_P(i) = total_P_bound / total_P;
+    else
+        avg_P(i) = 0; % Avoid division by zero
+    end
+end
+
+Ser2P = avg_P;
+hold on;
+plot((1-PAS):0, Ser2P, 'g-','LineWidth',2.5, 'DisplayName','Ser2P');
+plot((1-PAS):0, avg_E_bound, 'b-','LineWidth',2.5, 'DisplayName','AverageE');
+legend({'Ser2P', 'AverageE'}, 'Location', 'best');
+xlabel('position'); ylabel('AverageE');
+hold off;
 % ------------ PLOT RESULTS ------------
 % 1. Time evolution plot
 l_values =  (1-PAS):(N-PAS);

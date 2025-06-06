@@ -27,10 +27,11 @@ N_PAS = N - PAS + 1;
 % List of parameters to sweep
 % 'k_e2', 'k_in', 'kHoff', 'kPmax'
 % important: 'E_total', 'k_e', 'kPmin', 'kc'
+% 'E_total', 'k_e', 'kPmin', 'kc', 
 param_list = {'kEon','kEoff', 'kHon'};
 
 % Iterate over EBindingNumber
-for EBindingNumber = 5:6
+for EBindingNumber = 2:3
     fprintf('Running for EBindingNumber = %d\n', EBindingNumber);
     
     % Iterate over each parameter to sweep
@@ -81,7 +82,7 @@ for EBindingNumber = 5:6
                 base_range = logspace(-3, -1.5, 8); % Log range
                 param_values = sort(unique([base_range, default_value]));
             case 'kPmin'
-                base_range = logspace(-2, 0, 8); % Log range
+                base_range = logspace(log10(0.05), log10(0.4), 6); % Log range
                 param_values = sort(unique([base_range, default_value]));
             case 'kPmax'
                 base_range = logspace(1, 2, 8); % Log range
@@ -111,7 +112,9 @@ for EBindingNumber = 5:6
                   
             [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1);
             disp('done compute steady states');
-
+            
+%             KpOver_vals = linspace(1/P.kPmax, 1/P.kPmin, PAS); % Range of Kp for kPon increases linearly
+%             Kp_vals = 1./KpOver_vals;
             Kp_vals = linspace(P.kPmax, P.kPmin, PAS);
             RE_vals = sym(zeros(EBindingNumber + 1, PAS));
 
@@ -144,20 +147,19 @@ for EBindingNumber = 5:6
             R_sol = X(1:N);
             REH_sol = X(N+1 : N+N_PAS);
             
-            % Calculate cutoff and REH at 800 bp
+            % Calculate cutoff position in the gene using interpolation
             ratio = (REH_sol(1:end) + R_sol(PAS:end)) / R_sol(PAS-1);
-            idx_L50 = find(ratio < 0.5, 1, 'first');
-            if isempty(idx_L50)
-                cutoff_values(k) = - 1;
+            node_indices = 1:length(ratio);
+            if all(ratio >= 0.5)
+                cutoff_values(k) = -1;
             else
-                cutoff_values(k) = idx_L50;
+                cutoff_values(k) = interp1(ratio, node_indices, 0.5, 'linear') * L_a;% + (PAS - 1) * L_a;
             end
-            
-            idx_L90 = find(ratio < 0.1, 1, 'first');
-            if isempty(idx_L90)
+
+            if all(ratio >= 0.1)
                 cutoff2(k) = -1;
             else
-                cutoff2(k) = idx_L90;
+                cutoff2(k) = interp1(ratio, node_indices, 0.1, 'linear') * L_a;% + (PAS - 1) * L_a;
             end
         end
 
