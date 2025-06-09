@@ -105,10 +105,7 @@ for EBindingNumber = 2:3
             if strcmp(param_to_sweep,'kHon')
                 kHon_default = param_values(k);
             end
-            
-            if P.(param_to_sweep) == default_value
-                disp(P);
-            end
+           
                   
             [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1);
             disp('done compute steady states');
