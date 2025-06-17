@@ -32,7 +32,8 @@ param_pairs = {
     {'E_total', 'kEoff'}, ...
     {'kc', 'kHoff'}, ...
     {'kPmin', 'kPmax'}, ...
-    {'k_e', 'kHon'}%, ...
+    {'k_e', 'kHon'}, ...
+    {'k_e', 'E_total'}
     %{'EBindingNumber', 'kPmin'}
 };
 
@@ -80,15 +81,17 @@ for pair_idx = 1:length(param_pairs)
         case 'kEon'
             param2_values = logspace(-5, -2, 6);
         case 'kEoff'
-            param2_values = logspace(0, log10(100), 8);
+            param2_values = logspace(0, log10(100), 6);
         case 'kHon'
-            param2_values = logspace(-2, 0, 8);
+            param2_values = logspace(-2, 0, 6);
         case 'kHoff'
-            param2_values = logspace(-3, -1.5, 8);
+            param2_values = logspace(-3, -1.5, 6);
         case 'kPmax'
-            param2_values = logspace(1, 2, 8);
+            param2_values = logspace(1, 2, 6);
         case 'kPmin'
             param2_values = logspace(log10(0.05), log10(0.4), 6);
+        case 'E_total'
+            param1_values = 50000:10000:100000;
         otherwise
             error('Invalid parameter2 selected');
     end
@@ -149,7 +152,7 @@ for pair_idx = 1:length(param_pairs)
             % Calculate cutoff position in the gene using interpolation
             ratio = (REH_sol(1:end) + R_sol(PAS:end)) / R_sol(PAS-1);
             node_indices = 1:length(ratio);
-            cutoff_matrix(i,j) = interp1(ratio, node_indices, 0.25, 'linear') * L_a;
+            cutoff_matrix(i,j) = interp1(ratio, node_indices, 0.75, 'linear') * L_a;
 %             if all(ratio >= 0.5)
 %                 cutoff_matrix(i,j) = -1;
 %             else

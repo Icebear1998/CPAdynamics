@@ -13,8 +13,12 @@ P.Pol_total = 70000;
 P.kHon = 0.05; % based on typical k bind and estimated J factor for H.
 P.kHoff = 0.0025; 
 P.kc = 0.8; %not sure
-P.kPmin   = 0.1; %not sure
-P.kPmax   = 40; %not sure
+% P.kPmin   = 0.1; %not sure
+% P.kPmax   = 40; %not sure
+kPon_min = 0.01; % at TSS
+kPon_max = 0.5; % at PAS
+kPoff_min = 0.001; % at PAS
+kPoff_max = 0.4; % at TSS
 
 geneLength_bp = 25000;
 PASposition   = 20000;
@@ -24,21 +28,23 @@ N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
 
 
-EBindingNumber = 2; 
-[r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1); 
+EBindingNumber = 3; 
+[r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 
 % KpOver_vals = linspace(1/P.kPmax, 1/P.kPmin, PAS); % Range of Kp for kPon increases linearly
 % Kp_vals = 1./KpOver_vals;
-Kp_vals = linspace(P.kPmax, P.kPmin, PAS); % Range of Kp for kPoff decreases linearly 
+kPon_vals = linspace(kPon_min, kPon_max, PAS); % Range of Kp for kPon increases linearly 
+kPoff_vals = linspace(kPoff_max, kPoff_min, PAS); % Range of Kp for kPoff decreases linearly 
 RE_vals = sym(zeros(EBindingNumber, PAS));
 P_vals = sym(zeros(EBindingNumber, PAS));
 
 for e = 1:EBindingNumber+1
-    for i = 1:length(Kp_vals)
-        kP_val = Kp_vals(i);
-        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kP'}, {kP_val});
-        P_vals(e, i) = subs(r_P(e), {'kP'}, {kP_val});
+    for i = 1:length(kPon_vals)
+        kPon_val = kPon_vals(i);
+        %kPoff_val = kPoff_vals(i);
+        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_max});
+        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_max});
     end
 end
 disp('done compute EBindingNumber');
@@ -150,7 +156,7 @@ if FirstRun
 
     % If E_f < 0, throw error and stop solver
     if Ef_ss < 0
-        error('Negative E_f at t = %g (E_f = %g). Stopping simulation.', t, E_f);
+        error('Negative E_f = %g. Stopping simulation.', E_f);
     end
 end
 

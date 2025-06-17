@@ -29,15 +29,20 @@ kHon_default = P.kHon;
 % Define parameters for 2D sweep
 % Parameters to sweep: (kc,kHoff); (kPmin, kPmax); (ke, kHon); 
 % (E_tot, kEon/kEoff); (Emax, kPmin)
-param1 = 'kPmin';
-param2 = 'EBindingNumber';
+param1 = 'E_total';
+param2 = 'k_e';
+
 default1 = P.(param1);
-default2 = 3;
+default2 = P.(param2);
 
 % Define ranges for 2D sweep
-base_range = logspace(log10(0.05), log10(0.4), 6); % Log range
-param1_values = sort(unique([base_range, default_value]));
-param2_values = 1:1:4; % Log range
+%param1_values = logspace(log10(0.05), log10(0.4), 6);
+%param1_values = 50000:10000:100000;
+%param2_values = 1:1:4; % Log range
+
+param1_values = 50000:10000:100000;
+%param2_values = 35/L_a:10/L_a:95/L_a;
+param2_values = 35/L_a:10/L_a:95/L_a;
 
 % Initialize matrix for cutoff values
 cutoff_matrix = zeros(length(param2_values), length(param1_values));
@@ -49,8 +54,8 @@ for i = 1:length(param2_values)
         P.kHon = kHon_default;
         
         P.(param1) = param1_values(j);
-        %P.(param2) = param2_values(i);
-        EBindingNumber = param2_values(i);
+        P.(param2) = param2_values(i);
+        %EBindingNumber = param2_values(i);
         
         if strcmp(param1,'kHon')
                 kHon_default = param_values1(k);
@@ -88,7 +93,7 @@ for i = 1:length(param2_values)
 
         P.FirstRun = false;
         P.kHon = kHon_default * avg_E_bound(end);
-        X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X0);
+        X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X);
 
         R_sol = X(1:N);
         REH_sol = X(N+1 : N+N_PAS);
@@ -96,11 +101,12 @@ for i = 1:length(param2_values)
         % Calculate cutoff position in the gene using interpolation
         ratio = (REH_sol(1:end) + R_sol(PAS:end)) / R_sol(PAS-1);
         node_indices = 1:length(ratio);
-        if all(ratio >= 0.5)
-            cutoff_matrix(i,j) = -1;
-        else
-            cutoff_matrix(i,j) = interp1(ratio, node_indices, 0.5, 'linear') * L_a;% + (PAS - 1) * L_a;
-        end  
+        cutoff_matrix(i,j) = interp1(ratio, node_indices, 0.75, 'linear') * L_a;% + (PAS - 1) * L_a;
+%         if all(ratio >= 0.5)
+%             cutoff_matrix(i,j) = -1;
+%         else
+%             cutoff_matrix(i,j) = interp1(ratio, node_indices, 0.5, 'linear') * L_a;% + (PAS - 1) * L_a;
+%         end  
     end
 end
 

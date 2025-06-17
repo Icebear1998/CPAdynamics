@@ -3,10 +3,6 @@ function A = construct_rate_matrix(n)
     A = sym(zeros(n*n, n*n));
     sz = [n n]; 
     
-%     kPon = 1;
-%     kPoff = -1;
-%     kEon = 2;
-%     kEoff = -2;
     
     rows_kPon = repelem(1:n, fliplr(1:n)); % Repeat each number decreasingly
     cellArray1 = arrayfun(@(x) x:n, 1:n, 'UniformOutput', false); % Generate sequences
@@ -28,8 +24,10 @@ function A = construct_rate_matrix(n)
 
          % Only assign values if the next index is valid (skip invalid pairs)
         if next_idx > current_idx
-            A(next_idx, current_idx) = 1; % Assign to matrix B
-            A(current_idx, next_idx) = kP; % If you want symmetry
+            A(next_idx, current_idx) = 1; % 1 or kPon
+            A(current_idx, next_idx) = kP; % kP or kPoff
+%             A(next_idx, current_idx) = kPon; % 1 or kPon
+%             A(current_idx, next_idx) = kPoff; % kP or kPoff
         end
     end
     
