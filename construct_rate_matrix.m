@@ -24,10 +24,10 @@ function A = construct_rate_matrix(n)
 
          % Only assign values if the next index is valid (skip invalid pairs)
         if next_idx > current_idx
-            A(next_idx, current_idx) = 1; % 1 or kPon
-            A(current_idx, next_idx) = kP; % kP or kPoff
-%             A(next_idx, current_idx) = kPon; % 1 or kPon
-%             A(current_idx, next_idx) = kPoff; % kP or kPoff
+%             A(next_idx, current_idx) = 1; % 1 or kPon
+%             A(current_idx, next_idx) = kP; % kP or kPoff
+            A(next_idx, current_idx) = kPon; % 1 or kPon
+            A(current_idx, next_idx) = kPoff; % kP or kPoff
         end
     end
     

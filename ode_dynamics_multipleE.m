@@ -21,7 +21,7 @@ if P.FirstRun
 
     % Convert symbolic expression to a numerical function
     E_used = sum(R(1:PAS)'.* RE_val_bind_E(Ef_ss));
-    E_f = P.E_total - E_used;
+    E_f = abs(P.E_total - E_used);
     Ef_ss = E_f;
     %disp({sum(RE_val_bind_E(Ef_ss)), sum(R(1:PAS)), Ef_ss});
 

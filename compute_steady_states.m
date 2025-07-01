@@ -1,4 +1,4 @@
-function [r_E_BeforePas] = compute_steady_states(P, n)
+function [r_E_BeforePas, r_P] = compute_steady_states(P, n)
     % Define symbolic variables
     syms kP Ef kEon kEoff kHon kHoff kc
    
@@ -16,11 +16,11 @@ function [r_E_BeforePas] = compute_steady_states(P, n)
     
     % Compute cumulative sums of steady-state probabilities symbolically
     r_E_BeforePas = compute_cumulative_sum(r_Before, n);
-    %r_P = compute_block_sums(r_Before, n);
+    r_P = compute_block_sums(r_Before, n);
 
     % Normalize the steady-state probabilities
     r_E_BeforePas = simplify(r_E_BeforePas / sum(r_E_BeforePas));
-    %r_P = simplify(r_P / sum(r_P));
+    r_P = simplify(r_P / sum(r_P));
     
     % Compute the steady-state properties after passage
     %kon_t = afterPasPams(r_After, n, P.kHon);

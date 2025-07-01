@@ -15,22 +15,26 @@ P.Pol_total = 70000;
 P.kHon = 0.05;
 P.kHoff = 0.0025;
 P.kc = 0.8;
-P.kPmin = 0.1;
-P.kPmax = 40;
+P.kPon_min = 0.01; % at TSS
+P.kPon_max = 1.5; % at PAS
+P.kPoff_min = 0.1; % at PAS
+P.kPoff_max = 20; % at TSS
+P.kPoff_const = 1;
+P.kPon_const = 1;
 
 geneLength_bp = 25000;
 PASposition = 20000;
 N = floor(geneLength_bp / L_a);
 PAS = floor(PASposition / L_a);
 N_PAS = N - PAS + 1;
-EBindingNumber = 2;
+EBindingNumber = 1;
 kHon_default = P.kHon;
 
 % Define parameters for 2D sweep
 % Parameters to sweep: (kc,kHoff); (kPmin, kPmax); (ke, kHon); 
 % (E_tot, kEon/kEoff); (Emax, kPmin)
 param1 = 'E_total';
-param2 = 'k_e';
+param2 = 'kHon';
 
 default1 = P.(param1);
 default2 = P.(param2);
@@ -40,9 +44,8 @@ default2 = P.(param2);
 %param1_values = 50000:10000:100000;
 %param2_values = 1:1:4; % Log range
 
-param1_values = 50000:10000:100000;
-%param2_values = 35/L_a:10/L_a:95/L_a;
-param2_values = 35/L_a:10/L_a:95/L_a;
+param1_values = 60000:10000:90000;
+param2_values = logspace(-1, 1, 4);
 
 % Initialize matrix for cutoff values
 cutoff_matrix = zeros(length(param2_values), length(param1_values));
@@ -50,6 +53,25 @@ cutoff_matrix = zeros(length(param2_values), length(param1_values));
 % 2D Parameter Sweep
 for i = 1:length(param2_values)
     for j = 1:length(param1_values)
+        % Reset parameters
+        P.k_in = 2;
+        P.kEon = 0.00025;
+        P.kEoff = 10;
+        P.k_e = 65/L_a;
+        P.k_e2 = 30/L_a;
+        P.E_total = 70000;
+        P.L_total = 100000;
+        P.Pol_total = 70000;
+        P.kHon = 0.05;
+        P.kHoff = 0.0025;
+        P.kc = 0.8;
+        P.kPon_min = 0.01; % at TSS
+        P.kPon_max = 1.5; % at PAS
+        P.kPoff_min = 0.1; % at PAS
+        P.kPoff_max = 20; % at TSS
+        P.kPoff_const = 1;
+        P.kPon_const = 1;
+        
         Ef_ss = 0;
         P.kHon = kHon_default;
         
@@ -58,24 +80,29 @@ for i = 1:length(param2_values)
         %EBindingNumber = param2_values(i);
         
         if strcmp(param1,'kHon')
-                kHon_default = param_values1(k);
+                kHon_default = param1_values(j);
         end
         if strcmp(param2,'kHon')
-                kHon_default = param_values2(k);
+                kHon_default = param2_values(i);
         end
         
         [r_E_BeforePas] = compute_steady_states(P, EBindingNumber+1);
         disp('done compute steady states');
 
-        Kp_vals = linspace(P.kPmax, P.kPmin, PAS);
-        RE_vals = sym(zeros(EBindingNumber + 1, PAS)); 
+            kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS); % Range of kPon increases linearly
+            %kPoff_vals = linspace(kPoff_max, kPoff_min, PAS); % Range of kPoff decreases linearly
+            
+            RE_vals = sym(zeros(EBindingNumber + 1, PAS));
+            %RE_kPoff_vals = sym(zeros(EBindingNumber + 1, PAS));
 
-        for e = 1:EBindingNumber+1
-            for idx = 1:length(Kp_vals)
-                kP_val = Kp_vals(idx);
-                RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kP'}, {kP_val});
+            for e = 1:EBindingNumber + 1
+                for idx = 1:length(kPon_vals)
+                    kPon_val = kPon_vals(idx);
+                    %kPoff_val = kPoff_vals(idx);
+                    RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
+                    %RE_kPoff_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_const, kPoff_val});
+                end
             end
-        end
 
         P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
 
@@ -92,6 +119,7 @@ for i = 1:length(param2_values)
         avg_E_bound = P.RE_val_bind_E(Ef_ss);
 
         P.FirstRun = false;
+        disp(kHon_default);
         P.kHon = kHon_default * avg_E_bound(end);
         X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X);
 
@@ -124,7 +152,7 @@ plot(default1, default2, 'ro', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 
 legend('show');
 grid on;
 
-% % Save the plot
-% filename = 'CPA_Cutoff_2D_k_in_k_e.png';
+% Save the plot
+% filename = 'CPA_Cutoff_2D_E_total_k_e_3.png';
 % saveas(gcf, filename);
 % close(gcf);

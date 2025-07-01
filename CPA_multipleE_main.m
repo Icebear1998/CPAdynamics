@@ -1,30 +1,33 @@
-global N PAS N_PAS Ef_ss FirstRun;
+global N PAS N_PAS N_PAUSE Ef_ss FirstRun;
 syms Ef real;
 % ------------ MODEL PARAMETERS ------------
 L_a = 100;
 P.k_in    = 2;
 P.kEon    = 0.00025;
-P.kEoff   = 10;
-P.k_e     = 65/L_a;
+P.kEoff   = 100;
+P.k_e     = 130/L_a;
 P.k_e2    = 30/L_a;
 P.E_total = 70000;
 P.L_total = 100000;
 P.Pol_total = 70000;
-P.kHon = 0.05; % based on typical k bind and estimated J factor for H.
-P.kHoff = 0.0025; 
+P.kHon = 0.25; % based on typical k bind and estimated J factor for H.
+P.kHoff = 0.001; 
 P.kc = 0.8; %not sure
 % P.kPmin   = 0.1; %not sure
 % P.kPmax   = 40; %not sure
 kPon_min = 0.01; % at TSS
-kPon_max = 0.5; % at PAS
-kPoff_min = 0.001; % at PAS
-kPoff_max = 0.4; % at TSS
+kPon_max = 1.5; % at PAS
+kPoff_min = 0.1; % at PAS
+kPoff_max = 20; % at TSS
+kPoff_const = 1;
+kPon_const = 1;
 
 geneLength_bp = 25000;
 PASposition   = 20000;
 N      = floor(geneLength_bp / L_a);  % total nodes
 PAS    = floor(PASposition   / L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
+N_PAUSE = PAS+10;
 Ef_ss = 0;
 
 
@@ -75,25 +78,25 @@ X = fsolve(@(xx) ode_dynamics(xx, P), X);
 R_sol   = X(1:N);
 REH_sol = X(N+1 : N+N_PAS);
 
-avg_E_bound = zeros(1, PAS); % Row vector for positions 1 to PAS
-for e = 1:EBindingNumber+1
-    for i = 1:PAS
-        RE_vals(e, i) = double(R_sol(i)*double(subs(RE_vals(e, i), {'Ef'}, {Ef_ss})));
-        P_vals(e, i) = double(R_sol(i)*double(subs(P_vals(e, i), {'Ef'}, {Ef_ss})));
-        % Compute the average number of E molecules bound at each position
-        avg_E_bound(i) = avg_E_bound(i) + (e-1)*(RE_vals(e, i)/R_sol(i));
-    end
-end
-disp('done compute RE_vals');
+%avg_E_bound = zeros(1, PAS); % Row vector for positions 1 to PAS
+% for e = 1:EBindingNumber+1
+%     for i = 1:PAS
+%         %RE_vals(e, i) = double(R_sol(i)*double(subs(RE_vals(e, i), {'Ef'}, {Ef_ss})));
+%         P_vals(e, i) = double(R_sol(i)*double(subs(P_vals(e, i), {'Ef'}, {Ef_ss})));
+%         % Compute the average number of E molecules bound at each position
+%         %avg_E_bound(i) = avg_E_bound(i) + (e-1)*(RE_vals(e, i)/R_sol(i));
+%     end
+% end
+% disp('done compute RE_vals');
 % Compute the average number Ser2P at each position
 avg_P_bound = zeros(1, PAS); % Row vector for positions 1 to PAS
 for i = 1:PAS
     total_P_bound = 0;
     total_P = 0;
     for e = 1:EBindingNumber+1
-        num_E = e - 1; % Number of E molecules bound (0 to EBindingNumber)       
-        P_e = double(P_vals(e, i)); % Amount of Pol II with num_E E molecules
-        total_P_bound = total_P_bound + num_E * P_e;
+        RE_vals(e, i) = double(R_sol(i)*double(subs(RE_vals(e, i), {'Ef'}, {Ef_ss})));
+        P_e = double(R_sol(i)*double(subs(P_vals(e, i), {'Ef'}, {Ef_ss}))); % Amount of Pol II with num_E E molecules
+        total_P_bound = total_P_bound + (e - 1) * P_e;
         total_P = total_P + P_e;
     end
     if total_P > 0
@@ -143,20 +146,23 @@ R   = X(1:N);
 REH = X(N+1:end);
 
 if FirstRun
-    % Set initial Ef_ss once (using P.E_total as a starting guess)
     if Ef_ss == 0
-        Ef_ss = P.E_total; % Initial guess
+        Ef_ss = P.E_total; % Initial guess for free E
     end
 
-    % Convert symbolic expression to a numerical function
-    E_used = sum(R(1:PAS)'.* RE_val_bind_E(Ef_ss));
-    E_f = P.E_total - E_used;
+    % Calculate E_used based on current Ef_ss 
+    E_used = sum(R(1:PAS)' .* RE_val_bind_E(Ef_ss));
+    
+    % Compute E_f as the difference between total and used E
+    E_f = abs(P.E_total - E_used); % Ensure non-negative E_f
+    
+    % Update Ef_ss with the new E_f value
     Ef_ss = E_f;
-    %disp({sum(RE_val_bind_E(Ef_ss)), sum(R(1:PAS)), Ef_ss});
 
-    % If E_f < 0, throw error and stop solver
+    % Check for unphysical conditions
     if Ef_ss < 0
         error('Negative E_f = %g. Stopping simulation.', E_f);
+        %Ef_ss = 0.01;
     end
 end
 
