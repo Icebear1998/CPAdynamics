@@ -16,7 +16,7 @@ P.kHon = 0.05;
 P.kHoff = 0.0025;
 P.kc = 0.8;
 P.kPon_min = 0.01; % at TSS
-P.kPon_max = 1.5; % at PAS
+P.kPon_max = 2; % at PAS
 P.kPoff_min = 0.1; % at PAS
 P.kPoff_max = 20; % at TSS
 P.kPoff_const = 1;
@@ -45,7 +45,7 @@ default2 = P.(param2);
 %param2_values = 1:1:4; % Log range
 
 param1_values = 60000:10000:90000;
-param2_values = logspace(-1, 1, 4);
+param2_values = logspace(-2, log10(1), 4);
 
 % Initialize matrix for cutoff values
 cutoff_matrix = zeros(length(param2_values), length(param1_values));
@@ -73,36 +73,39 @@ for i = 1:length(param2_values)
         P.kPon_const = 1;
         
         Ef_ss = 0;
-        P.kHon = kHon_default;
+        
         
         P.(param1) = param1_values(j);
         P.(param2) = param2_values(i);
         %EBindingNumber = param2_values(i);
         
-        if strcmp(param1,'kHon')
-                kHon_default = param1_values(j);
-        end
-        if strcmp(param2,'kHon')
-                kHon_default = param2_values(i);
-        end
+%         if strcmp(param1,'kHon')
+%                 kHon_default = param1_values(j);
+%         end
+%         if strcmp(param2,'kHon')
+%                 kHon_default = param2_values(i);
+%         end
+%         P.kHon = kHon_default;
+        
+        kHon_default = P.kHon;
         
         [r_E_BeforePas] = compute_steady_states(P, EBindingNumber+1);
         disp('done compute steady states');
 
-            kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS); % Range of kPon increases linearly
-            %kPoff_vals = linspace(kPoff_max, kPoff_min, PAS); % Range of kPoff decreases linearly
-            
-            RE_vals = sym(zeros(EBindingNumber + 1, PAS));
-            %RE_kPoff_vals = sym(zeros(EBindingNumber + 1, PAS));
+        kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS); % Range of kPon increases linearly
+        %kPoff_vals = linspace(kPoff_max, kPoff_min, PAS); % Range of kPoff decreases linearly
 
-            for e = 1:EBindingNumber + 1
-                for idx = 1:length(kPon_vals)
-                    kPon_val = kPon_vals(idx);
-                    %kPoff_val = kPoff_vals(idx);
-                    RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
-                    %RE_kPoff_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_const, kPoff_val});
-                end
+        RE_vals = sym(zeros(EBindingNumber + 1, PAS));
+        %RE_kPoff_vals = sym(zeros(EBindingNumber + 1, PAS));
+
+        for e = 1:EBindingNumber + 1
+            for idx = 1:length(kPon_vals)
+                kPon_val = kPon_vals(idx);
+                %kPoff_val = kPoff_vals(idx);
+                RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
+                %RE_kPoff_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_const, kPoff_val});
             end
+        end
 
         P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
 
@@ -142,7 +145,12 @@ end
 figure;
 [XX, YY] = meshgrid(param1_values, param2_values);
 contourf(XX, YY, cutoff_matrix, 20, 'LineColor', 'none');
-set(gca, 'XScale', 'log');
+if ismember(param1, {'kPmin', 'kPmax', 'kEon', 'kEoff', 'kHon', 'kHoff'})
+    set(gca, 'XScale', 'log');
+end
+if ismember(param2, {'kPmin', 'kPmax', 'kEon', 'kEoff', 'kHon', 'kHoff'})
+    set(gca, 'YScale', 'log');
+end
 colorbar;
 xlabel([strrep(param1, '_', '\_'), ' Value']);
 ylabel([strrep(param2, '_', '\_'), ' Value']);

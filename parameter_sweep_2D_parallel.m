@@ -16,9 +16,9 @@ BASE_PARAMS.kHon = 0.05;
 BASE_PARAMS.kHoff = 0.0025;
 BASE_PARAMS.kc = 0.8;
 BASE_PARAMS.kPon_min = 0.01; % at TSS
-BASE_PARAMS.kPon_max = 1.5; % at PAS
+BASE_PARAMS.kPon_max = 1; % at PAS
 BASE_PARAMS.kPoff_min = 0.1; % at PAS
-BASE_PARAMS.kPoff_max = 20; % at TSS
+BASE_PARAMS.kPoff_max = 2; % at TSS
 BASE_PARAMS.kPoff_const = 1;
 BASE_PARAMS.kPon_const = 1;
 
@@ -28,7 +28,7 @@ PASposition = 20000;
 N = floor(geneLength_bp / L_a);
 PAS = floor(PASposition / L_a);
 N_PAS = N - PAS + 1;
-EBindingNumber = 3;
+EBindingNumber = 2;
 
 % Define parameter pairs for 2D sweep
 param_pairs = {
@@ -38,7 +38,8 @@ param_pairs = {
 %     {'kPmin', 'kPmax'}, ...
 %     {'k_e', 'E_total'}
 %     {'k_e', 'kHon'}
-     {'E_total', 'kHon'}
+%     {'kPon_min', 'kPon_max'}
+    {'E_total', 'kHon'}
 };
 
 % Loop through all parameter pairs
@@ -51,13 +52,15 @@ for pair_idx = 1:length(param_pairs)
         case 'k_e'
             param1_values = 35/L_a:10/L_a:95/L_a;
         case 'E_total'
-            param1_values = 60000:15000:120000;
+            param1_values = 10000:10000:100000;
         case 'kc'
             param1_values = 0.2:0.1:1.0;
         case 'kPmin'
             param1_values = logspace(log10(0.05), log10(0.4), 6);
         case 'EBindingNumber'
             param1_values = 2:5; % Range for EBindingNumber
+        case 'kPon_min'
+            param1_values = logspace(log10(0.001), log10(1), 6);
         otherwise
             error('Invalid parameter1 selected');
     end
@@ -70,7 +73,7 @@ for pair_idx = 1:length(param_pairs)
         case 'kEoff'
             param2_values = logspace(0, log10(100), 6);
         case 'kHon'
-            param2_values = logspace(-2, log10(2), 4);
+            param2_values = logspace(log10(0.01), log10(0.2), 6);
         case 'kHoff'
             param2_values = logspace(-3, -1.5, 6);
         case 'kPmax'
@@ -79,6 +82,8 @@ for pair_idx = 1:length(param_pairs)
             param2_values = logspace(log10(0.05), log10(0.4), 6);
         case 'E_total'
             param2_values = 50000:10000:100000;
+        case 'kPon_max'
+            param2_values = logspace(log10(1), log10(20), 6);
         otherwise
             error('Invalid parameter2 selected');
     end
@@ -108,7 +113,7 @@ for pair_idx = 1:length(param_pairs)
             disp('done compute steady states');
 
             kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS); % Range of kPon increases linearly
-            %kPoff_vals = linspace(kPoff_max, kPoff_min, PAS); % Range of kPoff decreases linear
+            %kPoff_vals = linspace(P.kPoff_max, P.kPoff_min, PAS); % Range of kPoff decreases linear
             
             RE_vals = sym(zeros(EBindingNumber + 1, PAS));
             %RE_kPoff_vals = sym(zeros(EBindingNumber + 1, PAS));
@@ -118,7 +123,6 @@ for pair_idx = 1:length(param_pairs)
                     kPon_val = kPon_vals(idx);
                     %kPoff_val = kPoff_vals(idx);
                     RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
-                    %RE_kPoff_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_const, kPoff_val});
                 end
             end
 
@@ -147,8 +151,8 @@ for pair_idx = 1:length(param_pairs)
             
             % Calculate cutoff position in the gene using interpolation
             ratio = (REH_sol(1:end) + R_sol(PAS:end)) / R_sol(PAS-1);
-            node_indices = 1:length(ratio);
-            cutoff_matrix(i,j) = interp1(ratio, node_indices, 0.75, 'linear') * L_a;
+            node_indices = 1:(length(ratio));
+            cutoff_matrix(i,j) = interp1(ratio, node_indices, 0.75, 'linear', 'extrap') * L_a;
         end
     end
 
@@ -156,10 +160,10 @@ for pair_idx = 1:length(param_pairs)
     figure;
     [XX, YY] = meshgrid(param1_values, param2_values);
     contourf(XX, YY, cutoff_matrix, 20, 'LineColor', 'none');
-    if ismember(param1, {'kPmin', 'kPmax', 'kEon', 'kEoff', 'kHon', 'kHoff'})
+    if ismember(param1, {'kPmin', 'kPmax', 'kEon', 'kEoff', 'kHon', 'kHoff', 'kPon_min', 'kPon_max'})
         set(gca, 'XScale', 'log');
     end
-    if ismember(param2, {'kPmin', 'kPmax', 'kEon', 'kEoff', 'kHon', 'kHoff'})
+    if ismember(param2, {'kPmin', 'kPmax', 'kEon', 'kEoff', 'kHon', 'kHoff', 'kPon_min', 'kPon_max'})
         set(gca, 'YScale', 'log');
     end
     colorbar;
@@ -167,7 +171,7 @@ for pair_idx = 1:length(param_pairs)
     ylabel([strrep(param2, '_', '\_'), ' Value']);
     title(['2D Contour Plot of CPA Cutoff (EBindingNumber=', num2str(EBindingNumber), ')']);
     hold on;
-    plot(default1, default2, 'ro', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Default');
+    %plot(default1, default2, 'ro', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Default');
     legend('show');
     grid on;
 

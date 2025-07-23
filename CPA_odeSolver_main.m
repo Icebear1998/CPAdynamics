@@ -5,12 +5,12 @@ L_a = 100;
 
 % Rate parameters scaled by the timescale
 P.k_in    = 2;           % Initiation rate
-P.k_c     = 0.6;         % Cleavage rate
+P.k_c     = 0.2;         % Cleavage rate
 kE_on_min = 0.00001;     % Minimum E binding rate
 kE_on_max = 0.00025;     % Maximum E binding rate
 P.kE_off  = 10;          % E unbinding rate
-P.kL_on   = 0.00025;     % L binding rate
-P.kL_off  = 0.001;       % L unbinding rate
+P.kL_on   = 0.00005;     % L binding rate
+P.kL_off  = 0.0001;       % L unbinding rate
 P.k_e     = 65/L_a;      % Elongation rate before PAS
 P.k_e2    = 30/L_a;      % Elongation rate after PAS
 P.E_total = 70000;                 % Total E molecules
@@ -64,16 +64,22 @@ Pol_f_time = Pol_total - sum(R_sol) - sum(RE_sol) - sum(REL_sol);
 
 function plot_spatial_distribution(R, RE, REL, N, PAS, plot_title)
     l_values = (1-PAS):(N-PAS); 
-    REL_plot = [zeros(PAS-1,1); REL(:)];  % Force REL into a column vector, assume REL=0 for nodes < PAS
+    REL_plot = [zeros(PAS-1,1); REL(:)]; % Force REL into a column vector, assume REL=0 for nodes < PAS
+    
+    % Calculate the sum of R(l) and RE(l)
+    Sum_R_RE = R + RE;
 
     figure;
     hold on;
-    plot(l_values, R, 'b-', 'LineWidth', 2.5, 'DisplayName', 'R(l)');
-    plot(l_values, RE, 'r-', 'LineWidth', 2.5, 'DisplayName', 'RE(l)');
-    plot(l_values, REL_plot, 'g-', 'LineWidth', 3, 'DisplayName', 'REL(l)');
-    xlabel('Distance from PAS (bp)', 'FontSize', 14);
-    ylabel('Pol II (scaled)', 'FontSize', 14);
+    % Plot lines with updated colors and add the new sum line
+    plot(l_values, R, 'c-', 'LineWidth', 2.5, 'DisplayName', 'R(l)');         % Changed from blue to light blue (cyan)
+    plot(l_values, RE, 'y-', 'LineWidth', 2.5, 'DisplayName', 'RE(l)');        % Changed from red to yellow
+    plot(l_values, REL_plot, 'r-', 'LineWidth', 3, 'DisplayName', 'REL(l)');   % Changed from green to red
+    plot(l_values, Sum_R_RE, 'b-', 'LineWidth', 2.5, 'DisplayName', 'R(l) + RE(l)'); % Added blue line for the sum
+    
+    xlabel('Distance from PAS (Bp)', 'FontSize', 14);
+    ylabel('Average Number of Copy', 'FontSize', 14); % Changed Y-axis label to match the image
     legend('show', 'Location', 'northwest');
-    title(plot_title);
+    title('Plot of R(l), RE(l), REL(l) and R(l)+RE(l)'); % Updated title
     hold off;
 end

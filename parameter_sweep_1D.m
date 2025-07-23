@@ -36,7 +36,7 @@ N_PAS = N - PAS + 1;
 % important: 'E_total', 'k_e', 'kPmin', 'kc'
 % 'E_total', 'k_e', 'kPmin', 'kc', 
 % 'kEon',
-param_list = {'kHon'};%'kEoff', 'kHon', 'E_total', 'k_e', 'kc'};
+param_list = {'E_total'};%'kEoff', 'kHon', 'E_total', 'k_e', 'kc'};
 
 % Ensure ode_dynamics_multipleE is available (assumed from context)
 if ~exist('ode_dynamics_multipleE', 'file')
@@ -47,7 +47,7 @@ if ~exist('compute_steady_states', 'file')
 end
 
 % Iterate over EBindingNumber
-for EBindingNumber = 5:5
+for EBindingNumber = 1:1
     fprintf('Running for EBindingNumber = %d\n', EBindingNumber);
     
     % Iterate over each parameter to sweep
@@ -77,7 +77,7 @@ for EBindingNumber = 5:5
                 base_range = 15/L_a:10/L_a:65/L_a; % Linear range
                 param_values = sort(unique([base_range, default_value]));
             case 'E_total'
-                param_values = 50000:10000:100000; % Linear range
+                param_values = 70000:10000:200000; % Linear range
             case 'kc'
                 param_values = 0.2:0.1:1.0; % Linear range
             case 'k_in'
@@ -141,7 +141,7 @@ for EBindingNumber = 5:5
             for e = 1:EBindingNumber + 1
                 for idx = 1:length(kPon_vals)
                     kPon_val = kPon_vals(idx);
-                    kPoff_val = kPoff_vals(idx);
+                    %kPoff_val = kPoff_vals(idx);
                     RE_kPon_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
                     %RE_kPoff_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_const, kPoff_val});
                 end
@@ -228,7 +228,7 @@ for EBindingNumber = 5:5
         
         % Customize plot
         xlabel([strrep(param_to_sweep, '_', '\_'), ' Value'], 'FontSize', 12);
-        ylabel('Position at which 50% cleavage (bp)', 'FontSize', 12);
+        ylabel('Position at which 25% cleavage (bp)', 'FontSize', 12);
         title(['CPA Cutoff vs ', strrep(param_to_sweep, '_', '\_'), ' (EBindingNumber=', num2str(EBindingNumber), ')'], ...
               'FontSize', 14, 'FontWeight', 'bold');
         grid on;
