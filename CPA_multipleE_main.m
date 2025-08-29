@@ -7,17 +7,17 @@ P.kEon    = 0.00025;
 P.kEoff   = 10;
 P.k_e     = 65/L_a;
 P.k_e2    = 30/L_a;
-P.E_total = 10000;
+P.E_total = 70000;
 P.L_total = 100000;
 P.Pol_total = 70000;
-P.kHon = 0.05; % based on typical k bind and estimated J factor for H.
-P.kHoff = 0.0025; 
-P.kc = 0.8; %not sure
+P.kHon = 0.2; % based on typical k bind and estimated J factor for H.
+P.kHoff = 0.0125; 
+P.kc = 0.05; %not sure
 
 kPon_min = 0.01; % at TSS
 kPon_max = 1; % at PAS
 kPoff_min = 0.1; % at PAS
-kPoff_max = 2; % at TSS
+kPoff_max = 1; % at TSS
 kPoff_const = 1;
 kPon_const = 1;
 
@@ -26,8 +26,6 @@ PASposition   = 20000;
 N      = floor(geneLength_bp / L_a);  % total nodes
 PAS    = floor(PASposition   / L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
-PAUSE_LENGTH = 20; % length of pause region in number of nodes
-N_PAUSE = PAS+PAUSE_LENGTH;
 Ef_ss = 0;
 P.kHon_afterPAS = P.kHon*ones(1,N_PAS);
 
@@ -39,8 +37,8 @@ disp('done compute steady states');
 kPon_vals = linspace(kPon_min, kPon_max, PAS); % Range of Kp for kPon increases linearly 
 %kPoff_vals = linspace(kPoff_min, kPoff_min, PAUSE_LENGTH); % Range of Kp for kPoff decreases linearly 
 
-RE_vals = sym(zeros(EBindingNumber+1, N_PAUSE));
-P_vals = sym(zeros(EBindingNumber+1, N_PAUSE));
+RE_vals = sym(zeros(EBindingNumber+1, N));
+P_vals = sym(zeros(EBindingNumber+1, N));
 
 for e = 1:EBindingNumber+1
     for i = 1:PAS
@@ -54,10 +52,6 @@ for e = 1:EBindingNumber+1
         RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_max, kPoff_min});
         P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_max, kPoff_min});
     end
-%     for i = N_PAUSE+1:N
-%         RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_max, kPoff_min});
-%         P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_max, kPoff_min});
-%     end
 end
 disp('done compute EBindingNumber');
 
@@ -122,12 +116,24 @@ plot(l_values, [zeros(PAS-1,1);REH_sol], 'r-','LineWidth',2.5, 'DisplayName','RE
 xlabel('Time'); ylabel('Total Pol II');
 legend({'Total R', 'Total REH'}, 'Location', 'best');
 title('Time Evolution of R and REH');
+hold off;
+
+% 1. Calculate the final, steady-state concentration of free Pol II
+% This is the total Pol II minus all polymerases bound to the gene (R and REH).
+bound_pol_II = sum(R_sol) + sum(REH_sol);
+Pol_f_final = P.Pol_total - bound_pol_II;
+
+% 2. Display the values in the command window for clarity
+fprintf('\n--- Polymerase Distribution at Steady State ---\n');
+fprintf('Total Pol II in system: %d\n', P.Pol_total);
+fprintf('Total Bound Pol II (on gene): %.2f\n', bound_pol_II);
+fprintf('Total Free Pol II (Pol_f):    %.2f\n', Pol_f_final);
 
 
 
 %% ------------ ODE DYNAMICS FUNCTION ------------
 function dxdt = ode_dynamics(X, P)
-global N PAS Ef_ss N_PAUSE FirstRun
+global N PAS Ef_ss FirstRun
 
 k_in   = P.k_in;
 k_e    = P.k_e;
@@ -146,8 +152,8 @@ if FirstRun
     end
 
     % Calculate E_used based on current Ef_ss 
-    %REvalbindE = RE_val_bind_E(Ef_ss);
-    E_used = sum(R(1:N)' .* RE_val_bind_E(Ef_ss)) + sum(REH, 1);
+    REvalbindEAfterPas = RE_val_bind_E(Ef_ss);
+    E_used = sum(R(1:N)' .* RE_val_bind_E(Ef_ss)) + sum(REH' .* REvalbindEAfterPas(PAS:N));%+ sum(REH, 1);
     
     % Compute E_f as the difference between total and used E
     E_f = abs(P.E_total - E_used); % Ensure non-negative E_f

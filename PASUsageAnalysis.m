@@ -1,0 +1,123 @@
+% Parameter sweep setup
+global N PAS N_PAS Ef_ss;
+syms Ef real;
+
+% --- CONFIGURATION ---
+% 1. Define the ranges for the two sweep parameters
+kHoff_values = logspace(log10(0.001), log10(10), 8); % Log scale for wide range
+E_total_values = 10000:30000:130000;
+
+% 2. Define the fixed, biologically relevant distance for the metric
+fixed_distance_bp = 1000;
+
+% --- BASE PARAMETERS ---
+P.L_a = 100;
+P.k_in = 2;
+P.kEon = 0.00025;
+P.kEoff = 10;
+P.k_e = 65/100;
+P.k_e2 = 30/100;
+P.E_total = 70000;
+P.L_total = 100000;
+P.Pol_total = 70000;
+P.kHon = 0.2;
+P.kHoff = 0.0125;
+P.kc = 0.05;
+P.kPon_min = 0.01;
+P.kPon_max = 1;
+P.kPoff_min = 0.1;
+P.kPoff_max = 2;
+P.kPoff_const = 1;
+
+P.geneLength_bp = 25000;
+P.PASposition = 20000;
+P.EBindingNumber = 3;
+
+% --- Global variables for ODE function ---
+N = floor(geneLength_bp / L_a);
+PAS = floor(PASposition / L_a);
+N_PAS = N - PAS + 1;
+
+% --- SIMULATION SETUP ---
+% Matrix to store results: rows are for E_total, columns for kHoff
+results_matrix = zeros(length(E_total_values), length(kHoff_values));
+
+% --- 2D PARAMETER SWEEP LOOP ---
+fprintf('Starting 2D sweep over kHoff and E_total...\n');
+for i = 1:length(E_total_values)
+    for j = 1:length(kHoff_values)
+        P_run = P;
+        % Set the parameters for this specific run
+        P_run.E_total = E_total_values(i);
+        P_run.kHoff = kHoff_values(j);
+
+        fprintf('Running: E_total = %d, kHoff = %.4g\n', E_total_values(i), kHoff_values(j));
+
+        % Run the simulation to get the read-through ratio vector
+        [ratio] = run_termination_simulation(P_run, EBindingNumber);
+
+        % Interpolate to find the single ratio value at our fixed distance
+        nodes_post_pas = 0:(length(ratio)-1);
+        bp_post_pas = nodes_post_pas * P.L_a;
+        distal_usage_at_dist = interp1(bp_post_pas, ratio, fixed_distance_bp, 'linear', 'extrap');
+        
+        % Cap the distal usage probability at 1.0 to prevent negative proximal usage
+        if distal_usage_at_dist > 1.0
+            distal_usage_at_dist = 1.0;
+        end
+        
+        % Store the PROXIMAL usage percentage in the results matrix
+        results_matrix(i, j) = (1 - distal_usage_at_dist) * 100;
+    end
+end
+disp('All simulations complete.');
+
+% --- PLOT THE CONTOUR MAP ---
+figure('Position', [100, 100, 900, 700]);
+hold on;
+
+% Use contourf for a filled contour plot
+[X, Y] = meshgrid(kHoff_values, E_total_values);
+contourf(X, Y, results_matrix, 10, 'LineColor', 'k'); % 10 contour levels
+
+% Customize the plot
+set(gca, 'XScale', 'log'); % Use a log scale for kHoff as it spans orders of magnitude
+xlabel('PAS Strength (kHoff)', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Global Factor (E_{total})', 'FontSize', 12, 'FontWeight', 'bold');
+title(sprintf('Phase Diagram of Proximal PAS Usage (at %d bp)', fixed_distance_bp), 'FontSize', 14, 'FontWeight', 'bold');
+
+% Add and label the color bar
+c = colorbar;
+c.Label.String = 'Proximal Site Usage (%)';
+c.Label.FontSize = 12;
+colormap('parula'); % A perceptually uniform colormap is good for this
+
+set(gca, 'FontSize', 10);
+box on;
+
+%% --- Helper function to run the simulation (using stable two-step solver) ---
+function [ratio_vector] = run_termination_simulation(P, EBindingNumber)
+    global N PAS N_PAS Ef_ss;
+    syms Ef real;
+    L_a = P.L_a; N = floor(P.geneLength_bp / L_a); PAS = floor(P.PASposition / L_a); N_PAS = N - PAS + 1;
+    kHon_base = P.kHon;
+    [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1);
+    kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS);
+    RE_vals = sym(zeros(EBindingNumber + 1, N));
+    for e = 1:EBindingNumber + 1
+        for idx = 1:length(kPon_vals); RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const}); end
+        for idx = PAS+1:N; RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_min}); end
+    end
+    P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
+    X_guess = 1e-6 * ones(N + N_PAS, 1);
+    options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
+    P.FirstRun = true; P.is_unphysical = false; Ef_ss = 0;
+    try X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
+    catch; error('Solver failed in Step 1.'); end
+    if P.is_unphysical; error('Solver returned unphysical result in Step 1.'); end
+    avg_E_bound = P.RE_val_bind_E(Ef_ss);
+    P.FirstRun = false; P.kHon = kHon_base * avg_E_bound(end);
+    X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_base, options);
+    R_sol = X_final(1:N); REH_sol = X_final(N+1 : N+N_PAS);
+    ratio_vector = (REH_sol(1:end) + R_sol(PAS:end)) / (R_sol(PAS-1) + 1e-9);
+end

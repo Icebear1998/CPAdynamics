@@ -12,11 +12,14 @@ P.k_e2 = 30/L_a;
 P.E_total = 70000;
 P.L_total = 100000;
 P.Pol_total = 70000;
-P.kHon = 0.05;
-P.kHoff = 0.0025;
-P.kc = 0.8;
-% P.kPmin = 0.1;
-% P.kPmax = 40;
+P.kHon = 0.2;
+P.kHoff = 0.0125;
+P.kc = 0.05;
+P.kPon_min = 0.01;
+P.kPon_max = 1;
+P.kPoff_min = 0.1;
+P.kPoff_max = 2;
+P.kPoff_const = 1;
 
 P.kPon_min = 0.01; % at TSS
 P.kPon_max = 1.5; % at PAS
@@ -36,7 +39,7 @@ N_PAS = N - PAS + 1;
 % important: 'E_total', 'k_e', 'kPmin', 'kc'
 % 'E_total', 'k_e', 'kPmin', 'kc', 
 % 'kEon',
-param_list = {'E_total'};%'kEoff', 'kHon', 'E_total', 'k_e', 'kc'};
+param_list = {'kHoff'};%'kEoff', 'kHon', 'E_total', 'k_e', 'kc'};
 
 % Ensure ode_dynamics_multipleE is available (assumed from context)
 if ~exist('ode_dynamics_multipleE', 'file')
@@ -47,7 +50,7 @@ if ~exist('compute_steady_states', 'file')
 end
 
 % Iterate over EBindingNumber
-for EBindingNumber = 1:1
+for EBindingNumber = 5:5
     fprintf('Running for EBindingNumber = %d\n', EBindingNumber);
     
     % Iterate over each parameter to sweep
@@ -61,9 +64,14 @@ for EBindingNumber = 1:1
         P.E_total = 70000;
         P.L_total = 100000;
         P.Pol_total = 70000;
-        P.kHon = 0.05;
-        P.kHoff = 0.0025;
-        P.kc = 0.8;
+        P.kHon = 0.2;
+        P.kHoff = 0.0125;
+        P.kc = 0.05;
+        P.kPon_min = 0.01;
+        P.kPon_max = 1;
+        P.kPoff_min = 0.1;
+        P.kPoff_max = 2;
+        P.kPoff_const = 1;
         
         param_to_sweep = param_list{param_idx};
         default_value = P.(param_to_sweep);
@@ -93,7 +101,7 @@ for EBindingNumber = 1:1
                 base_range = logspace(-2, 0, 5); % Log range
                 param_values = sort(unique([base_range, default_value]));
             case 'kHoff'
-                base_range = logspace(-3, -1.5, 5); % Log range
+                base_range = logspace(-3, 0, 8); % Log range
                 param_values = sort(unique([base_range, default_value]));
             case 'kPmin'
                 base_range = logspace(log10(0.05), log10(0.4), 5); % Log range
@@ -108,7 +116,7 @@ for EBindingNumber = 1:1
         end
 
         % Initialize arrays
-        cutoff_values_kPon = zeros(1, length(param_values));
+        cutoff_values = zeros(1, length(param_values));
         cutoff_values_kPoff = zeros(1, length(param_values));
 
         % Parameter sweep
@@ -127,28 +135,27 @@ for EBindingNumber = 1:1
                 disp('done compute steady states');
             catch ME
                 fprintf('Error in compute_steady_states for %s = %.4g: %s\n', param_to_sweep, param_values(k), ME.message);
-                cutoff_values_kPon(k) = NaN;
+                cutoff_values(k) = NaN;
                 cutoff_values_kPoff(k) = NaN;
                 continue;
             end
             
-            kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS); % Range of kPon increases linearly
-            %kPoff_vals = linspace(kPoff_max, kPoff_min, PAS); % Range of kPoff decreases linearly
-            
-            RE_kPon_vals = sym(zeros(EBindingNumber + 1, PAS));
-            %RE_kPoff_vals = sym(zeros(EBindingNumber + 1, PAS));
+            kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS); % Range of Kp for kPon increases linearly 
+            RE_vals = sym(zeros(EBindingNumber+1, N));
 
-            for e = 1:EBindingNumber + 1
-                for idx = 1:length(kPon_vals)
-                    kPon_val = kPon_vals(idx);
-                    %kPoff_val = kPoff_vals(idx);
-                    RE_kPon_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
-                    %RE_kPoff_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_const, kPoff_val});
+            for e = 1:EBindingNumber+1
+                for i = 1:PAS
+                    kPon_val = kPon_vals(i);
+                    RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
+                end
+                for i = PAS+1:N
+                    RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_min});
                 end
             end
+            disp('done compute EBindingNumber');
 
-            P.RE_val_bind_E_kPon = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_kPon_vals(2:end, :), 1)), 'Vars', {Ef});
-            %P.RE_val_bind_E_kPoff = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_kPoff_vals(2:end, :), 1)), 'Vars', {Ef});
+            P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
+            disp('done compute RE_val_bind_E');
 
             P.FirstRun = true;
             P.is_unphysical = false; % Reset flag
@@ -157,18 +164,16 @@ for EBindingNumber = 1:1
             options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8, 'MaxIterations', 1000);
             X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X0, options);
             if P.is_unphysical || any(isnan(X)) || any(isinf(X))
-                cutoff_values_kPon(k) = -1;
-                %cutoff_values_kPoff(k) = -1;
+                cutoff_values(k) = -1;
                 continue;
             end
 
-            avg_E_bound_kPon = P.RE_val_bind_E_kPon(Ef_ss);
-            %avg_E_bound_kPoff = P.RE_val_bind_E_kPoff(Ef_ss);
+            avg_E_bound = P.RE_val_bind_E(Ef_ss);
 
             % Recalculate kHon
             P.FirstRun = false;
             X1 = X;
-            P.kHon = kHon_default * avg_E_bound_kPon(end);
+            P.kHon = kHon_default * avg_E_bound(end);
             X_adj = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X1, options);
 
             R_sol = X_adj(1:N);
@@ -176,14 +181,14 @@ for EBindingNumber = 1:1
             
             % Calculate cutoff position for kPon
             if R_sol(PAS-1) == 0
-                cutoff_values_kPon(k) = -1;
+                cutoff_values(k) = -1;
             else
                 ratio = (REH_sol(1:end) + R_sol(PAS:end)) / R_sol(PAS-1);
                 node_indices = 1:length(ratio);
                 if all(ratio >= 0.75)
-                    cutoff_values_kPon(k) = -1;
+                    cutoff_values(k) = -1;
                 else
-                    cutoff_values_kPon(k) = interp1(ratio, node_indices, 0.75, 'linear', -1) * L_a;
+                    cutoff_values(k) = interp1(ratio, node_indices, 0.75, 'linear', 'extrap') * L_a;
                 end
             end
 
@@ -213,13 +218,13 @@ for EBindingNumber = 1:1
         if ismember(param_to_sweep, {'k_in', 'kEon', 'kEoff', 'kHon', 'kHoff', 'kPmin', 'kPmax'})
             set(gca, 'XScale', 'log');
         end
-        plot(param_values, cutoff_values_kPon, 'o-', 'LineWidth', 2, 'MarkerSize', 8, ...
+        plot(param_values, cutoff_values, 'o-', 'LineWidth', 2, 'MarkerSize', 8, ...
              'Color', [0, 0.4470, 0.7410], 'DisplayName', 'kPon');
 %         plot(param_values, cutoff_values_kPoff, 'o-', 'LineWidth', 2, 'MarkerSize', 8, ...
 %              'Color', [0.8500, 0.3250, 0.0980], 'DisplayName', 'kPoff');
         
         % Highlight default parameter value with interpolation
-        default_kPon = interp1(param_values, cutoff_values_kPon, default_value, 'linear', 'extrap');
+        default_kPon = interp1(param_values, cutoff_values, default_value, 'linear', 'extrap');
         %default_kPoff = interp1(param_values, cutoff_values_kPoff, default_value, 'linear', 'extrap');
         plot(default_value, default_kPon, 'ro', 'MarkerSize', 10, 'LineWidth', 2, ...
              'DisplayName', 'Default kPon');
