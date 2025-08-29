@@ -23,7 +23,7 @@ P.k_in = 2; P.k_e = 65/100; P.k_e2 = 30/100; P.E_total = 70000;
 P.Pol_total = 70000; P.kEon = 0.00025; P.kEoff = 10; P.kHon = 0.2;
 P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_max = 1;
 P.kPoff_const = 1; P.kPoff_max = 2; P.kPoff_min = 0.1; P.L_a = 100;
-P.geneLength_bp = 25000; P.PASposition = 20000; EBindingNumber = 3;
+P.geneLength_bp = 25000; P.PASposition = 20000; EBindingNumber = 2;
 
 % --- SIMULATION SETUP ---
 inter_pas_distances_bp = 0:100:2500;
@@ -72,7 +72,8 @@ for p_idx = 1:length(sweep_param_values)
     
     % 5. Interpolate the CDF to the desired distances for plotting
     proximal_usage_results_cdf(:, p_idx) = interp1(bp_for_interp, cdf_for_interp, inter_pas_distances_bp, 'linear', 'extrap');
-    
+    cutoff_value = interp1(cdf_for_interp, bp_for_interp, 0.75, 'linear', 'extrap');
+    disp(cutoff_value);
     %%-- MODIFIED SECTION END --%%
 end
 disp('All simulations complete.');
