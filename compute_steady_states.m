@@ -101,3 +101,4 @@ function kon_t = afterPasPams(r, n, kHon)
 %     koff_t = simplify(sum(r(RI_index:end)) * kHoff / Rii);
 %     kc_t = simplify(sum(r(RI_index:end)) * kc / Rii);
 end
+

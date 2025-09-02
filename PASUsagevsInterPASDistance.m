@@ -94,12 +94,12 @@ for i = 1:length(inter_pas_distances_bp)
     if node_idx < 1
         node_idx = 1;
     end
-    if node_idx > length(ratio)
-        node_idx = length(ratio);
+    if node_idx > length(ratio_vector)
+        node_idx = length(ratio_vector);
     end
 
     % The probability of using the DISTAL site is the read-through 'ratio'
-    distal_prob = ratio(node_idx);
+    distal_prob = ratio_vector(node_idx);
     
     % The choice is binary, so the probability of using the PROXIMAL site is 1 minus the distal probability
     proximal_usage_prob(i) = 1 - distal_prob;

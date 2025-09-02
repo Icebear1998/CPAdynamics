@@ -3,7 +3,7 @@
 % UPDATED with user-proposed flux-based CDF to ensure 100% completion
 
 % --- CONFIGURATION: CHOOSE THE PARAMETER TO SWEEP ---
-sweep_param_name = 'kHoff';
+sweep_param_name = 'kc';
 
 switch sweep_param_name
     case 'E_total'
@@ -23,7 +23,7 @@ P.k_in = 2; P.k_e = 65/100; P.k_e2 = 30/100; P.E_total = 70000;
 P.Pol_total = 70000; P.kEon = 0.00025; P.kEoff = 10; P.kHon = 0.2;
 P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_max = 1;
 P.kPoff_const = 1; P.kPoff_max = 2; P.kPoff_min = 0.1; P.L_a = 100;
-P.geneLength_bp = 25000; P.PASposition = 20000; EBindingNumber = 2;
+P.geneLength_bp = 25000; P.PASposition = 20000; EBindingNumber = 5;
 
 % --- SIMULATION SETUP ---
 inter_pas_distances_bp = 0:100:2500;
