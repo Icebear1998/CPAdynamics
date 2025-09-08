@@ -93,6 +93,18 @@ colormap('parula');
 set(gca, 'FontSize', 10);
 box on;
 
+% --- SAVE RESULTS ---
+% Prepare data structure for saving
+data.results_matrix = results_matrix;
+data.x_values = kHoff_values;
+data.y_values = E_total_values;
+data.x_label = 'kHoff';
+data.y_label = 'E_total';
+data.metric_distance = fixed_distance_bp;
+
+% Save results using the utility function
+save_analysis_results('PASUsageAnalysis', data, P);
+
 %% --- Helper function to run the simulation ---
 function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
     % MODIFIED: Now returns the P struct as well, as it contains k_e, k_e2 etc.

@@ -129,6 +129,19 @@ fprintf('Total Pol II in system: %d\n', P.Pol_total);
 fprintf('Total Bound Pol II (on gene): %.2f\n', bound_pol_II);
 fprintf('Total Free Pol II (Pol_f):    %.2f\n', Pol_f_final);
 
+% --- SAVE RESULTS ---
+% Prepare data structure for saving
+data.EBindingNumber = EBindingNumber;
+data.R_sol = R_sol;
+data.REH_sol = REH_sol;
+data.Ser2P = Ser2P;
+data.avg_E_bound = avg_E_bound;
+data.Ef_ss = Ef_ss;
+data.Pol_f_final = Pol_f_final;
+
+% Save results using the utility function
+save_analysis_results('CPA_multipleE_main', data, P);
+
 
 
 %% ------------ ODE DYNAMICS FUNCTION ------------

@@ -247,10 +247,14 @@ for EBindingNumber = 5:5
                    'String', ['Generated at ', current_time], ...
                    'EdgeColor', 'none', 'HorizontalAlignment', 'center', 'FontSize', 8);
 
-        % Save the plot with high quality
-%         filename = sprintf('CPA_Cutoff_EBinding%d_%s.png', EBindingNumber, param_to_sweep);
-%         saveas(gcf, filename, 'png');
-%         print(gcf, filename, '-dpng', '-r300'); % High-resolution save
-%         close(gcf); % Close the figure to save memory
+        % --- SAVE RESULTS ---
+        % Prepare data structure for saving
+        data.EBindingNumber = EBindingNumber;
+        data.sweep_param = param_to_sweep;
+        data.param_values = param_values;
+        data.cutoff_values = cutoff_values;
+        
+        % Save results using the utility function
+        save_analysis_results('parameter_sweep_1D', data, P);
     end
 end

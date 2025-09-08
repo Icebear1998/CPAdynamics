@@ -124,4 +124,15 @@ set(gca, 'FontSize', 10);
 box on;
 ylim([0 100]); % Ensure y-axis is from 0% to 100%
 
+% --- SAVE RESULTS ---
+% Prepare data structure for saving
+data.EBindingNumber = EBindingNumber;
+data.inter_pas_distances_bp = inter_pas_distances_bp;
+data.proximal_usage_prob = proximal_usage_prob;
+data.R_sol = R_sol;
+data.REH_sol = REH_sol;
+
+% Save results using the utility function
+save_analysis_results('PASUsagevsInterPASDistance', data, P);
+
 disp('Done.');

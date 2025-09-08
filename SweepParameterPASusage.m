@@ -89,6 +89,17 @@ title(plot_title, 'FontSize', 14, 'FontWeight', 'bold');
 grid on; legend('show', 'Location', 'best'); set(gca, 'FontSize', 10); box on;
 ylim([0 100]);
 
+% --- SAVE RESULTS ---
+% Prepare data structure for saving
+data.results_matrix = proximal_usage_results_cdf;
+data.x_values = inter_pas_distances_bp;
+data.sweep_values = sweep_param_values;
+data.sweep_param = sweep_param_name;
+
+% Save results using the utility function
+extra_info = sprintf('EBinding%d', EBindingNumber);
+save_analysis_results('ParameterSweep', data, P, 'ExtraInfo', extra_info);
+
 %% --- Helper function to run the simulation ---
 function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
     % MODIFIED: Now returns the P struct as well, as it contains k_e, k_e2 etc.

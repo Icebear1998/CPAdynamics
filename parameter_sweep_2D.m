@@ -149,6 +149,18 @@ for pair_idx = 1:length(param_pairs)
     title(['CPA Cutoff vs ', strrep(param1, '_', '\_'), ' by ', strrep(param2, '_', '\_')], 'FontSize', 14);
     grid on; legend('show', 'Location', 'best'); set(gca, 'FontSize', 10); box on;
     hold off;
+    
+    % --- SAVE RESULTS ---
+    % Prepare data structure for saving
+    data.EBindingNumber = EBindingNumber;
+    data.param1 = param1;
+    data.param2 = param2;
+    data.param1_values = param1_values;
+    data.param2_values = param2_values;
+    data.cutoff_matrix = cutoff_matrix;
+    
+    % Save results using the utility function
+    save_analysis_results('parameter_sweep_2D', data, P);
 end
 
 % --- Helper Functions (ode_dynamics_multipleE, compute_steady_states, etc. would be here) ---
