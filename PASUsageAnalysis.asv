@@ -4,8 +4,8 @@ syms Ef real;
 
 % --- CONFIGURATION ---
 % 1. Define the ranges for the two sweep parameters
-kHoff_values = logspace(log10(0.001), log10(10), 8); % Log scale for wide range
-E_total_values = 10000:30000:130000;
+kHoff_values = logspace(log10(0.001), log10(0.1), 10); % Log scale for wide range
+E_total_values = 50000:10000:140000;
 
 % 2. Define the fixed, biologically relevant distance for the metric
 fixed_distance_bp = 300;
@@ -31,16 +31,12 @@ P.kPoff_const = 1;
 
 P.geneLength_bp = 25000;
 P.PASposition = 20000;
-P.EBindingNumber = 3;
+P.EBindingNumber = 5;
 
 % --- Global variables for ODE function ---
-N = floor(geneLength_bp / L_a);
-PAS = floor(PASposition / L_a);
+N = floor(P.geneLength_bp / P.L_a);
+PAS = floor(P.PASposition / P.L_a);
 N_PAS = N - PAS + 1;
-
-% --- SIMULATION SETUP ---
-% Matrix to store results: rows are for E_total, columns for kHoff
-results_matrix = zeros(length(E_total_values), length(kHoff_values));
 
 % --- 2D PARAMETER SWEEP LOOP ---
 fprintf('Starting 2D sweep over kHoff and E_total...\n');
@@ -53,70 +49,71 @@ for i = 1:length(E_total_values)
 
         fprintf('Running: E_total = %d, kHoff = %.4g\n', E_total_values(i), kHoff_values(j));
 
+        % Run simulation to get steady-state concentrations and parameters used
+        [R_sol, REH_sol, P_sim] = run_termination_simulation(P_run, P_run.EBindingNumber);
+
+        % --- NEW CALCULATION: Flux-based CDF of Total Polymerase Exit ---
+        if any(isnan(R_sol))
+            results_matrix(i, j) = NaN;
+            continue;
+        end
+
         % 1. Calculate all flux components
         flux_cleavage_per_node = P_sim.kc * REH_sol;
         flux_R_exit            = P_sim.k_e * R_sol(end);
         flux_REH_exit          = P_sim.k_e2 * REH_sol(end);
         total_outflux          = sum(flux_cleavage_per_node) + flux_R_exit + flux_REH_exit;
 
-        % 2. Create the "exit flux per node" vector as per your logic
+        % 2. Create the "exit flux per node" vector
         exit_flux_per_node = flux_cleavage_per_node;
         exit_flux_per_node(end) = exit_flux_per_node(end) + flux_R_exit + flux_REH_exit;
 
         % 3. Calculate the Cumulative Distribution Function (CDF)
-        if total_outflux > 1e-9 % Use threshold to avoid division by zero
+        if total_outflux > 1e-9
             cumulative_exit_flux = cumsum(exit_flux_per_node);
-            % Normalize by the total outflux to ensure the final value is 1
             exit_cdf = cumulative_exit_flux / total_outflux;
         else
             exit_cdf = zeros(size(REH_sol));
         end
 
-        % 4. Prepare data for interpolation (BUG FIX HERE)
+        % 4. Prepare data for interpolation
         nodes_post_pas = 1:length(REH_sol);
         bp_post_pas = nodes_post_pas * P_sim.L_a;
-
-        % Prepend a (0,0) point to the data for a proper CDF start and to fix vector lengths
-        bp_for_interp = [0; bp_post_pas(:)];       % Vector length is N_PAS + 1
-        cdf_for_interp = [0; exit_cdf(:)];        % Vector length is N_PAS + 1
-
-        % 5. Interpolate the CDF to the desired distances for plotting
-        proximal_usage_results_cdf(:, p_idx) = interp1(bp_for_interp, cdf_for_interp, inter_pas_distances_bp, 'linear', 'extrap');
-        cutoff_value = interp1(cdf_for_interp, bp_for_interp, 0.75, 'linear', 'extrap');
-        disp(cutoff_value);
+        bp_for_interp = [0; bp_post_pas(:)];
+        cdf_for_interp = [0; exit_cdf(:)];
+        
+        % 5. Interpolate the CDF at the fixed distance to get the final metric
+        usage_at_dist = interp1(bp_for_interp, cdf_for_interp, fixed_distance_bp, 'linear', 'extrap');
+        
+        results_matrix(i, j) = usage_at_dist * 100;
     end
 end
 disp('All simulations complete.');
 
 % --- PLOT THE CONTOUR MAP ---
 figure('Position', [100, 100, 900, 700]);
-hold on;
-
-% Use contourf for a filled contour plot
 [X, Y] = meshgrid(kHoff_values, E_total_values);
-contourf(X, Y, results_matrix, 10, 'LineColor', 'k'); % 10 contour levels
-
-% Customize the plot
-set(gca, 'XScale', 'log'); % Use a log scale for kHoff as it spans orders of magnitude
+contourf(X, Y, results_matrix, 10, 'LineColor', 'k');
+set(gca, 'XScale', 'log');
 xlabel('PAS Strength (kHoff)', 'FontSize', 12, 'FontWeight', 'bold');
 ylabel('Global Factor (E_{total})', 'FontSize', 12, 'FontWeight', 'bold');
-title(sprintf('Phase Diagram of Proximal PAS Usage (at %d bp)', fixed_distance_bp), 'FontSize', 14, 'FontWeight', 'bold');
-
-% Add and label the color bar
+title(sprintf('Phase Diagram of Cumulative Polymerase Exit (at %d bp)', fixed_distance_bp), 'FontSize', 14, 'FontWeight', 'bold');
 c = colorbar;
-c.Label.String = 'Proximal Site Usage (%)';
+c.Label.String = 'Cumulative Exit (%)';
 c.Label.FontSize = 12;
-colormap('parula'); % A perceptually uniform colormap is good for this
-
+colormap('parula');
 set(gca, 'FontSize', 10);
 box on;
 
-%% --- Helper function to run the simulation (using stable two-step solver) ---
-function [ratio_vector] = run_termination_simulation(P, EBindingNumber)
+%% --- Helper function to run the simulation ---
+function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
+    % MODIFIED: Now returns the P struct as well, as it contains k_e, k_e2 etc.
     global N PAS N_PAS Ef_ss;
     syms Ef real;
+    
     L_a = P.L_a; N = floor(P.geneLength_bp / L_a); PAS = floor(P.PASposition / L_a); N_PAS = N - PAS + 1;
     kHon_base = P.kHon;
+    
     [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1);
     kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS);
     RE_vals = sym(zeros(EBindingNumber + 1, N));
@@ -125,15 +122,19 @@ function [ratio_vector] = run_termination_simulation(P, EBindingNumber)
         for idx = PAS+1:N; RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_min}); end
     end
     P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
+
     X_guess = 1e-6 * ones(N + N_PAS, 1);
     options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
+
     P.FirstRun = true; P.is_unphysical = false; Ef_ss = 0;
-    try X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
+    try; X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
     catch; error('Solver failed in Step 1.'); end
     if P.is_unphysical; error('Solver returned unphysical result in Step 1.'); end
+
     avg_E_bound = P.RE_val_bind_E(Ef_ss);
     P.FirstRun = false; P.kHon = kHon_base * avg_E_bound(end);
     X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_base, options);
-    R_sol = X_final(1:N); REH_sol = X_final(N+1 : N+N_PAS);
-    ratio_vector = (REH_sol(1:end) + R_sol(PAS:end)) / (R_sol(PAS-1) + 1e-9);
+    
+    R_sol = X_final(1:N);
+    REH_sol = X_final(N+1 : N+N_PAS);
 end

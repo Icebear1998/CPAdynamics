@@ -2,6 +2,9 @@
 % GENERALIZED to sweep over any chosen global factor
 % UPDATED with user-proposed flux-based CDF to ensure 100% completion
 
+% MODIFIED: Start a parallel pool of workers if one is not already running.
+if isempty(gcp('nocreate')); parpool; end
+
 % --- CONFIGURATION: CHOOSE THE PARAMETER TO SWEEP ---
 sweep_param_name = 'kc';
 
@@ -19,6 +22,7 @@ switch sweep_param_name
 end
 
 % --- BASE PARAMETERS ---
+% (Parameter definitions are unchanged)
 P.k_in = 2; P.k_e = 65/100; P.k_e2 = 30/100; P.E_total = 70000;
 P.Pol_total = 70000; P.kEon = 0.00025; P.kEoff = 10; P.kHon = 0.2;
 P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_max = 1;
@@ -30,53 +34,42 @@ inter_pas_distances_bp = 0:100:2500;
 proximal_usage_results_cdf = zeros(length(inter_pas_distances_bp), length(sweep_param_values));
 
 % --- PARAMETER SWEEP LOOP ---
-fprintf('Starting sweep over parameter: %s\n', sweep_param_name);
-for p_idx = 1:length(sweep_param_values)
+fprintf('Starting parallel sweep over parameter: %s\n', sweep_param_name);
+
+% MODIFIED: Changed 'for' to 'parfor' to distribute iterations across workers.
+parfor p_idx = 1:length(sweep_param_values)
+    % Create a copy of the parameters for this iteration.
     P_run = P;
     P_run.(sweep_param_name) = sweep_param_values(p_idx);
-    fprintf('Running simulation for %s = %.3g...\n', sweep_param_name, sweep_param_values(p_idx));
-
-    %%-- MODIFIED SECTION START --%%
     
+    % NOTE: Removed the fprintf from inside the loop as output order is not guaranteed.
+
     % Run simulation to get steady-state concentrations and parameters used
     [R_sol, REH_sol, P_sim] = run_termination_simulation(P_run, EBindingNumber);
 
     % --- NEW CALCULATION: Flux-based CDF of Total Polymerase Exit ---
-    
-    % 1. Calculate all flux components
     flux_cleavage_per_node = P_sim.kc * REH_sol;
     flux_R_exit            = P_sim.k_e * R_sol(end);
     flux_REH_exit          = P_sim.k_e2 * REH_sol(end);
     total_outflux          = sum(flux_cleavage_per_node) + flux_R_exit + flux_REH_exit;
 
-    % 2. Create the "exit flux per node" vector as per your logic
-    exit_flux_per_node = flux_cleavage_per_node;
-    exit_flux_per_node(end) = exit_flux_per_node(end) + flux_R_exit + flux_REH_exit;
-
-    % 3. Calculate the Cumulative Distribution Function (CDF)
-    if total_outflux > 1e-9 % Use threshold to avoid division by zero
-        cumulative_exit_flux = cumsum(exit_flux_per_node);
-        % Normalize by the total outflux to ensure the final value is 1
+    if total_outflux > 1e-9
+        cumulative_exit_flux = cumsum(flux_cleavage_per_node);
         exit_cdf = cumulative_exit_flux / total_outflux;
     else
         exit_cdf = zeros(size(REH_sol));
     end
 
-    % 4. Prepare data for interpolation (BUG FIX HERE)
     nodes_post_pas = 1:length(REH_sol);
     bp_post_pas = nodes_post_pas * P_sim.L_a;
+    bp_for_interp = [0; bp_post_pas(:)];
+    cdf_for_interp = [0; exit_cdf(:)];
     
-    % Prepend a (0,0) point to the data for a proper CDF start and to fix vector lengths
-    bp_for_interp = [0; bp_post_pas(:)];       % Vector length is N_PAS + 1
-    cdf_for_interp = [0; exit_cdf(:)];        % Vector length is N_PAS + 1
-    
-    % 5. Interpolate the CDF to the desired distances for plotting
+    % Interpolate the CDF and store it in the results matrix.
+    % parfor handles this "sliced" assignment correctly.
     proximal_usage_results_cdf(:, p_idx) = interp1(bp_for_interp, cdf_for_interp, inter_pas_distances_bp, 'linear', 'extrap');
-    cutoff_value = interp1(cdf_for_interp, bp_for_interp, 0.75, 'linear', 'extrap');
-    disp(cutoff_value);
-    %%-- MODIFIED SECTION END --%%
 end
-disp('All simulations complete.');
+disp('All parallel simulations complete.');
 
 % --- PLOT THE RESULTS ---
 figure('Position', [100, 100, 800, 600]);
