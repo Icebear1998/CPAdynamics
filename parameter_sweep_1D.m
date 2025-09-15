@@ -39,7 +39,7 @@ N_PAS = N - PAS + 1;
 % important: 'E_total', 'k_e', 'kPmin', 'kc'
 % 'E_total', 'k_e', 'kPmin', 'kc', 
 % 'kEon',
-param_list = {'kHoff'};%'kEoff', 'kHon', 'E_total', 'k_e', 'kc'};
+param_list = {'Pol_total'};%'kEoff', 'kHon', 'E_total', 'k_e', 'kc'};
 
 % Ensure ode_dynamics_multipleE is available (assumed from context)
 if ~exist('ode_dynamics_multipleE', 'file')
@@ -50,7 +50,7 @@ if ~exist('compute_steady_states', 'file')
 end
 
 % Iterate over EBindingNumber
-for EBindingNumber = 5:5
+for EBindingNumber = 1:1
     fprintf('Running for EBindingNumber = %d\n', EBindingNumber);
     
     % Iterate over each parameter to sweep
@@ -111,6 +111,8 @@ for EBindingNumber = 5:5
                 param_values = sort(unique([base_range, default_value]));
             case 'kPon_max'
                 param_values = logspace(-2, 1, 6); % Log range
+            case 'Pol_total'
+                param_values = 20000:20000:180000;
             otherwise
                 error('Invalid parameter selected');
         end
@@ -188,7 +190,7 @@ for EBindingNumber = 5:5
                 if all(ratio >= 0.75)
                     cutoff_values(k) = -1;
                 else
-                    cutoff_values(k) = interp1(ratio, node_indices, 0.75, 'linear', 'extrap') * L_a;
+                    cutoff_values(k) = interp1(ratio, node_indices, 0.10, 'linear', 'extrap') * L_a;
                 end
             end
 

@@ -1,5 +1,6 @@
-global N PAS N_PAS N_PAUSE Ef_ss FirstRun;
+global N PAS N_PAS Ef_ss FirstRun;
 syms Ef real;
+saveData = false;
 % ------------ MODEL PARAMETERS ------------
 L_a = 100;
 P.k_in    = 2;
@@ -29,7 +30,7 @@ N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
 P.kHon_afterPAS = P.kHon*ones(1,N_PAS);
 
-EBindingNumber = 3; 
+EBindingNumber = 5; 
 [r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 
@@ -96,12 +97,12 @@ for i = 1:N
 end
 
 Ser2P = avg_P;
-hold on;
-plot((1-PAS):N_PAS-1, Ser2P, 'g-','LineWidth',2.5, 'DisplayName','Ser2P');
-plot((1-PAS):N_PAS-1, avg_E_bound, 'b-','LineWidth',2.5, 'DisplayName','AverageE');
-legend({'Ser2P', 'AverageE'}, 'Location', 'best');
-xlabel('position'); ylabel('AverageE');
-hold off;
+% hold on;
+% plot((1-PAS):N_PAS-1, Ser2P, 'g-','LineWidth',2.5, 'DisplayName','Ser2P');
+% plot((1-PAS):N_PAS-1, avg_E_bound, 'b-','LineWidth',2.5, 'DisplayName','AverageE');
+% legend({'Ser2P', 'AverageE'}, 'Location', 'best');
+% xlabel('position'); ylabel('AverageE');
+% hold off;
 % ------------ PLOT RESULTS ------------
 % 1. Time evolution plot
 l_values =  (1-PAS):(N-PAS);
@@ -129,19 +130,20 @@ fprintf('Total Pol II in system: %d\n', P.Pol_total);
 fprintf('Total Bound Pol II (on gene): %.2f\n', bound_pol_II);
 fprintf('Total Free Pol II (Pol_f):    %.2f\n', Pol_f_final);
 
-% --- SAVE RESULTS ---
-% Prepare data structure for saving
-data.EBindingNumber = EBindingNumber;
-data.R_sol = R_sol;
-data.REH_sol = REH_sol;
-data.Ser2P = Ser2P;
-data.avg_E_bound = avg_E_bound;
-data.Ef_ss = Ef_ss;
-data.Pol_f_final = Pol_f_final;
+if saveData
+    % --- SAVE RESULTS ---
+    % Prepare data structure for saving
+    data.EBindingNumber = EBindingNumber;
+    data.R_sol = R_sol;
+    data.REH_sol = REH_sol;
+    data.Ser2P = Ser2P;
+    data.avg_E_bound = avg_E_bound;
+    data.Ef_ss = Ef_ss;
+    data.Pol_f_final = Pol_f_final;
 
-% Save results using the utility function
-save_analysis_results('CPA_multipleE_main', data, P);
-
+    % Save results using the utility function
+    save_analysis_results('CPA_multipleE_main', data, P);
+end
 
 
 %% ------------ ODE DYNAMICS FUNCTION ------------

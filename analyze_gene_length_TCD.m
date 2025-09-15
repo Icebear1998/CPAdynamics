@@ -63,39 +63,10 @@ f_L_normalized = f_L ./ sum(f_L .* dL);  % Normalize to ensure integral = 1
 fprintf('Integration domain:\n');
 fprintf('  L range: %.1f kb to %.1f kb\n', L_min_int/1000, L_max_int/1000);
 fprintf('  Integration points: %d\n', L_integration_points);
-fprintf('  Distribution integral check: %.6f (should be ≈1)\n', sum(f_L_normalized .* dL));
+fprintf('  Distribution integral check: %.6f (should be ?1)\n', sum(f_L_normalized .* dL));
 
 %% --- IMPLEMENT CONSERVATION EQUATIONS ---
 fprintf('\nImplementing conservation equations...\n');
-
-% Define conservation equation functions
-function [R_total_calc, E_total_calc] = conservation_equations(R_free, E_free, R_interp, E_interp, L_vals, f_L_vals, dL_vals)
-    % Calculate total R and E given free amounts
-    
-    % Vectorized evaluation of interpolation functions
-    n_L = length(L_vals);
-    R_occupied_vals = zeros(1, n_L);
-    E_occupied_vals = zeros(1, n_L);
-    
-    for i = 1:n_L
-        try
-            R_occupied_vals(i) = R_interp(R_free, E_free, L_vals(i));
-            E_occupied_vals(i) = E_interp(R_free, E_free, L_vals(i));
-        catch
-            % Handle extrapolation failures
-            R_occupied_vals(i) = 0;
-            E_occupied_vals(i) = 0;
-        end
-    end
-    
-    % Numerical integration: ∫ R_occupied(R_free, E_free, L) * f(L) dL
-    R_integral = sum(R_occupied_vals .* f_L_vals .* dL_vals);
-    E_integral = sum(E_occupied_vals .* f_L_vals .* dL_vals);
-    
-    % Conservation equations
-    R_total_calc = R_free + R_integral;
-    E_total_calc = E_free + E_integral;
-end
 
 fprintf('Conservation equation functions defined.\n');
 
@@ -103,9 +74,7 @@ fprintf('Conservation equation functions defined.\n');
 fprintf('\nSolving for self-consistent (R_free, E_free)...\n');
 
 % Define residual function for root finding
-residual_function = @(x) [
-    conservation_equations(x(1), x(2), R_occupied_interp, E_occupied_interp, L_integration, f_L_normalized, dL) - [R_total_target, E_total_target]
-];
+residual_function = @(x) conservation_equations_residual(x, R_occupied_interp, E_occupied_interp, L_integration, f_L_normalized, dL, R_total_target, E_total_target);
 
 % Initial guess (start with moderate free fractions)
 R_free_guess = 0.3 * R_total_target;  % 30% free
@@ -405,6 +374,44 @@ fprintf('  - TCD varies systematically across the gene length distribution\n');
 fprintf('\nAnalysis completed successfully!\n');
 
 %% --- HELPER FUNCTIONS ---
+
+function residual = conservation_equations_residual(x, R_interp, E_interp, L_vals, f_L_vals, dL_vals, R_target, E_target)
+    % Residual function for root finding
+    R_free = x(1);
+    E_free = x(2);
+    
+    [R_total_calc, E_total_calc] = conservation_equations(R_free, E_free, R_interp, E_interp, L_vals, f_L_vals, dL_vals);
+    
+    residual = [R_total_calc - R_target, E_total_calc - E_target];
+end
+
+function [R_total_calc, E_total_calc] = conservation_equations(R_free, E_free, R_interp, E_interp, L_vals, f_L_vals, dL_vals)
+    % Calculate total R and E given free amounts
+    
+    % Vectorized evaluation of interpolation functions
+    n_L = length(L_vals);
+    R_occupied_vals = zeros(1, n_L);
+    E_occupied_vals = zeros(1, n_L);
+    
+    for i = 1:n_L
+        try
+            R_occupied_vals(i) = R_interp(R_free, E_free, L_vals(i));
+            E_occupied_vals(i) = E_interp(R_free, E_free, L_vals(i));
+        catch
+            % Handle extrapolation failures
+            R_occupied_vals(i) = 0;
+            E_occupied_vals(i) = 0;
+        end
+    end
+    
+    % Numerical integration: ? R_occupied(R_free, E_free, L) * f(L) dL
+    R_integral = sum(R_occupied_vals .* f_L_vals .* dL_vals);
+    E_integral = sum(E_occupied_vals .* f_L_vals .* dL_vals);
+    
+    % Conservation equations
+    R_total_calc = R_free + R_integral;
+    E_total_calc = E_free + E_integral;
+end
 
 function [termination_profile, distances_bp] = calculate_termination_profile(gene_length, R_free, E_free)
     % Calculate termination profile for a specific gene length

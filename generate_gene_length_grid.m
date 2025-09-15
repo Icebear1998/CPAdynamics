@@ -21,20 +21,20 @@ E_total_base = 70000;
 
 % R_free range: should be much larger than 1/70000 of total
 % Using range from ~10% to ~90% of total (well above the 1/70000 threshold)
-R_free_min = 0.1 * R_total_base;   % 7,000
-R_free_max = 0.9 * R_total_base;   % 63,000
-R_free_points = 15;                % Resolution for R_free
+R_free_min = 100; % 0.1 * R_total_base;   % 7,000
+R_free_max = 10000;% 0.9 * R_total_base;   % 63,000
+R_free_points = 10;                % Resolution for R_free
 
 % E_free range: similar logic to R_free
 E_free_min = 0.1 * E_total_base;   % 7,000  
 E_free_max = 0.9 * E_total_base;   % 63,000
-E_free_points = 15;                % Resolution for E_free
+E_free_points = 10;                % Resolution for E_free
 
 % Gene length range: based on human gene distribution (including introns)
 % From the histogram: spans ~10^2 to ~10^6 bp, with most genes 10^3 to 10^5
-L_min = 1000;      % 1 kb (lower end of main distribution)
+L_min = 2500;      % 2 kb (lower end of main distribution)
 L_max = 200000;    % 200 kb (covers most genes, excludes extreme outliers)
-L_points = 25;     % Resolution for gene length
+L_points = 20;     % Resolution for gene length
 
 % Create parameter grids
 R_free_values = linspace(R_free_min, R_free_max, R_free_points);
@@ -63,7 +63,7 @@ P_base.kPon_max = 1;
 P_base.kPoff_min = 0.1;
 P_base.kPoff_max = 2;
 P_base.kPoff_const = 1;
-P_base.EBindingNumber = 6;  % Use standard value
+P_base.EBindingNumber = 5;  % Use standard value
 
 %% --- GRID GENERATION ---
 fprintf('Generating parameter grid...\n');
@@ -89,7 +89,7 @@ fprintf('Starting parallel computation...\n\n');
 tic;
 
 parfor i = 1:n_points
-    try
+    %try
         % Extract parameters for this grid point
         R_free_i = R_free_vec(i);
         E_free_i = E_free_vec(i);
@@ -100,34 +100,33 @@ parfor i = 1:n_points
         P_i.Pol_total = R_free_i;  % Use R_free as Pol_total for local analysis
         P_i.E_total = E_free_i;    % Use E_free as E_total for local analysis
         P_i.geneLength_bp = L_i;
-        P_i.PASposition = max(1000, L_i - 5000);  % PAS near end, but not too close
+        P_i.PASposition = max(2000, L_i - 5000);  % PAS near end, but not too close
         
         % Run single-gene simulation
-        [R_sol, REH_sol, ~] = run_single_gene_simulation(P_i);
-        
+        [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P_i);
         % Calculate occupied amounts
         R_occupied_i = sum(R_sol) + sum(REH_sol);  % Total bound polymerase
         
         % Calculate E occupied (need to run binding calculation)
-        E_occupied_i = calculate_E_occupied(P_i, R_sol, REH_sol);
+        E_occupied_i = calculate_E_occupied(R_sol, REH_sol, avg_E_bound);
         
         % Store results
         R_occupied_vec(i) = R_occupied_i;
         E_occupied_vec(i) = E_occupied_i;
         success_flag(i) = 1;
         
-    catch ME
-        % Handle failed simulations
-        R_occupied_vec(i) = NaN;
-        E_occupied_vec(i) = NaN;
-        success_flag(i) = 0;
-        
-        % Optionally log the error (commented out to avoid parfor issues)
-        % fprintf('Failed at point %d: %s\n', i, ME.message);
-    end
+%     catch ME
+%         % Handle failed simulations
+%         R_occupied_vec(i) = NaN;
+%         E_occupied_vec(i) = NaN;
+%         success_flag(i) = 0;
+%         
+%         % Optionally log the error (commented out to avoid parfor issues)
+%         fprintf('Failed at point %d: %s\n', i, ME.message);
+%     end
     
     % Progress indication (every 1000 points)
-    if mod(i, 1000) == 0
+    if mod(i, 100) == 0
         fprintf('Completed %d/%d points\n', i, n_points);
     end
 end
@@ -255,7 +254,7 @@ fprintf('4. Calculate TCD(L) relationships\n');
 
 %% --- HELPER FUNCTIONS ---
 
-function [R_sol, REH_sol, P_sim] = run_single_gene_simulation(P)
+function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
     % Run single gene simulation similar to existing scripts
     global N PAS N_PAS Ef_ss;
     syms Ef real;
@@ -306,21 +305,18 @@ function [R_sol, REH_sol, P_sim] = run_single_gene_simulation(P)
     
     R_sol = X_final(1:N);
     REH_sol = X_final((N+1):(N+N_PAS));
-    P_sim = P;
 end
 
-function E_occupied = calculate_E_occupied(P, R_sol, REH_sol)
+function E_occupied = calculate_E_occupied(R_sol, REH_sol, avg_E_bound)
     % Calculate total E factors bound to this gene
-    global Ef_ss PAS;
+    global PAS;
     
     % Get binding function values
-    avg_E_bound_profile = P.RE_val_bind_E(Ef_ss);
-    
+    avg_E_bound_profile = avg_E_bound;
     % Calculate E bound to R states (before and after PAS)
     E_bound_R = sum(R_sol .* avg_E_bound_profile');
     
     % Calculate E bound to REH states (after PAS)
-    E_bound_REH = sum(REH_sol .* avg_E_bound_profile(PAS:end));
-    
+    E_bound_REH = sum(REH_sol .* avg_E_bound_profile(PAS:end)');
     E_occupied = E_bound_R + E_bound_REH;
 end

@@ -20,7 +20,7 @@ P.kPoff_const = 1;
 L_a = 100;
 geneLength_bp = 25000;
 PASposition = 20000;
-EBindingNumber = 3;
+EBindingNumber = 1;
 
 % --- Global variables for ODE function ---
 global N PAS N_PAS Ef_ss;
