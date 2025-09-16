@@ -68,7 +68,7 @@ E_occupied_clean = E_occupied_data(valid_indices);
 fprintf('\nData statistics (valid points):\n');
 fprintf('  R_free: %.0f to %.0f\n', min(R_free_clean), max(R_free_clean));
 fprintf('  E_free: %.0f to %.0f\n', min(E_free_clean), max(E_free_clean));
-fprintf('  L: %.0f to %.0f bp\n', min(L_clean), max(L_clean));
+fprintf('  L (TSS-to-PAS): %.0f to %.0f bp\n', min(L_clean), max(L_clean));
 fprintf('  R_occupied: %.2f to %.2f (mean: %.2f)\n', min(R_occupied_clean), max(R_occupied_clean), mean(R_occupied_clean));
 fprintf('  E_occupied: %.2f to %.2f (mean: %.2f)\n', min(E_occupied_clean), max(E_occupied_clean), mean(E_occupied_clean));
 
@@ -217,27 +217,70 @@ fprintf('Interpolation results saved to: %s\n', output_filename);
 %% --- GENERATE SUMMARY PLOTS ---
 fprintf('\nGenerating summary plots...\n');
 
-% Plot 1: Gene length distribution
-figure('Position', [100, 100, 800, 600]);
-L_plot = logspace(3, 5.5, 1000);  % 1 kb to ~300 kb for plotting
-pdf_plot = gene_length_pdf(L_plot);
-semilogx(L_plot/1000, pdf_plot*1000, 'b-', 'LineWidth', 2);
-xlabel('Gene Length (kb)', 'FontSize', 12);
-ylabel('Probability Density (per kb)', 'FontSize', 12);
-title('Human Gene Length Distribution (Log-Normal Fit)', 'FontSize', 14, 'FontWeight', 'bold');
-grid on;
-% Add percentile markers
+% Plot 1: Gene length vs R_occupied and E_occupied (line plots with multiple R_free, E_free combinations)
+figure('Position', [100, 100, 1000, 400]);
+
+% Create a range of gene lengths for plotting
+L_plot_range = logspace(log10(min(L_clean)), log10(max(L_clean)), 100);
+
+% Define multiple R_free and E_free values across their ranges
+n_lines = 4;  % Number of different (R_free, E_free) combinations to plot
+R_free_values = linspace(min(R_free_clean), max(R_free_clean), n_lines);
+E_free_values = linspace(min(E_free_clean), max(E_free_clean), n_lines);
+
+% Create color map for different lines
+colors = lines(n_lines);
+
+% Plot R_occupied
+subplot(1, 2, 1);
 hold on;
-plot([percentile_25 percentile_25]/1000, ylim, 'r--', 'LineWidth', 1.5, 'DisplayName', '25th percentile');
-plot([percentile_50 percentile_50]/1000, ylim, 'g--', 'LineWidth', 1.5, 'DisplayName', 'Median');
-plot([percentile_75 percentile_75]/1000, ylim, 'r--', 'LineWidth', 1.5, 'DisplayName', '75th percentile');
-legend('Distribution', '25th/75th percentiles', 'Median', 'Location', 'best');
+for line_idx = 1:n_lines
+    R_free_val = R_free_values(line_idx);
+    E_free_val = E_free_values(line_idx);
+    
+    % Calculate R_occupied for this R_free, E_free combination
+    R_occupied_line = zeros(size(L_plot_range));
+    for i = 1:length(L_plot_range)
+        R_occupied_line(i) = R_occupied_interp(R_free_val, E_free_val, L_plot_range(i));
+    end
+    
+    semilogx(L_plot_range/1000, R_occupied_line, '-', 'LineWidth', 2, 'Color', colors(line_idx, :), ...
+        'DisplayName', sprintf('R_{free}=%.0f, E_{free}=%.0f', R_free_val, E_free_val));
+end
+xlabel('TSS-to-PAS Distance (kb)', 'FontSize', 12);
+ylabel('R_{occupied}', 'FontSize', 12);
+title('R_{occupied} vs Gene Length', 'FontSize', 12, 'FontWeight', 'bold');
+legend('Location', 'best', 'FontSize', 9);
+grid on;
+hold off;
+
+% Plot E_occupied
+subplot(1, 2, 2);
+hold on;
+for line_idx = 1:n_lines
+    R_free_val = R_free_values(line_idx);
+    E_free_val = E_free_values(line_idx);
+    
+    % Calculate E_occupied for this R_free, E_free combination
+    E_occupied_line = zeros(size(L_plot_range));
+    for i = 1:length(L_plot_range)
+        E_occupied_line(i) = E_occupied_interp(R_free_val, E_free_val, L_plot_range(i));
+    end
+    
+    semilogx(L_plot_range/1000, E_occupied_line, '-', 'LineWidth', 2, 'Color', colors(line_idx, :), ...
+        'DisplayName', sprintf('R_{free}=%.0f, E_{free}=%.0f', R_free_val, E_free_val));
+end
+xlabel('TSS-to-PAS Distance (kb)', 'FontSize', 12);
+ylabel('E_{occupied}', 'FontSize', 12);
+title('E_{occupied} vs Gene Length', 'FontSize', 12, 'FontWeight', 'bold');
+legend('Location', 'best', 'FontSize', 9);
+grid on;
 hold off;
 
 % Save plot
-plot_filename = fullfile(grid_dir, sprintf('gene_length_distribution_%s.png', timestamp));
-saveas(gcf, plot_filename);
-fprintf('Gene length distribution plot saved to: %s\n', plot_filename);
+line_plot_filename = fullfile(grid_dir, sprintf('gene_length_vs_occupied_%s.png', timestamp));
+saveas(gcf, line_plot_filename);
+fprintf('Gene length vs occupied resources plot saved to: %s\n', line_plot_filename);
 
 % Plot 2: Sample interpolation surface (R_occupied)
 figure('Position', [200, 200, 1000, 400]);
@@ -284,6 +327,7 @@ fprintf('  Valid data points used: %d\n', n_valid);
 fprintf('  Interpolation mean errors: R=%.2f%%, E=%.2f%%\n', mean(R_error), mean(E_error));
 fprintf('  Gene length distribution: Log-normal (median=%.1f kb)\n', median_length/1000);
 fprintf('  Output file: %s\n', output_filename);
+fprintf('  Generated plots: gene length vs occupied resources (multi-line), interpolation surfaces\n');
 
 fprintf('\nNext steps:\n');
 fprintf('1. Run analyze_gene_length_TCD.m to perform the full analysis\n');

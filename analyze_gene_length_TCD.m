@@ -68,23 +68,72 @@ fprintf('  Distribution integral check: %.6f (should be ?1)\n', sum(f_L_normaliz
 %% --- IMPLEMENT CONSERVATION EQUATIONS ---
 fprintf('\nImplementing conservation equations...\n');
 
-fprintf('Conservation equation functions defined.\n');
+% The conservation equations are the heart of the gene length analysis.
+% They enforce the constraint that the total amount of R and E factors
+% in the system equals the sum of free factors plus those bound to genes.
+%
+% MATHEMATICAL FRAMEWORK:
+% For a genome with gene length distribution f(L), the conservation equations are:
+%
+%   R_total = R_free + ∫ R_occupied(R_free, E_free, L) × f(L) dL
+%   E_total = E_free + ∫ E_occupied(R_free, E_free, L) × f(L) dL
+%
+% Where:
+%   - R_total, E_total: Total amounts in the system (fixed, typically 70,000)
+%   - R_free, E_free: Free (unbound) amounts (unknowns to solve for)
+%   - R_occupied(R_free, E_free, L): Bound R for gene of length L (from interpolation)
+%   - E_occupied(R_free, E_free, L): Bound E for gene of length L (from interpolation)
+%   - f(L): Gene length probability density function (log-normal distribution)
+%
+% BIOLOGICAL INTERPRETATION:
+% - Each gene of length L consumes R_occupied and E_occupied resources
+% - The genome-wide consumption is the integral over all gene lengths
+% - The remaining resources (R_free, E_free) are available for new genes
+% - This creates a self-consistent feedback: available resources determine
+%   individual gene behavior, which determines total resource consumption
+
+fprintf('Conservation equation mathematical framework established.\n');
 
 %% --- SOLVE FOR SELF-CONSISTENT SOLUTION ---
 fprintf('\nSolving for self-consistent (R_free, E_free)...\n');
 
+% SOLUTION STRATEGY:
+% We need to find (R_free, E_free) such that both conservation equations
+% are satisfied simultaneously. This is a 2D root-finding problem.
+%
+% NUMERICAL APPROACH:
+% 1. Define residual function: [R_total - R_calc, E_total - E_calc]
+% 2. Use fsolve to find where residual = [0, 0]
+% 3. Validate solution by checking conservation equations
+
 % Define residual function for root finding
+% This function returns [0, 0] when the conservation equations are satisfied
 residual_function = @(x) conservation_equations_residual(x, R_occupied_interp, E_occupied_interp, L_integration, f_L_normalized, dL, R_total_target, E_total_target);
 
-% Initial guess (start with moderate free fractions)
-R_free_guess = 0.3 * R_total_target;  % 30% free
-E_free_guess = 0.3 * E_total_target;  % 30% free
+% INITIAL GUESS STRATEGY:
+% Start with moderate free fractions (30% of total). This is reasonable because:
+% - Too high: Would imply very little resource consumption (unlikely)
+% - Too low: Would imply extreme resource depletion (may cause convergence issues)
+% - 30%: Balanced starting point that allows for significant resource binding
+R_free_guess = 0.3 * R_total_target;  % 30% free polymerase
+E_free_guess = 0.3 * E_total_target;  % 30% free E factors
 initial_guess = [R_free_guess, E_free_guess];
 
-fprintf('Initial guess: R_free = %.0f, E_free = %.0f\n', R_free_guess, E_free_guess);
+fprintf('Initial guess strategy:\n');
+fprintf('  R_free = %.0f (%.0f%% of total) - moderate free fraction\n', R_free_guess, 30);
+fprintf('  E_free = %.0f (%.0f%% of total) - moderate free fraction\n', E_free_guess, 30);
+fprintf('  Rationale: Balanced starting point avoiding extreme resource scenarios\n');
 
-% Solve using fsolve
+% SOLVER CONFIGURATION:
+% - Display: 'iter' shows convergence progress
+% - FunctionTolerance: 1e-6 ensures high accuracy in conservation equations
+% - MaxIterations: 100 should be sufficient for this smooth problem
 options = optimoptions('fsolve', 'Display', 'iter', 'FunctionTolerance', 1e-6, 'MaxIterations', 100);
+
+fprintf('\nSolver configuration:\n');
+fprintf('  Method: fsolve (trust-region-dogleg algorithm)\n');
+fprintf('  Tolerance: 1e-6 (high precision for conservation equations)\n');
+fprintf('  Max iterations: 100\n');
 
 fprintf('Solving conservation equations...\n');
 tic;
@@ -187,115 +236,21 @@ for j = 1:n_thresholds
     fprintf('  TCD(%.0f%%) vs log10(L): r = %.3f\n', TCD_thresholds(j)*100, correlation);
 end
 
-%% --- GENERATE COMPREHENSIVE VISUALIZATIONS ---
-fprintf('\nGenerating visualizations...\n');
+%% --- GENERATE VISUALIZATIONS ---
+fprintf('\nGenerating TCD visualization...\n');
 
-% Figure 1: TCD vs Gene Length
-figure('Position', [100, 100, 1000, 600]);
+% TCD vs Gene Length plot
+figure('Position', [100, 100, 800, 600]);
 
-subplot(1, 2, 1);
 colors = lines(n_thresholds);
 hold on;
 for j = 1:n_thresholds
     semilogx(L_TCD_valid/1000, TCD_valid(:, j), 'o-', 'LineWidth', 2, 'MarkerSize', 4, ...
         'Color', colors(j, :), 'DisplayName', sprintf('%.0f%% threshold', TCD_thresholds(j)*100));
 end
-xlabel('Gene Length (kb)', 'FontSize', 12);
+xlabel('TSS-to-PAS Distance (kb)', 'FontSize', 12);
 ylabel('TCD (bp)', 'FontSize', 12);
 title('Termination Commitment Distance vs Gene Length', 'FontSize', 14, 'FontWeight', 'bold');
-legend('Location', 'best');
-grid on;
-hold off;
-
-% Figure 1b: Normalized TCD (TCD/Gene Length)
-subplot(1, 2, 2);
-hold on;
-for j = 1:n_thresholds
-    normalized_TCD = TCD_valid(:, j) ./ L_TCD_valid';
-    semilogx(L_TCD_valid/1000, normalized_TCD, 'o-', 'LineWidth', 2, 'MarkerSize', 4, ...
-        'Color', colors(j, :), 'DisplayName', sprintf('%.0f%% threshold', TCD_thresholds(j)*100));
-end
-xlabel('Gene Length (kb)', 'FontSize', 12);
-ylabel('Normalized TCD (TCD/L)', 'FontSize', 12);
-title('Normalized TCD vs Gene Length', 'FontSize', 14, 'FontWeight', 'bold');
-legend('Location', 'best');
-grid on;
-hold off;
-
-% Figure 2: Sample Termination Profiles
-figure('Position', [200, 200, 1000, 600]);
-
-% Show profiles for a few representative gene lengths
-sample_indices = [1, round(n_L_TCD/4), round(n_L_TCD/2), round(3*n_L_TCD/4), n_L_TCD];
-sample_indices = sample_indices(sample_indices <= sum(valid_TCD));
-
-subplot(1, 2, 1);
-hold on;
-for k = 1:length(sample_indices)
-    idx = sample_indices(k);
-    if valid_TCD(idx)
-        profile_data = termination_profiles{idx};
-        plot(profile_data.distances, profile_data.profile*100, 'LineWidth', 2, ...
-            'DisplayName', sprintf('L = %.0f kb', L_TCD_analysis(idx)/1000));
-    end
-end
-xlabel('Distance from PAS (bp)', 'FontSize', 12);
-ylabel('Cumulative Termination (%)', 'FontSize', 12);
-title('Sample Termination Profiles', 'FontSize', 14, 'FontWeight', 'bold');
-legend('Location', 'best');
-grid on;
-hold off;
-
-% Figure 2b: TCD Distribution across genome
-subplot(1, 2, 2);
-% Weight TCD by gene length distribution
-L_distribution_weights = gene_length_pdf(L_TCD_valid);
-L_distribution_weights = L_distribution_weights / sum(L_distribution_weights);
-
-% Create weighted histogram of TCD values (50% threshold)
-TCD_50_values = TCD_valid(:, 2);  % 50% threshold
-[TCD_hist_counts, TCD_hist_edges] = histcounts(TCD_50_values, 20, 'Normalization', 'probability');
-TCD_hist_centers = (TCD_hist_edges(1:end-1) + TCD_hist_edges(2:end)) / 2;
-
-bar(TCD_hist_centers, TCD_hist_counts, 'FaceAlpha', 0.7);
-xlabel('TCD (bp)', 'FontSize', 12);
-ylabel('Probability', 'FontSize', 12);
-title('Distribution of TCD (50% threshold)', 'FontSize', 14, 'FontWeight', 'bold');
-grid on;
-
-% Figure 3: Resource allocation analysis
-figure('Position', [300, 300, 1000, 600]);
-
-subplot(1, 2, 1);
-R_occupied_by_L = zeros(size(L_TCD_valid));
-E_occupied_by_L = zeros(size(L_TCD_valid));
-
-for i = 1:length(L_TCD_valid)
-    R_occupied_by_L(i) = R_occupied_interp(R_free_solution, E_free_solution, L_TCD_valid(i));
-    E_occupied_by_L(i) = E_occupied_interp(R_free_solution, E_free_solution, L_TCD_valid(i));
-end
-
-semilogx(L_TCD_valid/1000, R_occupied_by_L, 'b-o', 'LineWidth', 2, 'DisplayName', 'R occupied');
-hold on;
-semilogx(L_TCD_valid/1000, E_occupied_by_L, 'r-o', 'LineWidth', 2, 'DisplayName', 'E occupied');
-xlabel('Gene Length (kb)', 'FontSize', 12);
-ylabel('Occupied Amount', 'FontSize', 12);
-title('Resource Occupation vs Gene Length', 'FontSize', 14, 'FontWeight', 'bold');
-legend('Location', 'best');
-grid on;
-hold off;
-
-% Resource efficiency
-subplot(1, 2, 2);
-R_efficiency = R_occupied_by_L ./ L_TCD_valid';
-E_efficiency = E_occupied_by_L ./ L_TCD_valid';
-
-semilogx(L_TCD_valid/1000, R_efficiency*1000, 'b-o', 'LineWidth', 2, 'DisplayName', 'R efficiency');
-hold on;
-semilogx(L_TCD_valid/1000, E_efficiency*1000, 'r-o', 'LineWidth', 2, 'DisplayName', 'E efficiency');
-xlabel('Gene Length (kb)', 'FontSize', 12);
-ylabel('Efficiency (occupied per kb)', 'FontSize', 12);
-title('Resource Efficiency vs Gene Length', 'FontSize', 14, 'FontWeight', 'bold');
 legend('Location', 'best');
 grid on;
 hold off;
@@ -331,32 +286,18 @@ for j = 1:n_thresholds
     end
 end
 
-% Resource allocation
-analysis_results.resources.L_values = L_TCD_valid;
-analysis_results.resources.R_occupied = R_occupied_by_L;
-analysis_results.resources.E_occupied = E_occupied_by_L;
-
 % Save results
 timestamp = datestr(now, 'yyyymmdd_HHMMSS');
 results_filename = fullfile(interp_dir, sprintf('gene_length_TCD_analysis_%s.mat', timestamp));
 save(results_filename, 'analysis_results', '-v7.3');
 
-% Save plots
-plot_files = {
-    sprintf('TCD_vs_gene_length_%s.png', timestamp),
-    sprintf('termination_profiles_%s.png', timestamp),
-    sprintf('resource_allocation_%s.png', timestamp)
-};
-
-figure(1); saveas(gcf, fullfile(interp_dir, plot_files{1}));
-figure(2); saveas(gcf, fullfile(interp_dir, plot_files{2}));
-figure(3); saveas(gcf, fullfile(interp_dir, plot_files{3}));
+% Save TCD plot
+plot_filename = sprintf('TCD_vs_gene_length_%s.png', timestamp);
+saveas(gcf, fullfile(interp_dir, plot_filename));
 
 fprintf('Analysis results saved:\n');
 fprintf('  Data file: %s\n', results_filename);
-for i = 1:length(plot_files)
-    fprintf('  Plot %d: %s\n', i, plot_files{i});
-end
+fprintf('  Plot: %s\n', plot_filename);
 
 %% --- FINAL SUMMARY ---
 fprintf('\n=== GENE LENGTH TCD ANALYSIS COMPLETE ===\n');
@@ -376,45 +317,100 @@ fprintf('\nAnalysis completed successfully!\n');
 %% --- HELPER FUNCTIONS ---
 
 function residual = conservation_equations_residual(x, R_interp, E_interp, L_vals, f_L_vals, dL_vals, R_target, E_target)
-    % Residual function for root finding
-    R_free = x(1);
-    E_free = x(2);
+    % RESIDUAL FUNCTION FOR CONSERVATION EQUATION SOLVER
+    % 
+    % This function computes the residual (error) in the conservation equations
+    % for a given guess of (R_free, E_free). The root finder (fsolve) will
+    % minimize this residual to find the self-consistent solution.
+    %
+    % INPUT:
+    %   x(1) = R_free: Guess for free polymerase amount
+    %   x(2) = E_free: Guess for free E factor amount
+    %   R_interp, E_interp: Interpolation functions R_occupied(R_free, E_free, L)
+    %   L_vals, f_L_vals, dL_vals: Gene length distribution and integration weights
+    %   R_target, E_target: Target total amounts (typically 70,000 each)
+    %
+    % OUTPUT:
+    %   residual: [R_error, E_error] where each should be zero at solution
+    %
+    % MATHEMATICAL MEANING:
+    %   residual = [R_total_calculated - R_target, E_total_calculated - E_target]
+    %   When residual = [0, 0], the conservation equations are satisfied
     
+    R_free = x(1);  % Extract free polymerase guess
+    E_free = x(2);  % Extract free E factor guess
+    
+    % Calculate what the total amounts would be given these free amounts
     [R_total_calc, E_total_calc] = conservation_equations(R_free, E_free, R_interp, E_interp, L_vals, f_L_vals, dL_vals);
     
+    % Compute residual: difference between calculated and target totals
+    % fsolve will minimize the magnitude of this residual vector
     residual = [R_total_calc - R_target, E_total_calc - E_target];
 end
 
 function [R_total_calc, E_total_calc] = conservation_equations(R_free, E_free, R_interp, E_interp, L_vals, f_L_vals, dL_vals)
-    % Calculate total R and E given free amounts
+    % CORE CONSERVATION EQUATION IMPLEMENTATION
+    %
+    % This function implements the fundamental conservation equations that
+    % couple individual gene behavior to the global resource pool.
+    %
+    % CONSERVATION PRINCIPLE:
+    %   Total_resources = Free_resources + Bound_resources
+    %   
+    % MATHEMATICAL IMPLEMENTATION:
+    %   R_total = R_free + ∫ R_occupied(R_free, E_free, L) × f(L) dL
+    %   E_total = E_free + ∫ E_occupied(R_free, E_free, L) × f(L) dL
+    %
+    % NUMERICAL INTEGRATION DETAILS:
+    % - L_vals: Discrete gene length points for integration
+    % - f_L_vals: Probability density at each gene length
+    % - dL_vals: Integration weights (accounts for log-spacing)
+    % - Integration: Riemann sum approximation of the continuous integral
+    %
+    % BIOLOGICAL INTERPRETATION:
+    % - For each gene length L in the distribution f(L):
+    %   * Lookup how much R and E that gene would consume
+    %   * Weight by the frequency of genes of that length
+    %   * Sum over all gene lengths to get total consumption
+    % - Add free amounts to get total amounts in system
     
     % Vectorized evaluation of interpolation functions
+    % We need R_occupied and E_occupied for each gene length in the distribution
     n_L = length(L_vals);
-    R_occupied_vals = zeros(1, n_L);
-    E_occupied_vals = zeros(1, n_L);
+    R_occupied_vals = zeros(1, n_L);  % R consumed by each gene length
+    E_occupied_vals = zeros(1, n_L);  % E consumed by each gene length
     
+    % INTERPOLATION LOOP:
+    % For each gene length, lookup resource consumption from pre-computed grid
     for i = 1:n_L
         try
+            % Query interpolation functions: how much R and E does a gene of
+            % length L_vals(i) consume when free pools are (R_free, E_free)?
             R_occupied_vals(i) = R_interp(R_free, E_free, L_vals(i));
             E_occupied_vals(i) = E_interp(R_free, E_free, L_vals(i));
         catch
-            % Handle extrapolation failures
+            % EXTRAPOLATION HANDLING:
+            % If (R_free, E_free, L) is outside the interpolation domain,
+            % assume zero consumption (conservative approach)
             R_occupied_vals(i) = 0;
             E_occupied_vals(i) = 0;
         end
     end
     
-    % Numerical integration: ? R_occupied(R_free, E_free, L) * f(L) dL
+    % NUMERICAL INTEGRATION:
+    % Approximate ∫ R_occupied(R_free, E_free, L) × f(L) dL
+    % Using discrete Riemann sum: Σ R_occupied(L_i) × f(L_i) × ΔL_i
     R_integral = sum(R_occupied_vals .* f_L_vals .* dL_vals);
     E_integral = sum(E_occupied_vals .* f_L_vals .* dL_vals);
     
-    % Conservation equations
-    R_total_calc = R_free + R_integral;
-    E_total_calc = E_free + E_integral;
+    % CONSERVATION EQUATIONS:
+    % Total amount = Free amount + Genome-wide consumption
+    R_total_calc = R_free + R_integral;  % Total polymerase in system
+    E_total_calc = E_free + E_integral;  % Total E factors in system
 end
 
-function [termination_profile, distances_bp] = calculate_termination_profile(gene_length, R_free, E_free)
-    % Calculate termination profile for a specific gene length
+function [termination_profile, distances_bp] = calculate_termination_profile(tss_to_pas_distance, R_free, E_free)
+    % Calculate termination profile for a specific TSS-to-PAS distance
     % This is a simplified version - in practice, you'd run the full simulation
     
     global N PAS N_PAS Ef_ss;
@@ -438,8 +434,11 @@ function [termination_profile, distances_bp] = calculate_termination_profile(gen
     P.kPoff_min = 0.1;
     P.kPoff_max = 2;
     P.kPoff_const = 1;
-    P.geneLength_bp = gene_length;
-    P.PASposition = max(1000, gene_length - 5000);  % PAS near end
+    
+    % NEW: Gene structure with fixed after-PAS length
+    after_PAS_length = 5000;  % Fixed 5 kb after-PAS region
+    P.PASposition = tss_to_pas_distance;  % PAS position = TSS-to-PAS distance
+    P.geneLength_bp = tss_to_pas_distance + after_PAS_length;  % Total gene length
     P.EBindingNumber = 6;
     
     % Run simulation (similar to existing scripts)

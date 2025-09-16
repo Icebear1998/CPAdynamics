@@ -34,6 +34,11 @@ N = floor(geneLength_bp / L_a);
 PAS = floor(PASposition / L_a);
 N_PAS = N - PAS + 1;
 
+% Add required fields for PAS usage calculation
+P.L_a = L_a;
+P.geneLength_bp = geneLength_bp;
+P.PASposition = PASposition;
+
 % List of parameters to sweep
 % 'k_e2', 'k_in', 'kHoff', 'kPmax'
 % important: 'E_total', 'k_e', 'kPmin', 'kc'
@@ -181,17 +186,18 @@ for EBindingNumber = 1:1
             R_sol = X_adj(1:N);
             REH_sol = X_adj(N+1 : N+N_PAS);
             
-            % Calculate cutoff position for kPon
-            if R_sol(PAS-1) == 0
-                cutoff_values(k) = -1;
-            else
-                ratio = (REH_sol(1:end) + R_sol(PAS:end)) / R_sol(PAS-1);
-                node_indices = 1:length(ratio);
-                if all(ratio >= 0.75)
-                    cutoff_values(k) = -1;
+            % Calculate cutoff position using flux-based PAS usage calculation
+            try
+                [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
+                
+                % Find position where 75% of polymerases have terminated (0.75 threshold)
+                if max(exit_cdf) < 0.75
+                    cutoff_values(k) = -1;  % Insufficient termination
                 else
-                    cutoff_values(k) = interp1(ratio, node_indices, 0.10, 'linear', 'extrap') * L_a;
+                    cutoff_values(k) = interp1(exit_cdf, distances_bp, 0.75, 'linear', 'extrap');
                 end
+            catch
+                cutoff_values(k) = -1;  % Error in calculation
             end
 
 %             P.kHon = kHon_default * avg_E_bound_kPoff(end);
@@ -235,7 +241,7 @@ for EBindingNumber = 1:1
         
         % Customize plot
         xlabel([strrep(param_to_sweep, '_', '\_'), ' Value'], 'FontSize', 12);
-        ylabel('Position at which 25% cleavage (bp)', 'FontSize', 12);
+        ylabel('Position at which 75% termination (bp)', 'FontSize', 12);
         title(['CPA Cutoff vs ', strrep(param_to_sweep, '_', '\_'), ' (EBindingNumber=', num2str(EBindingNumber), ')'], ...
               'FontSize', 14, 'FontWeight', 'bold');
         grid on;

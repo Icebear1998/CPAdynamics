@@ -30,11 +30,15 @@ E_free_min = 0.1 * E_total_base;   % 7,000
 E_free_max = 0.9 * E_total_base;   % 63,000
 E_free_points = 10;                % Resolution for E_free
 
-% Gene length range: based on human gene distribution (including introns)
+% TSS-to-PAS length range: based on human gene distribution (including introns)
 % From the histogram: spans ~10^2 to ~10^6 bp, with most genes 10^3 to 10^5
-L_min = 2500;      % 2 kb (lower end of main distribution)
+% NOTE: L now represents TSS-to-PAS distance, not total gene length
+L_min = 2500;      % 2.5 kb (lower end of main distribution)
 L_max = 200000;    % 200 kb (covers most genes, excludes extreme outliers)
-L_points = 20;     % Resolution for gene length
+L_points = 20;     % Resolution for TSS-to-PAS length
+
+% Fixed after-PAS length for all genes
+after_PAS_length = 5000;  % 5 kb constant after-PAS region
 
 % Create parameter grids
 R_free_values = linspace(R_free_min, R_free_max, R_free_points);
@@ -44,7 +48,8 @@ L_values = logspace(log10(L_min), log10(L_max), L_points); % Log spacing for gen
 fprintf('Parameter Ranges:\n');
 fprintf('  R_free: %.0f to %.0f (%d points)\n', R_free_min, R_free_max, R_free_points);
 fprintf('  E_free: %.0f to %.0f (%d points)\n', E_free_min, E_free_max, E_free_points);
-fprintf('  L: %.0f to %.0f bp (%d points, log-spaced)\n', L_min, L_max, L_points);
+fprintf('  L (TSS-to-PAS): %.0f to %.0f bp (%d points, log-spaced)\n', L_min, L_max, L_points);
+fprintf('  After-PAS length: %.0f bp (fixed for all genes)\n', after_PAS_length);
 fprintf('  Total grid points: %d\n\n', R_free_points * E_free_points * L_points);
 
 %% --- BASE PARAMETERS ---
@@ -99,8 +104,10 @@ parfor i = 1:n_points
         P_i = P_base;
         P_i.Pol_total = R_free_i;  % Use R_free as Pol_total for local analysis
         P_i.E_total = E_free_i;    % Use E_free as E_total for local analysis
-        P_i.geneLength_bp = L_i;
-        P_i.PASposition = max(2000, L_i - 5000);  % PAS near end, but not too close
+        
+        % NEW: L_i now represents TSS-to-PAS distance
+        P_i.PASposition = L_i;     % PAS position = TSS-to-PAS distance
+        P_i.geneLength_bp = L_i + after_PAS_length;  % Total gene length = TSS-to-PAS + after-PAS
         
         % Run single-gene simulation
         [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P_i);
@@ -147,7 +154,7 @@ results = struct();
 results.metadata.creation_date = datestr(now);
 results.metadata.computation_time_minutes = computation_time/60;
 results.metadata.success_rate = success_rate;
-results.metadata.description = 'Lookup data for gene length analysis: R_occupied and E_occupied as functions of (R_free, E_free, L)';
+results.metadata.description = 'Lookup data for gene length analysis: R_occupied and E_occupied as functions of (R_free, E_free, L) where L = TSS-to-PAS distance';
 
 % Parameter information
 results.parameters.R_free_range = [R_free_min, R_free_max];
@@ -156,6 +163,7 @@ results.parameters.L_range = [L_min, L_max];
 results.parameters.R_free_points = R_free_points;
 results.parameters.E_free_points = E_free_points;
 results.parameters.L_points = L_points;
+results.parameters.after_PAS_length = after_PAS_length;
 results.parameters.base_parameters = P_base;
 
 % Grid data
@@ -200,7 +208,8 @@ fprintf(fid, '%% \n');
 fprintf(fid, '%% Parameters:\n');
 fprintf(fid, '%% R_free range: %.0f to %.0f (%d points)\n', R_free_min, R_free_max, R_free_points);
 fprintf(fid, '%% E_free range: %.0f to %.0f (%d points)\n', E_free_min, E_free_max, E_free_points);
-fprintf(fid, '%% L range: %.0f to %.0f bp (%d points)\n', L_min, L_max, L_points);
+fprintf(fid, '%% L (TSS-to-PAS) range: %.0f to %.0f bp (%d points)\n', L_min, L_max, L_points);
+fprintf(fid, '%% After-PAS length: %.0f bp (fixed for all genes)\n', after_PAS_length);
 fprintf(fid, '%% Total grid points: %d\n', n_points);
 fprintf(fid, '%% \n');
 
@@ -213,7 +222,8 @@ fprintf(fid, '%% \n');
 
 % Data columns
 fprintf(fid, '%% Data Format (columns):\n');
-fprintf(fid, '%% 1: R_free, 2: E_free, 3: L, 4: R_occupied, 5: E_occupied, 6: success_flag\n');
+fprintf(fid, '%% 1: R_free, 2: E_free, 3: L (TSS-to-PAS), 4: R_occupied, 5: E_occupied, 6: success_flag\n');
+fprintf(fid, '%% Note: Total gene length = L + %.0f bp (fixed after-PAS region)\n', after_PAS_length);
 fprintf(fid, '%% \n');
 
 % Write data
@@ -241,8 +251,10 @@ if sum(valid_indices) > 0
     fprintf('  Min: %.2f, Max: %.2f, Mean: %.2f\n', ...
         min(E_occupied_vec(valid_indices)), max(E_occupied_vec(valid_indices)), mean(E_occupied_vec(valid_indices)));
     
-    fprintf('Gene length coverage:\n');
+    fprintf('TSS-to-PAS distance coverage:\n');
     fprintf('  Min: %.0f bp, Max: %.0f bp\n', min(L_vec), max(L_vec));
+    fprintf('  Total gene lengths: %.0f to %.0f bp (including %.0f bp after-PAS)\n', ...
+        min(L_vec) + after_PAS_length, max(L_vec) + after_PAS_length, after_PAS_length);
 end
 
 fprintf('\nGrid generation complete!\n');
