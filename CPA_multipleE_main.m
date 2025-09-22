@@ -22,23 +22,25 @@ kPoff_max = 1; % at TSS
 kPoff_const = 1;
 kPon_const = 1;
 
-geneLength_bp = 25000;
-PASposition   = 20000;
+geneLength_bp = 15000;
+PASposition   = 10000;
 N      = floor(geneLength_bp / L_a);  % total nodes
 PAS    = floor(PASposition   / L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
 
-EBindingNumber = 5; 
+EBindingNumber = 1; 
 [r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 
 
-kPon_vals = linspace(kPon_min, kPon_max, PAS); % Range of Kp for kPon increases linearly 
+kPon_vals = linspace(kPon_min, kPon_max, 200); % Range of Kp for kPon increases linearly 
+kPon_vals = kPon_vals(1:PAS);
 %kPoff_vals = linspace(kPoff_min, kPoff_min, PAUSE_LENGTH); % Range of Kp for kPoff decreases linearly 
 
 RE_vals = sym(zeros(EBindingNumber+1, N));
 P_vals = sym(zeros(EBindingNumber+1, N));
+avg_P = zeros(1,N);
 
 for e = 1:EBindingNumber+1
     for i = 1:PAS
@@ -48,9 +50,9 @@ for e = 1:EBindingNumber+1
         P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
     end
     for i = PAS+1:N
-        %kPoff_val = kPoff_vals(i-PAS);
-        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_max, kPoff_min});
-        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_max, kPoff_min});
+        kPon_val = kPon_vals(PAS);
+        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
+        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
     end
 end
 disp('done compute EBindingNumber');
@@ -101,12 +103,12 @@ for i = 1:N
 end
 
 Ser2P = avg_P;
-% hold on;
-% plot((1-PAS):N_PAS-1, Ser2P, 'g-','LineWidth',2.5, 'DisplayName','Ser2P');
-% plot((1-PAS):N_PAS-1, avg_E_bound, 'b-','LineWidth',2.5, 'DisplayName','AverageE');
-% legend({'Ser2P', 'AverageE'}, 'Location', 'best');
-% xlabel('position'); ylabel('AverageE');
-% hold off;
+hold on;
+plot((1-PAS):N_PAS-1, Ser2P, 'g-','LineWidth',2.5, 'DisplayName','Ser2P');
+plot((1-PAS):N_PAS-1, avg_E_bound, 'b-','LineWidth',2.5, 'DisplayName','AverageE');
+legend({'Ser2P', 'AverageE'}, 'Location', 'best');
+xlabel('position'); ylabel('AverageE');
+hold off;
 % ------------ PLOT RESULTS ------------
 % 1. Time evolution plot
 l_values =  (1-PAS):(N-PAS);

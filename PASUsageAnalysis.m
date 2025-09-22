@@ -10,15 +10,15 @@ kHoff_values = logspace(log10(0.001), log10(0.1), 4);
 E_total_values = 60000:40000:220000;
 
 % 2. Define the fixed, biologically relevant distance for the metric
-fixed_distance_bp = 1000;
+fixed_distance_bp = 300;
 
 % --- BASE PARAMETERS (P struct) ---
 % (Parameter definitions are unchanged)
 P.L_a = 100; P.k_in = 2; P.kEon = 0.00025; P.kEoff = 10;
 P.k_e = 65/100; P.k_e2 = 30/100; P.E_total = 70000;
-P.L_total = 100000; P.Pol_total = 70000; P.kHon = 0.2;
-P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_max = 1;
-P.kPoff_min = 0.1; P.kPoff_max = 2; P.kPoff_const = 1;
+P.L_total = 100000; P.Pol_total = 70000; P.kHon = 0.25;
+P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_max = 0.1;
+P.kPoff_min = 0.1; P.kPoff_max = 1; P.kPoff_const = 1;
 P.geneLength_bp = 25000; P.PASposition = 20000; P.EBindingNumber = 5;
 
 % --- Pre-allocate the results matrix ---
@@ -103,8 +103,8 @@ for i = 1:size(results_matrix, 1)
          'Color', colors(i, :), 'DisplayName', sprintf('%s = %.2g', 'E_{total}', E_total_values(i)));
 end
 set(gca, 'XScale', 'log');
-xlabel('Cumulative Exit (%)', 'FontSize', 12, 'FontWeight', 'bold');
-ylabel('Global Factor (E_{total})', 'FontSize', 12, 'FontWeight', 'bold');
+xlabel('kHoff', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Cumulative Exit (%)', 'FontSize', 12, 'FontWeight', 'bold');
 title(sprintf('Phase Diagram of Cumulative Polymerase Exit (at %d bp) of Enum = %d', fixed_distance_bp, P.EBindingNumber), 'FontSize', 14, 'FontWeight', 'bold');
 grid on; legend('show', 'Location', 'best'); set(gca, 'FontSize', 10); box on;
 hold off;
@@ -182,8 +182,8 @@ if P.FirstRun
     % Convert symbolic expression to a numerical function
     REvalbindEAfterPas = RE_val_bind_E(Ef_ss);
     E_used = sum(R(1:N)'.* RE_val_bind_E(Ef_ss)) + sum(REH' .* REvalbindEAfterPas(PAS:N)); %sum(REH, 1); 
-    %E_f = abs(P.E_total - E_used);
-    E_f = max(1, P.E_total - E_used);
+    E_f = abs(P.E_total - E_used);
+    %E_f = max(1, P.E_total - E_used);
     Ef_ss = E_f;
     %disp({sum(RE_val_bind_E(Ef_ss)), sum(R(1:PAS)), Ef_ss});
 

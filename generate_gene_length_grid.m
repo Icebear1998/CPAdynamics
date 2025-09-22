@@ -23,19 +23,19 @@ E_total_base = 70000;
 % Using range from ~10% to ~90% of total (well above the 1/70000 threshold)
 R_free_min = 100; % 0.1 * R_total_base;   % 7,000
 R_free_max = 10000;% 0.9 * R_total_base;   % 63,000
-R_free_points = 10;                % Resolution for R_free
+R_free_points = 5;                % Resolution for R_free
 
 % E_free range: similar logic to R_free
 E_free_min = 0.1 * E_total_base;   % 7,000  
 E_free_max = 0.9 * E_total_base;   % 63,000
-E_free_points = 10;                % Resolution for E_free
+E_free_points = 5;                % Resolution for E_free
 
 % TSS-to-PAS length range: based on human gene distribution (including introns)
 % From the histogram: spans ~10^2 to ~10^6 bp, with most genes 10^3 to 10^5
 % NOTE: L now represents TSS-to-PAS distance, not total gene length
 L_min = 2500;      % 2.5 kb (lower end of main distribution)
 L_max = 200000;    % 200 kb (covers most genes, excludes extreme outliers)
-L_points = 20;     % Resolution for TSS-to-PAS length
+L_points = 10;     % Resolution for TSS-to-PAS length
 
 % Fixed after-PAS length for all genes
 after_PAS_length = 5000;  % 5 kb constant after-PAS region
@@ -64,11 +64,10 @@ P_base.kHon = 0.2;
 P_base.kHoff = 0.0125;
 P_base.kc = 0.05;
 P_base.kPon_min = 0.01;
-P_base.kPon_max = 1;
+P_base.kPon_max = 0.1;
 P_base.kPoff_min = 0.1;
-P_base.kPoff_max = 2;
 P_base.kPoff_const = 1;
-P_base.EBindingNumber = 5;  % Use standard value
+P_base.EBindingNumber = 1;  % Use standard value
 
 %% --- GRID GENERATION ---
 fprintf('Generating parameter grid...\n');
@@ -276,12 +275,14 @@ function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
     N = floor(P.geneLength_bp / L_a);
     PAS = floor(P.PASposition / L_a);
     N_PAS = N - PAS + 1;
+    SD = 200;
     
     % Compute steady states
     [r_E_BeforePas] = compute_steady_states(P, P.EBindingNumber + 1);
     
     % Set up binding values
-    kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS);
+    kPon_vals_SD = linspace(P.kPon_min, P.kPon_max, SD);
+    kPon_vals = kPon_vals_SD(1:PAS);
     RE_vals = sym(zeros(P.EBindingNumber + 1, N));
     
     for e = 1:(P.EBindingNumber + 1)
@@ -289,7 +290,8 @@ function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
             RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const});
         end
         for idx = (PAS+1):N
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_min});
+            kPon_val = kPon_vals(PAS);
+            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
         end
     end
     
