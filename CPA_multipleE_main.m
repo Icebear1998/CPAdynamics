@@ -1,4 +1,4 @@
-global N PAS N_PAS Ef_ss FirstRun;
+global N PAS N_PAS Ef_ss;
 syms Ef real;
 saveData = false;
 % ------------ MODEL PARAMETERS ------------
@@ -28,7 +28,6 @@ N      = floor(geneLength_bp / L_a);  % total nodes
 PAS    = floor(PASposition   / L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
-P.kHon_afterPAS = P.kHon*ones(1,N_PAS);
 
 EBindingNumber = 5; 
 [r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
@@ -60,9 +59,14 @@ P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(
 disp('done compute RE_val_bind_E');
 
 % ------------ SOLVE THE STEADY STATE ------------ %
-FirstRun = true;
-X0 = zeros(N + N_PAS, 1);
-X = fsolve(@(xx) ode_dynamics(xx, P), X0);
+P.FirstRun = true;
+P.is_unphysical = false; % Reset flag
+X0 = 1e-6 * ones(N + N_PAS, 1); % Small positive initial guess
+options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8, 'MaxIterations', 1000);
+X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X0, options);
+if P.is_unphysical || any(isnan(X)) || any(isinf(X))
+    error('Simulation failed: unphysical solution detected');
+end
 disp('done compute fsolve');
 
 disp(Ef_ss);
@@ -71,9 +75,9 @@ disp(avg_E_bound(PAS));
 
 disp('Recalculate kHon');
 % Recalculate kHon (calculate kHon_tt)
-FirstRun = false;
-P.kHon_afterPAS = P.kHon * avg_E_bound(PAS:end);
-X = fsolve(@(xx) ode_dynamics(xx, P), X);
+P.FirstRun = false;
+P.kHon = P.kHon * avg_E_bound(end);
+X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X, options);
 
 %Extract solutions
 R_sol   = X(1:N);
@@ -146,64 +150,3 @@ if saveData
 end
 
 
-%% ------------ ODE DYNAMICS FUNCTION ------------
-function dxdt = ode_dynamics(X, P)
-global N PAS Ef_ss FirstRun
-
-k_in   = P.k_in;
-k_e    = P.k_e;
-k_e2   = P.k_e2;
-kHoff_t= P.kHoff;
-kc_t   = P.kc;
-RE_val_bind_E = P.RE_val_bind_E;
-kHon_t = P.kHon_afterPAS;
-
-R   = X(1:N);
-REH = X(N+1:end);
-
-if FirstRun
-    if Ef_ss == 0
-        Ef_ss = P.E_total; % Initial guess for free E
-    end
-
-    % Calculate E_used based on current Ef_ss 
-    REvalbindEAfterPas = RE_val_bind_E(Ef_ss);
-    E_used = sum(R(1:N)' .* RE_val_bind_E(Ef_ss)) + sum(REH' .* REvalbindEAfterPas(PAS:N));%+ sum(REH, 1);
-    
-    % Compute E_f as the difference between total and used E
-    E_f = abs(P.E_total - E_used); % Ensure non-negative E_f
-    
-    % Update Ef_ss with the new E_f value
-    Ef_ss = E_f;
-
-    % Check for unphysical conditions
-    if Ef_ss < 0
-        error('Negative E_f = %g. Stopping simulation.', E_f);
-        %Ef_ss = 0.01;
-    end
-end
-
-Pol_f = P.Pol_total - sum(R) - sum(REH);
-% L_f = P.L_total - sum()
-
-dxdt = zeros(length(X),1);
-
-n = 1;
-dxdt(n) = Pol_f*k_in - k_e*R(n);
-
-for n = 2:(PAS-1)
-    dxdt(n) = k_e*R(n-1) - k_e*R(n);
-end
-
-n = PAS;
-j = n - PAS + 1;
-dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t(1)*R(n) + kHoff_t*REH(j);
-dxdt(N+j) = -k_e2*REH(j) + kHon_t(1)*R(n) - kHoff_t*REH(j);
-
-for n = (PAS+1):N
-    j = n - PAS + 1;
-    dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t(n-PAS+1)*R(n) + kHoff_t*REH(j);
-    dxdt(N+j) = k_e2*REH(j-1) - k_e2*REH(j) + kHon_t(n-PAS+1)*R(n) - kHoff_t*REH(j) - kc_t*REH(j);
-end
-
-end

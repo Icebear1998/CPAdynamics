@@ -22,6 +22,11 @@ geneLength_bp = 25000;
 PASposition = 20000;
 EBindingNumber = 1;
 
+% Add required fields for PAS usage calculation
+P.L_a = L_a;
+P.geneLength_bp = geneLength_bp;
+P.PASposition = PASposition;
+
 % --- Global variables for ODE function ---
 global N PAS N_PAS Ef_ss;
 N = floor(geneLength_bp / L_a);
@@ -123,16 +128,19 @@ for pair_idx = 1:length(param_pairs)
             R_sol = X_final(1:N);
             REH_sol = X_final(N+1 : N+N_PAS);
             
-            ratio = (REH_sol(1:end) + R_sol(PAS:end)) / (R_sol(PAS-1) + 1e-9);
-            node_indices = 1:(length(ratio));
-            first_idx_below = find(ratio <= 0.85, 1, 'first');
-            
-            if isempty(first_idx_below); cutoff_node = length(node_indices);
-            elseif first_idx_below == 1; cutoff_node = interp1([1, ratio(1)], [0, 1], 0.85);
-            else; cutoff_node = interp1([ratio(first_idx_below-1), ratio(first_idx_below)], [node_indices(first_idx_below-1), node_indices(first_idx_below)], 0.85);
+            % Calculate cutoff position using flux-based PAS usage calculation
+            try
+                [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_run);
+                
+                % Find position where 75% of polymerases have terminated (0.75 threshold)
+                if max(exit_cdf) < 0.75
+                    cutoff_matrix(i,j) = -1;  % Insufficient termination
+                else
+                    cutoff_matrix(i,j) = interp1(exit_cdf, distances_bp, 0.75, 'linear', 'extrap');
+                end
+            catch
+                cutoff_matrix(i,j) = -1;  % Error in calculation
             end
-            if isnan(cutoff_node); cutoff_node = length(node_indices); end
-            cutoff_matrix(i,j) = cutoff_node * L_a;
         end
     end
 
@@ -145,8 +153,8 @@ for pair_idx = 1:length(param_pairs)
              'Color', colors(i, :), 'DisplayName', sprintf('%s = %.2g', param2, param2_values(i)));
     end
     xlabel([strrep(param1, '_', '\_'), ' Value'], 'FontSize', 12);
-    ylabel('CPA Cutoff Position (bp)', 'FontSize', 12);
-    title(['CPA Cutoff vs ', strrep(param1, '_', '\_'), ' by ', strrep(param2, '_', '\_')], 'FontSize', 14);
+    ylabel('Position at which 75% termination (bp)', 'FontSize', 12);
+    title(['75% Termination Position vs ', strrep(param1, '_', '\_'), ' by ', strrep(param2, '_', '\_')], 'FontSize', 14);
     grid on; legend('show', 'Location', 'best'); set(gca, 'FontSize', 10); box on;
     hold off;
     

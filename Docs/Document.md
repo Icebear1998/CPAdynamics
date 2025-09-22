@@ -1,47 +1,125 @@
-A Kinetic Model of Transcription Termination and Alternative Polyadenylation (APA)
-Version 1.0
-Last Updated: September 1, 2025
+# CPA Dynamics: A Kinetic Model of Transcription Termination and Alternative Polyadenylation
 
-1. Project Overview
-   This project provides a quantitative, multi-scale model of RNA Polymerase II (Pol II) transcription termination in mammalian cells. The model is written in MATLAB and is designed to simulate the kinetic competition that governs cleavage and polyadenylation (CPA), with a specific focus on predicting Alternative Polyadenylation (APA) site choice.
+**Version 2.0**  
+**Last Updated: September 17, 2025**
 
-The primary goal is to understand how both local features (e.g., the strength of a poly(A) signal hexamer) and global cellular factors (e.g., the concentration of CPA proteins) interact to regulate gene expression by determining the length of mRNA 3'-UTRs.
+## 1. Project Overview
 
-2. Model Architecture
-   The simulation is built on a hybrid, multi-scale framework that separates processes occurring on different timescales.
+This project provides a quantitative, multi-scale model of RNA Polymerase II (Pol II) transcription termination in mammalian cells. The model is implemented in MATLAB and simulates the kinetic competition that governs cleavage and polyadenylation (CPA), with a focus on predicting Alternative Polyadenylation (APA) site choice and termination commitment distance (TCD).
 
-a. Slow Process: Pol II Elongation (Main ODE)
-This is the core of the simulation, modeled as a system of Ordinary Differential Equations (ODEs). It describes the movement of Pol II along a discretized gene template. The key states tracked are:
+### Primary Goals
 
-R: The population of active, elongating Pol II complexes.
+- Understand how local features (poly(A) signal strength) and global factors (CPA protein concentrations) regulate gene expression
+- Predict mRNA 3'-UTR length determination through APA site choice
+- Analyze termination commitment distance as a function of gene length and resource availability
+- Model genome-wide resource competition effects on individual gene termination
 
-REH: The population of terminating Pol II complexes that have recognized the poly(A) signal (Hexamer) and are committed to cleavage.
+## 2. Model Architecture
 
-b. Fast Process: CPA Factor Binding (Embedded Symbolic Model)
-The binding of early CPA factors (denoted 'E') to the Pol II CTD is assumed to be a rapid equilibrium. Instead of simulating this in the main ODE, it is pre-calculated.
+The simulation uses a hybrid, multi-scale framework separating processes on different timescales:
 
-The model uses MATLAB's Symbolic Math Toolbox to derive an analytical function, P.RE_val_bind_E, that gives the average number of 'E' factors bound to Pol II at any position on the gene.
+### a. Slow Process: Pol II Elongation (Main ODE System)
 
-This binding is dependent on the local phosphorylation state of the Pol II CTD, which changes as the polymerase moves along the gene.
+Core simulation modeled as Ordinary Differential Equations describing Pol II movement along discretized gene templates.
 
-3. Key Features & Capabilities
-   Parameter Sweeps: The code is structured to perform large-scale parameter sweeps to test the sensitivity of the system to different biochemical rates and protein concentrations.
+**Key State Variables:**
 
-APA Prediction: The model can predict the probability of using a proximal vs. a distal poly(A) site by analyzing the flux of polymerases that terminate versus those that read through the first site.
+- **R**: Active, elongating Pol II complexes (can bind multiple E factors)
+- **REH**: Terminating Pol II complexes that have recognized poly(A) signals and are committed to cleavage
 
-Biophysically Grounded: Key parameters like k
-Hon
-​
-and k
-Hoff
-​
-are estimated using first-principles biophysical calculations, grounding the model in physical reality.
+**Critical Innovation: Multiple E Factor Binding**  
+Unlike Version 1.0's single E binding limitation, **Version 2.0 allows each polymerase to bind multiple E factors simultaneously**, enabling cooperative binding effects and more realistic termination kinetics.
 
-4. Core MATLAB Files
-   SweepParameterPASusage_parallel.m: The main script for running parameter sweeps. This is the primary entry point for simulations.
+### b. Fast Process: CPA Factor Binding (Symbolic Equilibrium Model)
 
-run_termination_simulation_parallel.m: A helper function that runs a single simulation for a given set of parameters.
+Early CPA factor ('E') binding to Pol II CTD assumed to be rapid equilibrium, pre-calculated using MATLAB's Symbolic Math Toolbox.
 
-ode_dynamics_multipleE_parallel.m: Defines the system of Ordinary Differential Equations for Pol II elongation and termination.
+**Output**: `P.RE_val_bind_E` - analytical function for average 'E' factors bound to Pol II at any gene position, dependent on local CTD phosphorylation state.
 
-compute_steady_states.m: The script that performs the symbolic
+## 3. Key Features & Capabilities
+
+### Core Analysis Types
+
+- **Parameter Sweeps**: Large-scale sensitivity analysis across biochemical rates and protein concentrations
+- **APA Prediction**: Probability calculations for proximal vs. distal poly(A) site usage
+- **Termination Commitment Distance**: Novel metric quantifying termination efficiency as function of gene length
+- **Resource Competition Modeling**: Genome-wide effects without explicit multi-gene simulation
+
+### Mathematical Framework
+
+- **Flux-Based Termination Analysis**: CDF calculation based on actual termination events
+- **Conservation Equations**: Self-consistent solutions for free vs. bound resource pools
+- **Interpolation-Based Scaling**: 3D interpolation functions for efficient parameter space exploration
+- **Biophysically Grounded Parameters**: First-principles estimation of key kinetic rates
+
+## 4. Analysis Scripts
+
+### Primary Analysis Scripts
+
+- **`CPA_multipleE_main.m`**: Core multi-E binding analysis with termination profiles
+- **`parameter_sweep_1D.m`**: Single-parameter sensitivity analysis with flux-based cutoff calculation
+- **`parameter_sweep_2D.m`**: Two-parameter interaction analysis
+- **`PASUsageAnalysis.m`**: Detailed PAS usage analysis across parameter ranges
+- **`SweepParameterPASusage.m`**: Parameter sweeps focused on PAS usage patterns
+- **`PASUsagevsInterPASDistance.m`**: Analysis of inter-PAS distance effects
+- **`Sweep1DEbindingnumber.m`**: E-binding number sensitivity analysis
+
+### Gene Length Analysis Pipeline
+
+- **`generate_gene_length_grid.m`**: Creates 3D grid data for R_occupied and E_occupied as functions of (R_free, E_free, L)
+- **`build_gene_length_interpolation.m`**: Builds interpolation functions and visualizes resource occupation patterns
+- **`analyze_gene_length_TCD.m`**: Solves conservation equations and calculates termination commitment distance
+
+### Utility Functions
+
+- **`calculate_pas_usage_profile.m`**: Modular function for flux-based termination profile calculation
+- **`save_analysis_results.m`**: Standardized data and plot saving across all analysis scripts
+- **`ode_dynamics_multipleE.m`**: Core ODE system definition
+- **`compute_steady_states.m`**: Symbolic calculation of steady-state solutions
+
+## 5. Key Innovations
+
+### Version 2.0 Updates
+
+- **Multiple E Factor Binding**: **Major advancement from Version 1.0** - each polymerase can now bind multiple E factors simultaneously, enabling cooperative binding effects
+- **Modular Architecture**: Extracted common calculations into reusable utility functions
+- **Flux-Based Analysis**: Replaced concentration ratios with biologically accurate flux calculations
+- **Gene Length Modeling**: Novel approach to model genome-wide competition without multi-gene simulation
+- **Standardized Output**: Consistent data saving and organization across all analysis types
+- **Resource Conservation**: Mathematical framework for self-consistent free/bound resource determination
+
+### Key Difference from Version 1.0: Multiple E Binding
+
+**Version 1.0 Limitation**: R → RE (single E) → REL pathway  
+**Version 2.0 Innovation**: R can bind multiple E factors (RE₁, RE₂, RE₃, ..., REₙ), allowing:
+
+- **Cooperative Effects**: Enhanced binding affinity with multiple factors
+- **Realistic Kinetics**: Better match to experimental CPA complex formation
+- **Tunable Termination**: Variable E binding numbers (EBindingNumber parameter)
+
+### Termination Commitment Distance (TCD)
+
+New metric quantifying the distance downstream of PAS where a specified fraction of polymerases have terminated. Enables:
+
+- Comparison across different gene lengths
+- Resource competition effects quantification
+- Genome-wide termination efficiency prediction
+
+## 6. File Organization
+
+```
+CPAdynamics/
+├── Analysis Scripts/          # Primary analysis workflows
+├── FirstVersion/             # Legacy implementations
+├── Results/                  # Generated plots and data
+├── SecondVersionResults/     # Current version outputs
+├── Docs/                    # Documentation
+└── Utility Functions/        # Modular helper functions
+```
+
+### Data Management
+
+- **Automated Saving**: All scripts use `save_analysis_results.m` for consistent output
+- **Organized Results**: Analysis-specific folders with timestamped files
+- **Raw Data Export**: Text files with parameter values and numerical results
+- **Plot Generation**: High-quality figures with metadata and timestamps

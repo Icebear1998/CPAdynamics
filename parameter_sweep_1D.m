@@ -124,7 +124,6 @@ for EBindingNumber = 1:1
 
         % Initialize arrays
         cutoff_values = zeros(1, length(param_values));
-        cutoff_values_kPoff = zeros(1, length(param_values));
 
         % Parameter sweep
         for k = 1:length(param_values)
@@ -143,7 +142,6 @@ for EBindingNumber = 1:1
             catch ME
                 fprintf('Error in compute_steady_states for %s = %.4g: %s\n', param_to_sweep, param_values(k), ME.message);
                 cutoff_values(k) = NaN;
-                cutoff_values_kPoff(k) = NaN;
                 continue;
             end
             
@@ -200,24 +198,6 @@ for EBindingNumber = 1:1
                 cutoff_values(k) = -1;  % Error in calculation
             end
 
-%             P.kHon = kHon_default * avg_E_bound_kPoff(end);
-%             X_adj = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X1, options);
-% 
-%             R_sol = X_adj(1:N);
-%             REH_sol = X_adj(N+1 : N+N_PAS);
-%             
-%             % Calculate cutoff position for kPoff
-%             if R_sol(PAS-1) == 0
-%                 cutoff_values_kPoff(k) = -1;
-%             else
-%                 ratio = (REH_sol(1:end) + R_sol(PAS:end)) / R_sol(PAS-1);
-%                 node_indices = 1:length(ratio);
-%                 if all(ratio >= 0.75)
-%                     cutoff_values_kPoff(k) = -1;
-%                 else
-%                     cutoff_values_kPoff(k) = interp1(ratio, node_indices, 0.75, 'linear', -1) * L_a;
-%                 end
-%             end
         end
 
         % Plot
@@ -227,22 +207,17 @@ for EBindingNumber = 1:1
             set(gca, 'XScale', 'log');
         end
         plot(param_values, cutoff_values, 'o-', 'LineWidth', 2, 'MarkerSize', 8, ...
-             'Color', [0, 0.4470, 0.7410], 'DisplayName', 'kPon');
-%         plot(param_values, cutoff_values_kPoff, 'o-', 'LineWidth', 2, 'MarkerSize', 8, ...
-%              'Color', [0.8500, 0.3250, 0.0980], 'DisplayName', 'kPoff');
+             'Color', [0, 0.4470, 0.7410], 'DisplayName', '75% Termination');
         
         % Highlight default parameter value with interpolation
-        default_kPon = interp1(param_values, cutoff_values, default_value, 'linear', 'extrap');
-        %default_kPoff = interp1(param_values, cutoff_values_kPoff, default_value, 'linear', 'extrap');
-        plot(default_value, default_kPon, 'ro', 'MarkerSize', 10, 'LineWidth', 2, ...
-             'DisplayName', 'Default kPon');
-%         plot(default_value, default_kPoff, 'rs', 'MarkerSize', 10, 'LineWidth', 2, ...
-%              'DisplayName', 'Default kPoff');
+        default_cutoff = interp1(param_values, cutoff_values, default_value, 'linear', 'extrap');
+        plot(default_value, default_cutoff, 'ro', 'MarkerSize', 10, 'LineWidth', 2, ...
+             'DisplayName', 'Default Value');
         
         % Customize plot
         xlabel([strrep(param_to_sweep, '_', '\_'), ' Value'], 'FontSize', 12);
         ylabel('Position at which 75% termination (bp)', 'FontSize', 12);
-        title(['CPA Cutoff vs ', strrep(param_to_sweep, '_', '\_'), ' (EBindingNumber=', num2str(EBindingNumber), ')'], ...
+        title(['75% Termination Position vs ', strrep(param_to_sweep, '_', '\_'), ' (EBindingNumber=', num2str(EBindingNumber), ')'], ...
               'FontSize', 14, 'FontWeight', 'bold');
         grid on;
         legend('show', 'Location', 'best', 'FontSize', 10);
