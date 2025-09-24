@@ -286,7 +286,7 @@ fprintf('Gene length vs occupied resources plot saved to: %s\n', line_plot_filen
 figure('Position', [200, 200, 1000, 400]);
 
 % Plot at median gene length
-L_sample = 3000;
+L_sample = 20000;
 R_free_range = linspace(min(R_free_clean), max(R_free_clean), 50);
 E_free_range = linspace(min(E_free_clean), max(E_free_clean), 50);
 [R_grid_plot, E_grid_plot] = meshgrid(R_free_range, E_free_range);

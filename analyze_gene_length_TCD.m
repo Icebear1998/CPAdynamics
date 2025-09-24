@@ -424,8 +424,8 @@ function [termination_profile, distances_bp] = calculate_termination_profile(tss
     P.kEoff = 10;
     P.k_e = 65/100;
     P.k_e2 = 30/100;
-    P.E_total = E_free;  % Use free E as total for local analysis
-    P.Pol_total = R_free;  % Use free R as total for local analysis
+    P.E_free = E_free;  % Use free E as total for local analysis
+    P.Pol_free = R_free;  % Use free R as total for local analysis
     P.kHon = 0.2;
     P.kHoff = 0.0125;
     P.kc = 0.05;
@@ -509,21 +509,57 @@ function [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P)
     X_guess = 1e-6 * ones(N + N_PAS, 1);
     options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-6);
     
-    % Two-step solution
-    P.FirstRun = true;
-    P.is_unphysical = false;
-    Ef_ss = P.E_total * 0.5;  % Simplified
-    
-    X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
-    if P.is_unphysical
-        error('Unphysical result in TCD simulation');
-    end
-    
-    % Update and resolve (simplified)
-    P.FirstRun = false;
-    X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_base, options);
+%     % Two-step solution
+%     P.FirstRun = true;
+%     P.is_unphysical = false;
+%     Ef_ss = P.E_total * 0.5;  % Simplified
+%     
+%     X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
+%     if P.is_unphysical
+%         error('Unphysical result in TCD simulation');
+%     end
+%     
+%     % Update and resolve (simplified)
+%     P.FirstRun = false;
+    X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
     
     R_sol = X_final(1:N);
     REH_sol = X_final((N+1):(N+N_PAS));
     P_sim = P;
+end
+
+%% ------------ ODE DYNAMICS FUNCTION ------------
+function dxdt = ode_dynamics_multipleE(X, P)
+global N PAS
+
+k_in   = P.k_in;
+k_e    = P.k_e;
+k_e2   = P.k_e2;
+kHoff_t= P.kHoff;
+kc_t   = P.kc;
+kHon_t = P.kHon;
+
+R   = X(1:N);
+REH = X(N+1:end);
+
+dxdt = zeros(length(X),1);
+
+n = 1;
+dxdt(n) = P.Pol_free*k_in - k_e*R(n);
+
+for n = 2:(PAS-1)
+    dxdt(n) = k_e*R(n-1) - k_e*R(n);
+end
+
+n = PAS;
+j = n - PAS + 1;
+dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
+dxdt(N+j) = -k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j);
+
+for n = (PAS+1):N
+    j = n - PAS + 1;
+    dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
+    dxdt(N+j) = k_e2*REH(j-1) - k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j) - kc_t*REH(j);
+end
+
 end

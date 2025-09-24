@@ -21,12 +21,12 @@ E_total_base = 70000;
 
 % R_free range: should be much larger than 1/70000 of total
 % Using range from ~10% to ~90% of total (well above the 1/70000 threshold)
-R_free_min = 100; % 0.1 * R_total_base;   % 7,000
-R_free_max = 10000;% 0.9 * R_total_base;   % 63,000
+R_free_min = 10; % 0.1 * R_total_base;   % 7,000
+R_free_max = 1000;% 0.9 * R_total_base;   % 63,000
 R_free_points = 5;                % Resolution for R_free
 
 % E_free range: similar logic to R_free
-E_free_min = 0.1 * E_total_base;   % 7,000  
+E_free_min = 0.1* E_total_base;   % 7,000  
 E_free_max = 0.9 * E_total_base;   % 63,000
 E_free_points = 5;                % Resolution for E_free
 
@@ -45,13 +45,6 @@ R_free_values = linspace(R_free_min, R_free_max, R_free_points);
 E_free_values = linspace(E_free_min, E_free_max, E_free_points);
 L_values = logspace(log10(L_min), log10(L_max), L_points); % Log spacing for gene lengths
 
-fprintf('Parameter Ranges:\n');
-fprintf('  R_free: %.0f to %.0f (%d points)\n', R_free_min, R_free_max, R_free_points);
-fprintf('  E_free: %.0f to %.0f (%d points)\n', E_free_min, E_free_max, E_free_points);
-fprintf('  L (TSS-to-PAS): %.0f to %.0f bp (%d points, log-spaced)\n', L_min, L_max, L_points);
-fprintf('  After-PAS length: %.0f bp (fixed for all genes)\n', after_PAS_length);
-fprintf('  Total grid points: %d\n\n', R_free_points * E_free_points * L_points);
-
 %% --- BASE PARAMETERS ---
 % Use standard parameter set from existing analyses
 P_base.L_a = 100;
@@ -64,10 +57,26 @@ P_base.kHon = 0.2;
 P_base.kHoff = 0.0125;
 P_base.kc = 0.05;
 P_base.kPon_min = 0.01;
-P_base.kPon_max = 0.1;
+P_base.kPon_max = 1;
 P_base.kPoff_min = 0.1;
 P_base.kPoff_const = 1;
+P_base.SD_bp = 20000;  % Saturation distance in bp
+P_base.kPon_option = 2;  % 1: saturate at SD, 2: continue linear after SD
 P_base.EBindingNumber = 1;  % Use standard value
+
+fprintf('Parameter Ranges:\n');
+fprintf('  R_free: %.0f to %.0f (%d points)\n', R_free_min, R_free_max, R_free_points);
+fprintf('  E_free: %.0f to %.0f (%d points)\n', E_free_min, E_free_max, E_free_points);
+fprintf('  L (TSS-to-PAS): %.0f to %.0f bp (%d points, log-spaced)\n', L_min, L_max, L_points);
+fprintf('  After-PAS length: %.0f bp (fixed for all genes)\n', after_PAS_length);
+fprintf('  Saturation distance (SD): %.0f bp\n', P_base.SD_bp);
+fprintf('  kPon behavior: Option %d ', P_base.kPon_option);
+if P_base.kPon_option == 1
+    fprintf('(saturate at SD, then constant)\n');
+else
+    fprintf('(continue linear increase after SD)\n');
+end
+fprintf('  Total grid points: %d\n\n', R_free_points * E_free_points * L_points);
 
 %% --- GRID GENERATION ---
 fprintf('Generating parameter grid...\n');
@@ -101,8 +110,8 @@ parfor i = 1:n_points
         
         % Set up parameters for this simulation
         P_i = P_base;
-        P_i.Pol_total = R_free_i;  % Use R_free as Pol_total for local analysis
-        P_i.E_total = E_free_i;    % Use E_free as E_total for local analysis
+        P_i.Pol_free = R_free_i;  % Use R_free for local analysis
+        P_i.E_free = E_free_i;    % Use E_free for local analysis
         
         % NEW: L_i now represents TSS-to-PAS distance
         P_i.PASposition = L_i;     % PAS position = TSS-to-PAS distance
@@ -120,16 +129,6 @@ parfor i = 1:n_points
         R_occupied_vec(i) = R_occupied_i;
         E_occupied_vec(i) = E_occupied_i;
         success_flag(i) = 1;
-        
-%     catch ME
-%         % Handle failed simulations
-%         R_occupied_vec(i) = NaN;
-%         E_occupied_vec(i) = NaN;
-%         success_flag(i) = 0;
-%         
-%         % Optionally log the error (commented out to avoid parfor issues)
-%         fprintf('Failed at point %d: %s\n', i, ME.message);
-%     end
     
     % Progress indication (every 1000 points)
     if mod(i, 100) == 0
@@ -267,7 +266,7 @@ fprintf('4. Calculate TCD(L) relationships\n');
 
 function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
     % Run single gene simulation similar to existing scripts
-    global N PAS N_PAS Ef_ss;
+    global N PAS N_PAS;
     syms Ef real;
     
     % Set up geometry
@@ -275,14 +274,34 @@ function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
     N = floor(P.geneLength_bp / L_a);
     PAS = floor(P.PASposition / L_a);
     N_PAS = N - PAS + 1;
-    SD = 200;
+    SD = floor(P.SD_bp / L_a);  % Saturation distance in nodes
     
     % Compute steady states
     [r_E_BeforePas] = compute_steady_states(P, P.EBindingNumber + 1);
     
-    % Set up binding values
-    kPon_vals_SD = linspace(P.kPon_min, P.kPon_max, SD);
-    kPon_vals = kPon_vals_SD(1:PAS);
+    % Set up kPon values based on the saturation distance concept
+    kPon_vals = zeros(1, PAS);
+    
+    if PAS <= SD
+        % Case 1: PAS is before or at saturation distance
+        % Linear increase from kPon_min to value at PAS (never reaches kPon_max)
+        kPon_vals = linspace(P.kPon_min, P.kPon_min + (P.kPon_max - P.kPon_min) * (PAS / SD), PAS);
+    else
+        % Case 2: PAS is beyond saturation distance
+        if P.kPon_option == 1
+            % Option 1: Saturate at SD, then constant
+            kPon_vals(1:SD) = linspace(P.kPon_min, P.kPon_max, SD);
+            kPon_vals((SD+1):PAS) = P.kPon_max;  % Constant at kPon_max
+        else
+            % Option 2: Continue linear increase after SD
+            kPon_vals(1:SD) = linspace(P.kPon_min, P.kPon_max, SD);
+            % Continue linear increase beyond kPon_max
+            slope = (P.kPon_max - P.kPon_min) / SD;
+            for i = (SD+1):PAS
+                kPon_vals(i) = P.kPon_max + slope * (i - SD);
+            end
+        end
+    end
     RE_vals = sym(zeros(P.EBindingNumber + 1, N));
     
     for e = 1:(P.EBindingNumber + 1)
@@ -290,7 +309,7 @@ function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
             RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const});
         end
         for idx = (PAS+1):N
-            kPon_val = kPon_vals(PAS);
+            kPon_val = kPon_vals(end);  % Use the kPon value at PAS for after-PAS region
             RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
         end
     end
@@ -301,21 +320,21 @@ function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
     X_guess = 1e-6 * ones(N + N_PAS, 1);
     options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
     
-    % Two-step solution
-    P.FirstRun = true;
-    P.is_unphysical = false;
-    Ef_ss = 0;
-    
-    X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
-    if P.is_unphysical
-        error('Unphysical result in step 1');
-    end
-    
-    % Update kHon and resolve
-    avg_E_bound = P.RE_val_bind_E(Ef_ss);
-    P.FirstRun = false;
-    P.kHon = P.kHon * avg_E_bound(end);
-    X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_base, options);
+%     % Two-step solution
+%     P.FirstRun = true;
+%     P.is_unphysical = false;
+%     Ef_ss = 0;
+%     
+%     X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
+%     if P.is_unphysical
+%         error('Unphysical result in step 1');
+%     end
+%     
+%     % Update kHon and resolve
+     avg_E_bound = P.RE_val_bind_E(P.E_free);
+%     P.FirstRun = false;
+    P.kHon = P.kHon * avg_E_bound(PAS);
+    X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
     
     R_sol = X_final(1:N);
     REH_sol = X_final((N+1):(N+N_PAS));
@@ -334,3 +353,41 @@ function E_occupied = calculate_E_occupied(R_sol, REH_sol, avg_E_bound)
     E_bound_REH = sum(REH_sol .* avg_E_bound_profile(PAS:end)');
     E_occupied = E_bound_R + E_bound_REH;
 end
+
+
+%% ------------ ODE DYNAMICS FUNCTION ------------
+function dxdt = ode_dynamics_multipleE(X, P)
+global N PAS
+
+k_in   = P.k_in;
+k_e    = P.k_e;
+k_e2   = P.k_e2;
+kHoff_t= P.kHoff;
+kc_t   = P.kc;
+kHon_t = P.kHon;
+
+R   = X(1:N);
+REH = X(N+1:end);
+
+dxdt = zeros(length(X),1);
+
+n = 1;
+dxdt(n) = P.Pol_free*k_in - k_e*R(n);
+
+for n = 2:(PAS-1)
+    dxdt(n) = k_e*R(n-1) - k_e*R(n);
+end
+
+n = PAS;
+j = n - PAS + 1;
+dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
+dxdt(N+j) = -k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j);
+
+for n = (PAS+1):N
+    j = n - PAS + 1;
+    dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
+    dxdt(N+j) = k_e2*REH(j-1) - k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j) - kc_t*REH(j);
+end
+
+end
+
