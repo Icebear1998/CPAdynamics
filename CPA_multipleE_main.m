@@ -16,25 +16,26 @@ P.kHoff = 0.0125;
 P.kc = 0.05; %not sure
 
 kPon_min = 0.01; % at TSS
-kPon_max = 1; % at PAS
+kPon_max = 2; % at PAS
 kPoff_min = 0.1; % at PAS
 kPoff_max = 1; % at TSS
 kPoff_const = 1;
 kPon_const = 1;
 
-geneLength_bp = 15000;
-PASposition   = 10000;
+geneLength_bp = 25000;
+PASposition   = 20000;
 N      = floor(geneLength_bp / L_a);  % total nodes
 PAS    = floor(PASposition   / L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
+SD = floor(20000 / L_a); % Saturation distance
 Ef_ss = 0;
 
-EBindingNumber = 1; 
+EBindingNumber = 2; 
 [r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 
 
-kPon_vals = linspace(kPon_min, kPon_max, 200); % Range of Kp for kPon increases linearly 
+kPon_vals = linspace(kPon_min, kPon_max, SD); % Range of Kp for kPon increases linearly 
 kPon_vals = kPon_vals(1:PAS);
 %kPoff_vals = linspace(kPoff_min, kPoff_min, PAUSE_LENGTH); % Range of Kp for kPoff decreases linearly 
 
@@ -51,8 +52,8 @@ for e = 1:EBindingNumber+1
     end
     for i = PAS+1:N
         kPon_val = kPon_vals(PAS);
-        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
-        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
+        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_min});
+        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_min});
     end
 end
 disp('done compute EBindingNumber');
@@ -78,7 +79,7 @@ disp(avg_E_bound(PAS));
 disp('Recalculate kHon');
 % Recalculate kHon (calculate kHon_tt)
 P.FirstRun = false;
-P.kHon = P.kHon * avg_E_bound(end);
+P.kHon = P.kHon * avg_E_bound(PAS);
 X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X, options);
 
 %Extract solutions

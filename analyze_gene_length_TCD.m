@@ -39,11 +39,16 @@ R_occupied_interp = interpolation_results.functions.R_occupied_interp;
 E_occupied_interp = interpolation_results.functions.E_occupied_interp;
 gene_length_pdf = interpolation_results.functions.gene_length_pdf;
 
-% System parameters
-R_total_target = 70000;  % Target total R (from typical parameter set)
-E_total_target = 70000;  % Target total E (from typical parameter set)
+% System parameters loaded from grid generation data for consistency
+R_total_target = interpolation_results.original_grid.R_total_base;
+E_total_target = interpolation_results.original_grid.E_total_base;
+num_active_genes = interpolation_results.original_grid.num_active_genes;
+
+% Extract base parameters used for grid generation to ensure consistency
+base_params = interpolation_results.original_grid.base_parameters;
 
 fprintf('Target totals: R_total = %.0f, E_total = %.0f\n', R_total_target, E_total_target);
+fprintf('System size: %d active genes\n', num_active_genes);
 
 %% --- DEFINE INTEGRATION DOMAIN ---
 fprintf('\nSetting up integration domain...\n');
@@ -108,14 +113,14 @@ fprintf('\nSolving for self-consistent (R_free, E_free)...\n');
 
 % Define residual function for root finding
 % This function returns [0, 0] when the conservation equations are satisfied
-residual_function = @(x) conservation_equations_residual(x, R_occupied_interp, E_occupied_interp, L_integration, f_L_normalized, dL, R_total_target, E_total_target);
+residual_function = @(x) conservation_equations_residual(x, R_occupied_interp, E_occupied_interp, L_integration, f_L_normalized, dL, R_total_target, E_total_target, num_active_genes);
 
 % INITIAL GUESS STRATEGY:
 % Start with moderate free fractions (30% of total). This is reasonable because:
 % - Too high: Would imply very little resource consumption (unlikely)
 % - Too low: Would imply extreme resource depletion (may cause convergence issues)
 % - 30%: Balanced starting point that allows for significant resource binding
-R_free_guess = 0.3 * R_total_target;  % 30% free polymerase
+R_free_guess = 0.03 * R_total_target;  % 30% free polymerase
 E_free_guess = 0.3 * E_total_target;  % 30% free E factors
 initial_guess = [R_free_guess, E_free_guess];
 
@@ -152,7 +157,7 @@ try
         fprintf('  Final residual: [%.2e, %.2e]\n', fval(1), fval(2));
         
         % Validate solution
-        [R_check, E_check] = conservation_equations(R_free_solution, E_free_solution, R_occupied_interp, E_occupied_interp, L_integration, f_L_normalized, dL);
+        [R_check, E_check] = conservation_equations(R_free_solution, E_free_solution, R_occupied_interp, E_occupied_interp, L_integration, f_L_normalized, dL, num_active_genes);
         fprintf('  Validation: R_total = %.0f, E_total = %.0f\n', R_check, E_check);
         
     else
@@ -187,7 +192,7 @@ for i = 1:n_L_TCD
     
     try
         % Calculate termination profile for this gene length
-        [termination_profile, distances_bp] = calculate_termination_profile(L_current, R_free_solution, E_free_solution);
+        [termination_profile, distances_bp] = calculate_termination_profile(L_current, R_free_solution, E_free_solution, base_params);
         termination_profiles{i} = struct('distances', distances_bp, 'profile', termination_profile);
         
         % Calculate TCD for each threshold
@@ -316,7 +321,7 @@ fprintf('\nAnalysis completed successfully!\n');
 
 %% --- HELPER FUNCTIONS ---
 
-function residual = conservation_equations_residual(x, R_interp, E_interp, L_vals, f_L_vals, dL_vals, R_target, E_target)
+function residual = conservation_equations_residual(x, R_interp, E_interp, L_vals, f_L_vals, dL_vals, R_target, E_target, num_genes)
     % RESIDUAL FUNCTION FOR CONSERVATION EQUATION SOLVER
     % 
     % This function computes the residual (error) in the conservation equations
@@ -341,14 +346,14 @@ function residual = conservation_equations_residual(x, R_interp, E_interp, L_val
     E_free = x(2);  % Extract free E factor guess
     
     % Calculate what the total amounts would be given these free amounts
-    [R_total_calc, E_total_calc] = conservation_equations(R_free, E_free, R_interp, E_interp, L_vals, f_L_vals, dL_vals);
+    [R_total_calc, E_total_calc] = conservation_equations(R_free, E_free, R_interp, E_interp, L_vals, f_L_vals, dL_vals, num_genes);
     
     % Compute residual: difference between calculated and target totals
     % fsolve will minimize the magnitude of this residual vector
     residual = [R_total_calc - R_target, E_total_calc - E_target];
 end
 
-function [R_total_calc, E_total_calc] = conservation_equations(R_free, E_free, R_interp, E_interp, L_vals, f_L_vals, dL_vals)
+function [R_total_calc, E_total_calc] = conservation_equations(R_free, E_free, R_interp, E_interp, L_vals, f_L_vals, dL_vals, num_genes)
     % CORE CONSERVATION EQUATION IMPLEMENTATION
     %
     % This function implements the fundamental conservation equations that
@@ -404,42 +409,26 @@ function [R_total_calc, E_total_calc] = conservation_equations(R_free, E_free, R
     E_integral = sum(E_occupied_vals .* f_L_vals .* dL_vals);
     
     % CONSERVATION EQUATIONS:
-    % Total amount = Free amount + Genome-wide consumption
-    R_total_calc = R_free + R_integral;  % Total polymerase in system
-    E_total_calc = E_free + E_integral;  % Total E factors in system
+    % Total amount = Free amount + (Avg occupied per gene * Number of genes)
+    R_total_calc = R_free + R_integral * num_genes;  % Total polymerase in system
+    E_total_calc = E_free + E_integral * num_genes;  % Total E factors in system
 end
 
-function [termination_profile, distances_bp] = calculate_termination_profile(tss_to_pas_distance, R_free, E_free)
+function [termination_profile, distances_bp] = calculate_termination_profile(tss_to_pas_distance, R_free, E_free, base_params)
     % Calculate termination profile for a specific TSS-to-PAS distance
     % This is a simplified version - in practice, you'd run the full simulation
     
-    global N PAS N_PAS Ef_ss;
     syms Ef real;
     
-    % Set up parameters for this gene length
-    P = struct();
-    P.L_a = 100;
-    P.k_in = 2;
-    P.kEon = 0.00025;
-    P.kEoff = 10;
-    P.k_e = 65/100;
-    P.k_e2 = 30/100;
-    P.E_free = E_free;  % Use free E as total for local analysis
-    P.Pol_free = R_free;  % Use free R as total for local analysis
-    P.kHon = 0.2;
-    P.kHoff = 0.0125;
-    P.kc = 0.05;
-    P.kPon_min = 0.01;
-    P.kPon_max = 1;
-    P.kPoff_min = 0.1;
-    P.kPoff_max = 2;
-    P.kPoff_const = 1;
+    % Set up parameters for this gene length, using the consistent base parameters
+    P = base_params; % Load the consistent parameter set
+    P.E_free = E_free;    % Use solved free E for local analysis
+    P.Pol_free = R_free;  % Use solved free R for local analysis
     
     % NEW: Gene structure with fixed after-PAS length
     after_PAS_length = 5000;  % Fixed 5 kb after-PAS region
     P.PASposition = tss_to_pas_distance;  % PAS position = TSS-to-PAS distance
     P.geneLength_bp = tss_to_pas_distance + after_PAS_length;  % Total gene length
-    P.EBindingNumber = 6;
     
     % Run simulation (similar to existing scripts)
     [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P);
@@ -489,8 +478,9 @@ function TCD = calculate_TCD_from_profile(termination_profile, distances_bp, thr
 end
 
 function [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P)
-    % Simplified version of single gene simulation for TCD analysis
-    global N PAS N_PAS Ef_ss;
+    % Consistent single gene simulation for TCD analysis.
+    % This logic is mirrored from generate_gene_length_grid.m
+    global N PAS N_PAS;
     syms Ef real;
     
     % Set up geometry
@@ -498,29 +488,54 @@ function [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P)
     N = floor(P.geneLength_bp / L_a);
     PAS = floor(P.PASposition / L_a);
     N_PAS = N - PAS + 1;
+    SD = floor(P.SD_bp / L_a);  % Saturation distance in nodes
     
-    % Use simplified steady state (for speed)
-    % In practice, you might want to use the full compute_steady_states
+    % Compute steady states
+    [r_E_BeforePas] = compute_steady_states(P, P.EBindingNumber + 1);
     
-    % Simplified binding calculation
-    P.RE_val_bind_E = @(Ef) ones(1, N) * P.EBindingNumber * 0.5;  % Simplified
+    % Set up kPon values based on the saturation distance concept
+    kPon_vals = zeros(1, PAS);
+    
+    if PAS <= SD
+        % Case 1: PAS is before or at saturation distance
+        % Linear increase from kPon_min to value at PAS (never reaches kPon_max)
+        kPon_vals = linspace(P.kPon_min, P.kPon_min + (P.kPon_max - P.kPon_min) * (PAS / SD), PAS);
+    else
+        % Case 2: PAS is beyond saturation distance
+        if P.kPon_option == 1
+            % Option 1: Saturate at SD, then constant
+            kPon_vals(1:SD) = linspace(P.kPon_min, P.kPon_max, SD);
+            kPon_vals((SD+1):PAS) = P.kPon_max;  % Constant at kPon_max
+        else
+            % Option 2: Continue linear increase after SD
+            kPon_vals(1:SD) = linspace(P.kPon_min, P.kPon_max, SD);
+            % Continue linear increase beyond kPon_max
+            slope = (P.kPon_max - P.kPon_min) / SD;
+            for i = (SD+1):PAS
+                kPon_vals(i) = P.kPon_max + slope * (i - SD);
+            end
+        end
+    end
+    RE_vals = sym(zeros(P.EBindingNumber + 1, N));
+    
+    for e = 1:(P.EBindingNumber + 1)
+        for idx = 1:length(kPon_vals)
+            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const});
+        end
+        for idx = (PAS+1):N
+            kPon_val = kPon_vals(end);  % Use the kPon value at PAS for after-PAS region
+            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
+        end
+    end
+    
+    P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:P.EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
     
     % Solve system
     X_guess = 1e-6 * ones(N + N_PAS, 1);
-    options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-6);
+    options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
     
-%     % Two-step solution
-%     P.FirstRun = true;
-%     P.is_unphysical = false;
-%     Ef_ss = P.E_total * 0.5;  % Simplified
-%     
-%     X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
-%     if P.is_unphysical
-%         error('Unphysical result in TCD simulation');
-%     end
-%     
-%     % Update and resolve (simplified)
-%     P.FirstRun = false;
+    avg_E_bound = P.RE_val_bind_E(P.E_free);
+    P.kHon = P.kHon * avg_E_bound(PAS);
     X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
     
     R_sol = X_final(1:N);
