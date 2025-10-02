@@ -4,10 +4,10 @@
 if isempty(gcp('nocreate')); parpool; end
 
 % --- CONFIGURATION ---
-save_result = false;
+save_result = true;
 % 1. Define the ranges for the two sweep parameters
-kHoff_values = logspace(log10(0.001), log10(0.1), 4);
-E_total_values = 60000:40000:220000;
+kHoff_values = logspace(log10(0.001), log10(0.1), 6);
+E_total_values = 40000:40000:360000;
 
 % 2. Define the fixed, biologically relevant distance for the metric
 fixed_distance_bp = 300;
@@ -16,7 +16,7 @@ fixed_distance_bp = 300;
 % (Parameter definitions are unchanged)
 P.L_a = 100; P.k_in = 2; P.kEon = 0.00025; P.kEoff = 10;
 P.k_e = 65/100; P.k_e2 = 30/100; P.E_total = 70000;
-P.L_total = 100000; P.Pol_total = 70000; P.kHon = 0.25;
+P.L_total = 100000; P.Pol_total = 70000; P.kHon = 0.2;
 P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_max = 0.1;
 P.kPoff_min = 0.1; P.kPoff_max = 1; P.kPoff_const = 1;
 P.geneLength_bp = 25000; P.PASposition = 20000; P.EBindingNumber = 5;

@@ -16,7 +16,7 @@ P.kHoff = 0.0125;
 P.kc = 0.05; %not sure
 
 kPon_min = 0.01; % at TSS
-kPon_max = 2; % at PAS
+kPon_max = 1; % at PAS
 kPoff_min = 0.1; % at PAS
 kPoff_max = 1; % at TSS
 kPoff_const = 1;

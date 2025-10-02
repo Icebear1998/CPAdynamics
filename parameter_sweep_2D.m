@@ -58,8 +58,8 @@ for pair_idx = 1:length(param_pairs)
     param1 = param_pairs{pair_idx}{1};
     param2 = param_pairs{pair_idx}{2};
     
-    param1_values = 40000:-10000:20000;
-    param2_values = 0.06:-0.01:0.02;
+    param1_values = 20000:10000:100000;
+    param2_values = 0.1:-0.01:0.01;
 
     cutoff_matrix = zeros(length(param2_values), length(param1_values));
     options = optimoptions('fsolve', 'Algorithm', 'trust-region', 'Display', 'none', 'FunctionTolerance', 1e-10);
@@ -160,15 +160,15 @@ for pair_idx = 1:length(param_pairs)
     
     % --- SAVE RESULTS ---
     % Prepare data structure for saving
-    data.EBindingNumber = EBindingNumber;
-    data.param1 = param1;
-    data.param2 = param2;
-    data.param1_values = param1_values;
-    data.param2_values = param2_values;
-    data.cutoff_matrix = cutoff_matrix;
+%     data.EBindingNumber = EBindingNumber;
+%     data.param1 = param1;
+%     data.param2 = param2;
+%     data.param1_values = param1_values;
+%     data.param2_values = param2_values;
+%     data.cutoff_matrix = cutoff_matrix;
     
     % Save results using the utility function
-    save_analysis_results('parameter_sweep_2D', data, P);
+    %save_analysis_results('parameter_sweep_2D', data, P);
 end
 
 % --- Helper Functions (ode_dynamics_multipleE, compute_steady_states, etc. would be here) ---
