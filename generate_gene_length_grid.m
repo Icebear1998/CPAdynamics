@@ -48,7 +48,12 @@ L_values = logspace(log10(L_min), log10(L_max), L_points); % Log spacing for gen
 %% --- BASE PARAMETERS ---
 % Use standard parameter set from existing analyses
 P_base.L_a = 100;
-P_base.k_in = 2;
+% k_in must be rescaled for the local model. The original value (e.g., 2)
+% was for a global model where one gene represented the whole system.
+% Here, we scale it to represent a single gene's promoter strength.
+k_in_global = 2;
+num_active_genes = 10000; % Estimated number of active genes in the system
+P_base.k_in = k_in_global / num_active_genes;
 P_base.kEon = 0.00025;
 P_base.kEoff = 10;
 P_base.k_e = 65/100;
@@ -57,12 +62,12 @@ P_base.kHon = 0.2;
 P_base.kHoff = 0.0125;
 P_base.kc = 0.05;
 P_base.kPon_min = 0.01;
-P_base.kPon_max = 1;
+P_base.kPon_max = 0.1;
 P_base.kPoff_min = 0.1;
 P_base.kPoff_const = 1;
 P_base.SD_bp = 20000;  % Saturation distance in bp
 P_base.kPon_option = 2;  % 1: saturate at SD, 2: continue linear after SD
-P_base.EBindingNumber = 1;  % Use standard value
+P_base.EBindingNumber = 5;  % Use standard value
 
 fprintf('Parameter Ranges:\n');
 fprintf('  R_free: %.0f to %.0f (%d points)\n', R_free_min, R_free_max, R_free_points);
@@ -163,6 +168,11 @@ results.parameters.E_free_points = E_free_points;
 results.parameters.L_points = L_points;
 results.parameters.after_PAS_length = after_PAS_length;
 results.parameters.base_parameters = P_base;
+
+% Add system-wide parameters for consistency
+results.parameters.R_total_base = R_total_base;
+results.parameters.E_total_base = E_total_base;
+results.parameters.num_active_genes = num_active_genes;
 
 % Grid data
 results.grid.R_free_values = R_free_values;
