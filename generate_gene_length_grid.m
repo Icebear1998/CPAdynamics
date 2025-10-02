@@ -40,11 +40,6 @@ L_points = 10;     % Resolution for TSS-to-PAS length
 % Fixed after-PAS length for all genes
 after_PAS_length = 5000;  % 5 kb constant after-PAS region
 
-% Create parameter grids
-R_free_values = linspace(R_free_min, R_free_max, R_free_points);
-E_free_values = linspace(E_free_min, E_free_max, E_free_points);
-L_values = logspace(log10(L_min), log10(L_max), L_points); % Log spacing for gene lengths
-
 %% --- BASE PARAMETERS ---
 % Use standard parameter set from existing analyses
 P_base.L_a = 100;
@@ -66,8 +61,13 @@ P_base.kPon_max = 0.1;
 P_base.kPoff_min = 0.1;
 P_base.kPoff_const = 1;
 P_base.SD_bp = 20000;  % Saturation distance in bp
-P_base.kPon_option = 2;  % 1: saturate at SD, 2: continue linear after SD
-P_base.EBindingNumber = 5;  % Use standard value
+P_base.kPon_option = 1;  % 1: saturate at SD, 2: continue linear after SD
+P_base.EBindingNumber = 1;  % Use standard value
+
+% Create parameter grids
+R_free_values = linspace(R_free_min, R_free_max, R_free_points);
+E_free_values = linspace(E_free_min, E_free_max, E_free_points);
+L_values = logspace(log10(L_min), log10(L_max), L_points); % Log spacing for gene lengths
 
 fprintf('Parameter Ranges:\n');
 fprintf('  R_free: %.0f to %.0f (%d points)\n', R_free_min, R_free_max, R_free_points);
