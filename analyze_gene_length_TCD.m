@@ -120,7 +120,7 @@ residual_function = @(x) conservation_equations_residual(x, R_occupied_interp, E
 % - Too high: Would imply very little resource consumption (unlikely)
 % - Too low: Would imply extreme resource depletion (may cause convergence issues)
 % - 30%: Balanced starting point that allows for significant resource binding
-R_free_guess = 0.03 * R_total_target;  % 30% free polymerase
+R_free_guess = 0.3 * R_total_target;  % 30% free polymerase
 E_free_guess = 0.3 * E_total_target;  % 30% free E factors
 initial_guess = [R_free_guess, E_free_guess];
 

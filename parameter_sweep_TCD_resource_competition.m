@@ -165,10 +165,10 @@ total_sweep_time = tic;
 for p_idx = 1:n_param_values
     param_value = param_values(p_idx);
     
-    fprintf('\n╔═══════════════════════════════════════════════════════════╗\n');
-    fprintf('║ Parameter %d/%d: %s = %.3g %-20s║\n', p_idx, n_param_values, ...
+    fprintf('\n+===========================================================+\n');
+    fprintf('| Parameter %d/%d: %s = %.3g %-20s|\n', p_idx, n_param_values, ...
         parameter_to_sweep, param_display(param_value), '');
-    fprintf('╚═══════════════════════════════════════════════════════════╝\n\n');
+    fprintf('+===========================================================+\n\n');
     
     param_time = tic;
     
@@ -242,9 +242,9 @@ end
 
 total_time = toc(total_sweep_time);
 
-fprintf('\n╔═══════════════════════════════════════════════════════════╗\n');
-fprintf('║ PARAMETER SWEEP COMPLETED                                 ║\n');
-fprintf('╚═══════════════════════════════════════════════════════════╝\n');
+fprintf('\n+===========================================================+\n');
+fprintf('| PARAMETER SWEEP COMPLETED                                 |\n');
+fprintf('+===========================================================+\n');
 fprintf('Total time: %.1f minutes\n', total_time/60);
 fprintf('Successful parameter values: %d/%d\n', sum(success_flags), n_param_values);
 
@@ -276,7 +276,7 @@ if sum(valid_idx) > 1
             corr_tcd = corr(param_values(valid_tcd)', TCD_matrix(valid_tcd, g_idx));
             fprintf('  L=%.0f kb: r = %.3f', gene_lengths_kb(g_idx), corr_tcd);
             if abs(corr_tcd) > 0.7
-                fprintf(' (strong %s)', corr_tcd > 0 ? 'positive' : 'negative');
+                fprintf(' (strong)');%, corr_tcd > 0 ? 'positive' : 'negative');
             end
             fprintf('\n');
         end
@@ -355,7 +355,8 @@ end
 xlabel('TSS-to-PAS Distance (kb)', 'FontSize', 12);
 ylabel(sprintf('TCD at %.0f%% (bp)', TCD_threshold*100), 'FontSize', 12);
 title('TCD vs Gene Length', 'FontSize', 13, 'FontWeight', 'bold');
-legend('Location', 'best', 'FontSize', 9, 'Title', param_label);
+lg = legend('Location', 'best', 'FontSize', 9);
+title(lg, param_label);
 grid on;
 hold off;
 
@@ -462,9 +463,9 @@ fclose(fid);
 fprintf('  Summary saved: %s\n', txt_filename);
 
 %% --- FINAL SUMMARY ---
-fprintf('\n╔═══════════════════════════════════════════════════════════╗\n');
-fprintf('║ ANALYSIS COMPLETE                                         ║\n');
-fprintf('╚═══════════════════════════════════════════════════════════╝\n\n');
+fprintf('\n+===========================================================+\n');
+fprintf('| ANALYSIS COMPLETE                                         |\n');
+fprintf('+===========================================================+\n\n');
 
 fprintf('Parameter: %s\n', parameter_to_sweep);
 fprintf('Range: %.3g to %.3g\n', param_display(param_values(1)), param_display(param_values(end)));

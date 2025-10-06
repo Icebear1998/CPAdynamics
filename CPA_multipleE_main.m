@@ -16,9 +16,9 @@ P.kHoff = 0.0125;
 P.kc = 0.05; %not sure
 
 kPon_min = 0.01; % at TSS
-kPon_max = 1; % at PAS
+kPon_max = 0.1; % at PAS
 kPoff_min = 0.1; % at PAS
-kPoff_max = 1; % at TSS
+kPoff_max = 2; % at TSS
 kPoff_const = 1;
 kPon_const = 1;
 
@@ -28,15 +28,38 @@ N      = floor(geneLength_bp / L_a);  % total nodes
 PAS    = floor(PASposition   / L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 SD = floor(20000 / L_a); % Saturation distance
+kPon_option = 1;
 Ef_ss = 0;
 
-EBindingNumber = 2; 
+EBindingNumber = 5; 
 [r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 
+% Set up kPon values based on the saturation distance concept
+kPon_vals = zeros(1, PAS);
 
-kPon_vals = linspace(kPon_min, kPon_max, SD); % Range of Kp for kPon increases linearly 
-kPon_vals = kPon_vals(1:PAS);
+if PAS <= SD
+    % Case 1: PAS is before or at saturation distance
+    % Linear increase from kPon_min to value at PAS (never reaches kPon_max)
+    kPon_vals = linspace(kPon_min, kPon_min + (kPon_max - kPon_min) * (PAS / SD), PAS);
+else
+    % Case 2: PAS is beyond saturation distance
+    if kPon_option == 1
+        % Option 1: Saturate at SD, then constant
+        kPon_vals(1:SD) = linspace(kPon_min, kPon_max, SD);
+        kPon_vals((SD+1):PAS) = kPon_max;  % Constant at kPon_max
+    else
+        % Option 2: Continue linear increase after SD
+        kPon_vals(1:SD) = linspace(kPon_min, kPon_max, SD);
+        % Continue linear increase beyond kPon_max
+        slope = (kPon_max - kPon_min) / SD;
+        for i = (SD+1):PAS
+            kPon_vals(i) = kPon_max + slope * (i - SD);
+        end
+    end
+end
+% kPon_vals = linspace(kPon_min, kPon_max, SD); % Range of Kp for kPon increases linearly 
+% kPon_vals = kPon_vals(1:PAS);
 %kPoff_vals = linspace(kPoff_min, kPoff_min, PAUSE_LENGTH); % Range of Kp for kPoff decreases linearly 
 
 RE_vals = sym(zeros(EBindingNumber+1, N));
@@ -52,8 +75,8 @@ for e = 1:EBindingNumber+1
     end
     for i = PAS+1:N
         kPon_val = kPon_vals(PAS);
-        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_min});
-        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_min});
+        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
+        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
     end
 end
 disp('done compute EBindingNumber');
@@ -86,6 +109,9 @@ X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X, options);
 R_sol   = X(1:N);
 REH_sol = X(N+1 : N+N_PAS);
 
+[exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
+TCD50 = interp1(exit_cdf, distances_bp, 0.65, 'linear', 'extrap');
+disp(TCD50);
 
 for i = 1:N
     total_P_bound = 0;
@@ -115,15 +141,18 @@ hold off;
 l_values =  (1-PAS):(N-PAS);
 
 figure; hold on;
-for e = 1:EBindingNumber+1
-    plot((1-PAS):N_PAS-1, RE_vals(e,:), 'LineWidth',2);
-end
+% for e = 1:EBindingNumber+1
+%     plot((1-PAS):N_PAS-1, RE_vals(e,:), 'LineWidth',2);
+% end
 
 plot(l_values, R_sol, 'b-','LineWidth',2.5, 'DisplayName','R(l)');
 plot(l_values, [zeros(PAS-1,1);REH_sol], 'r-','LineWidth',2.5, 'DisplayName','REH(l)');
-xlabel('Time'); ylabel('Total Pol II');
-legend({'Total R', 'Total REH'}, 'Location', 'best');
-title('Time Evolution of R and REH');
+TCD50 = TCD50/100;
+line([TCD50 TCD50], ylim, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5, 'DisplayName', 'Median Tandem Distance');
+text(TCD50, 8, num2str(int32(TCD50)));
+xlabel('Position relative to PAS (x100 basepair)'); ylabel('Concentration');
+legend({'Total R', 'Total REH', '50% TCD'}, 'Location', 'best');
+title('CPA model dynamic simulation');
 hold off;
 
 % 1. Calculate the final, steady-state concentration of free Pol II
