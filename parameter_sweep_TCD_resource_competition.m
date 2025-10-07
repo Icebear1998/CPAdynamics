@@ -21,62 +21,33 @@ fprintf('Full three-step pipeline for each parameter value\n\n');
 %% --- CONFIGURATION ---
 fprintf('Configuration:\n');
 
-% Choose parameter to sweep
-% Options: 'SD_bp', 'kPon_max', 'kHon', 'kHoff', 'kc', 'kEon', 'EBindingNumber'
-parameter_to_sweep = 'SD_bp';  % Change this to sweep different parameters
+% Two-parameter sweep: kPon_max and SD_bp
+kPon_max_values = [0.1, 0.5, 1, 2, 5, 10];  % Range from 0.1 to 10
+SD_bp_values = [4000, 10000, 20000, 40000, 70000, 100000];  % Range from 4 kb to 100 kb
 
-% Sweep configuration
-switch parameter_to_sweep
-    case 'SD_bp'
-        param_values = [5000, 10000, 20000, 30000, 50000];  % Different saturation distances
-        param_label = 'Saturation Distance (kb)';
-        param_display = @(x) x/1000;  % Convert to kb for display
-        
-    case 'kPon_max'
-        param_values = [0.05, 0.1, 0.2, 0.5, 1.0];
-        param_label = 'k_{Pon,max}';
-        param_display = @(x) x;
-        
-    case 'kHon'
-        param_values = [0.05, 0.1, 0.2, 0.4, 0.8];
-        param_label = 'k_{Hon}';
-        param_display = @(x) x;
-        
-    case 'kHoff'
-        param_values = [0.00625, 0.0125, 0.025, 0.05];
-        param_label = 'k_{Hoff}';
-        param_display = @(x) x;
-        
-    case 'kc'
-        param_values = [0.025, 0.05, 0.1, 0.2];
-        param_label = 'k_c (cleavage rate)';
-        param_display = @(x) x;
-        
-    case 'kEon'
-        param_values = [0.0001, 0.00025, 0.0005, 0.001];
-        param_label = 'k_{Eon}';
-        param_display = @(x) x;
-        
-    case 'EBindingNumber'
-        param_values = [1, 2, 3, 4, 5, 6];
-        param_label = 'E Binding Number';
-        param_display = @(x) x;
-        
-    otherwise
-        error('Unknown parameter: %s', parameter_to_sweep);
-end
+n_kPon = length(kPon_max_values);
+n_SD = length(SD_bp_values);
+n_param_combinations = n_kPon + n_SD;  % Total number of sweeps
 
-n_param_values = length(param_values);
-fprintf('  Parameter to sweep: %s\n', parameter_to_sweep);
-fprintf('  Number of values: %d\n', n_param_values);
-fprintf('  Range: ');
-for i = 1:n_param_values
-    fprintf('%.3g', param_display(param_values(i)));
-    if i < n_param_values
+fprintf('  Two-parameter sweep:\n');
+fprintf('  Parameter 1: kPon_max\n');
+fprintf('    Values: ');
+for i = 1:n_kPon
+    fprintf('%.2g', kPon_max_values(i));
+    if i < n_kPon
         fprintf(', ');
     end
 end
 fprintf('\n');
+fprintf('  Parameter 2: SD_bp\n');
+fprintf('    Values: ');
+for i = 1:n_SD
+    fprintf('%.0f', SD_bp_values(i)/1000);
+    if i < n_SD
+        fprintf(', ');
+    end
+end
+fprintf(' kb\n');
 
 % Gene lengths for TCD analysis
 gene_lengths_kb = [5, 10, 20, 30, 50, 100, 150];  % Representative gene lengths
@@ -117,7 +88,7 @@ P_base.kHon = 0.2;
 P_base.kHoff = 0.0125;
 P_base.kc = 0.05;
 P_base.kPon_min = 0.01;
-P_base.kPon_max = 0.1;
+P_base.kPon_max = 1;
 P_base.kPoff_const = 1;
 P_base.SD_bp = 20000;
 P_base.kPon_option = 1;  % Saturate at SD
@@ -131,7 +102,7 @@ E_total_target = 70000;
 fprintf('Base parameters set.\n');
 
 %% --- OUTPUT DIRECTORY ---
-output_dir = sprintf('SecondVersionResults/TCD_ParameterSweep_ResourceCompetition/%s/', parameter_to_sweep);
+output_dir = 'SecondVersionResults/TCD_ParameterSweep_ResourceCompetition/kPon_SD_2D/';
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);
 end
@@ -139,35 +110,49 @@ fprintf('Output directory: %s\n', output_dir);
 
 %% --- PARAMETER SWEEP LOOP ---
 fprintf('\n=== Starting Parameter Sweep ===\n');
-fprintf('This will run the full three-step pipeline for each parameter value.\n');
+fprintf('This will run the full three-step pipeline for each parameter combination.\n');
+fprintf('Total combinations: %d (kPon_max: %d + SD_bp: %d)\n', n_param_combinations, n_kPon, n_SD);
 fprintf('Estimated time: ~5-15 minutes per parameter value\n\n');
 
 % Pre-allocate results storage
 sweep_results = struct();
 sweep_results.metadata.creation_date = datestr(now);
-sweep_results.metadata.parameter_name = parameter_to_sweep;
-sweep_results.metadata.parameter_values = param_values;
+sweep_results.metadata.sweep_type = '2D: kPon_max and SD_bp';
+sweep_results.metadata.kPon_max_values = kPon_max_values;
+sweep_results.metadata.SD_bp_values = SD_bp_values;
 sweep_results.metadata.base_parameters = P_base;
 sweep_results.metadata.R_total_target = R_total_target;
 sweep_results.metadata.E_total_target = E_total_target;
 
-% Storage for results from each parameter
-sweep_results.data = cell(n_param_values, 1);
+% Storage for results from each parameter sweep
+sweep_results.kPon_sweep = cell(n_kPon, 1);
+sweep_results.SD_sweep = cell(n_SD, 1);
 
 % Storage for summary data
-R_free_solutions = zeros(n_param_values, 1);
-E_free_solutions = zeros(n_param_values, 1);
-TCD_matrix = zeros(n_param_values, n_gene_lengths);
-success_flags = ones(n_param_values, 1);
+% For kPon_max sweep (varying kPon_max, SD_bp fixed at base value)
+kPon_R_free = zeros(n_kPon, 1);
+kPon_E_free = zeros(n_kPon, 1);
+kPon_TCD_matrix = zeros(n_kPon, n_gene_lengths);
+kPon_success = ones(n_kPon, 1);
+
+% For SD_bp sweep (varying SD_bp, kPon_max fixed at base value)
+SD_R_free = zeros(n_SD, 1);
+SD_E_free = zeros(n_SD, 1);
+SD_TCD_matrix = zeros(n_SD, n_gene_lengths);
+SD_success = ones(n_SD, 1);
 
 total_sweep_time = tic;
 
-for p_idx = 1:n_param_values
-    param_value = param_values(p_idx);
+%% SWEEP 1: kPon_max (SD_bp fixed at base value)
+fprintf('\n╔══════════════════════════════════════════════════════════╗\n');
+fprintf('║ SWEEP 1: kPon_max (SD_bp = %.0f bp)                    ║\n', P_base.SD_bp);
+fprintf('╚══════════════════════════════════════════════════════════╝\n');
+
+for k_idx = 1:n_kPon
+    kPon_value = kPon_max_values(k_idx);
     
     fprintf('\n+===========================================================+\n');
-    fprintf('| Parameter %d/%d: %s = %.3g %-20s|\n', p_idx, n_param_values, ...
-        parameter_to_sweep, param_display(param_value), '');
+    fprintf('| kPon_max %d/%d: kPon_max = %.2g %-25s|\n', k_idx, n_kPon, kPon_value, '');
     fprintf('+===========================================================+\n\n');
     
     param_time = tic;
@@ -175,7 +160,7 @@ for p_idx = 1:n_param_values
     try
         % Update parameter
         P_sweep = P_base;
-        P_sweep.(parameter_to_sweep) = param_value;
+        P_sweep.kPon_max = kPon_value;
         
         %% STEP 1: GENERATE GRID DATA
         fprintf('STEP 1/3: Generating grid data...\n');
@@ -211,32 +196,112 @@ for p_idx = 1:n_param_values
             tcd_data.E_free_solution, tcd_data.E_free_solution/E_total_target*100);
         
         % Store results
-        sweep_results.data{p_idx} = struct();
-        sweep_results.data{p_idx}.parameter_value = param_value;
-        sweep_results.data{p_idx}.grid_data = grid_data;
-        sweep_results.data{p_idx}.interp_data = interp_data;
-        sweep_results.data{p_idx}.tcd_data = tcd_data;
+        sweep_results.kPon_sweep{k_idx} = struct();
+        sweep_results.kPon_sweep{k_idx}.kPon_max = kPon_value;
+        sweep_results.kPon_sweep{k_idx}.grid_data = grid_data;
+        sweep_results.kPon_sweep{k_idx}.interp_data = interp_data;
+        sweep_results.kPon_sweep{k_idx}.tcd_data = tcd_data;
         
         % Store summary data
-        R_free_solutions(p_idx) = tcd_data.R_free_solution;
-        E_free_solutions(p_idx) = tcd_data.E_free_solution;
-        TCD_matrix(p_idx, :) = tcd_data.TCD_values;
-        success_flags(p_idx) = 1;
+        kPon_R_free(k_idx) = tcd_data.R_free_solution;
+        kPon_E_free(k_idx) = tcd_data.E_free_solution;
+        kPon_TCD_matrix(k_idx, :) = tcd_data.TCD_values;
+        kPon_success(k_idx) = 1;
         
-        fprintf('\n✓ Parameter value %.3g completed in %.1f minutes\n', ...
-            param_display(param_value), toc(param_time)/60);
+        fprintf('\n✓ kPon_max = %.2g completed in %.1f minutes\n', kPon_value, toc(param_time)/60);
         
     catch ME
-        fprintf('\n✗ ERROR for parameter value %.3g: %s\n', param_display(param_value), ME.message);
+        fprintf('\n✗ ERROR for kPon_max = %.2g: %s\n', kPon_value, ME.message);
         fprintf('  Stack trace:\n');
         for k = 1:length(ME.stack)
             fprintf('    %s (line %d)\n', ME.stack(k).name, ME.stack(k).line);
         end
         
-        success_flags(p_idx) = 0;
-        R_free_solutions(p_idx) = NaN;
-        E_free_solutions(p_idx) = NaN;
-        TCD_matrix(p_idx, :) = NaN;
+        kPon_success(k_idx) = 0;
+        kPon_R_free(k_idx) = NaN;
+        kPon_E_free(k_idx) = NaN;
+        kPon_TCD_matrix(k_idx, :) = NaN;
+    end
+end
+
+%% SWEEP 2: SD_bp (kPon_max fixed at base value)
+fprintf('\n╔══════════════════════════════════════════════════════════╗\n');
+fprintf('║ SWEEP 2: SD_bp (kPon_max = %.2g)                       ║\n', P_base.kPon_max);
+fprintf('╚══════════════════════════════════════════════════════════╝\n');
+
+for s_idx = 1:n_SD
+    SD_value = SD_bp_values(s_idx);
+    
+    fprintf('\n+===========================================================+\n');
+    fprintf('| SD_bp %d/%d: SD = %.0f kb %-29s|\n', s_idx, n_SD, SD_value/1000, '');
+    fprintf('+===========================================================+\n\n');
+    
+    param_time = tic;
+    
+    try
+        % Update parameter
+        P_sweep = P_base;
+        P_sweep.SD_bp = SD_value;
+        
+        %% STEP 1: GENERATE GRID DATA
+        fprintf('STEP 1/3: Generating grid data...\n');
+        step1_time = tic;
+        
+        grid_data = generate_grid_data(P_sweep, R_total_target, E_total_target, ...
+            R_free_points, E_free_points, L_points);
+        
+        fprintf('  Grid generation completed in %.1f seconds\n', toc(step1_time));
+        fprintf('  Valid points: %d/%d (%.1f%%)\n', grid_data.n_valid, grid_data.n_total, ...
+            grid_data.n_valid/grid_data.n_total*100);
+        
+        %% STEP 2: BUILD INTERPOLATION
+        fprintf('STEP 2/3: Building interpolation functions...\n');
+        step2_time = tic;
+        
+        interp_data = build_interpolation(grid_data, P_sweep);
+        
+        fprintf('  Interpolation built in %.1f seconds\n', toc(step2_time));
+        fprintf('  Mean interpolation error: R=%.2f%%, E=%.2f%%\n', ...
+            interp_data.validation.R_mean_error, interp_data.validation.E_mean_error);
+        
+        %% STEP 3: SOLVE CONSERVATION AND CALCULATE TCD
+        fprintf('STEP 3/3: Solving conservation equations and calculating TCD...\n');
+        step3_time = tic;
+        
+        tcd_data = analyze_tcd_with_conservation(interp_data, gene_lengths_bp, ...
+            TCD_threshold, R_total_target, E_total_target);
+        
+        fprintf('  TCD analysis completed in %.1f seconds\n', toc(step3_time));
+        fprintf('  Solution: R_free = %.0f (%.1f%%), E_free = %.0f (%.1f%%)\n', ...
+            tcd_data.R_free_solution, tcd_data.R_free_solution/R_total_target*100, ...
+            tcd_data.E_free_solution, tcd_data.E_free_solution/E_total_target*100);
+        
+        % Store results
+        sweep_results.SD_sweep{s_idx} = struct();
+        sweep_results.SD_sweep{s_idx}.SD_bp = SD_value;
+        sweep_results.SD_sweep{s_idx}.grid_data = grid_data;
+        sweep_results.SD_sweep{s_idx}.interp_data = interp_data;
+        sweep_results.SD_sweep{s_idx}.tcd_data = tcd_data;
+        
+        % Store summary data
+        SD_R_free(s_idx) = tcd_data.R_free_solution;
+        SD_E_free(s_idx) = tcd_data.E_free_solution;
+        SD_TCD_matrix(s_idx, :) = tcd_data.TCD_values;
+        SD_success(s_idx) = 1;
+        
+        fprintf('\n✓ SD_bp = %.0f kb completed in %.1f minutes\n', SD_value/1000, toc(param_time)/60);
+        
+    catch ME
+        fprintf('\n✗ ERROR for SD_bp = %.0f kb: %s\n', SD_value/1000, ME.message);
+        fprintf('  Stack trace:\n');
+        for k = 1:length(ME.stack)
+            fprintf('    %s (line %d)\n', ME.stack(k).name, ME.stack(k).line);
+        end
+        
+        SD_success(s_idx) = 0;
+        SD_R_free(s_idx) = NaN;
+        SD_E_free(s_idx) = NaN;
+        SD_TCD_matrix(s_idx, :) = NaN;
     end
 end
 
@@ -246,161 +311,102 @@ fprintf('\n+===========================================================+\n');
 fprintf('| PARAMETER SWEEP COMPLETED                                 |\n');
 fprintf('+===========================================================+\n');
 fprintf('Total time: %.1f minutes\n', total_time/60);
-fprintf('Successful parameter values: %d/%d\n', sum(success_flags), n_param_values);
+fprintf('Successful sweeps:\n');
+fprintf('  kPon_max: %d/%d\n', sum(kPon_success), n_kPon);
+fprintf('  SD_bp: %d/%d\n', sum(SD_success), n_SD);
 
 %% --- SUMMARY ANALYSIS ---
 fprintf('\n=== Analysis Summary ===\n');
 
 % Add summary data to results
-sweep_results.summary.R_free_solutions = R_free_solutions;
-sweep_results.summary.E_free_solutions = E_free_solutions;
-sweep_results.summary.TCD_matrix = TCD_matrix;
-sweep_results.summary.success_flags = success_flags;
+sweep_results.summary.kPon_max.R_free = kPon_R_free;
+sweep_results.summary.kPon_max.E_free = kPon_E_free;
+sweep_results.summary.kPon_max.TCD_matrix = kPon_TCD_matrix;
+sweep_results.summary.kPon_max.success = kPon_success;
+
+sweep_results.summary.SD_bp.R_free = SD_R_free;
+sweep_results.summary.SD_bp.E_free = SD_E_free;
+sweep_results.summary.SD_bp.TCD_matrix = SD_TCD_matrix;
+sweep_results.summary.SD_bp.success = SD_success;
+
 sweep_results.summary.gene_lengths_kb = gene_lengths_kb;
 sweep_results.summary.TCD_threshold = TCD_threshold;
 sweep_results.summary.total_time_minutes = total_time/60;
 
-% Analyze how resources change with parameter
-valid_idx = success_flags == 1;
-if sum(valid_idx) > 1
-    fprintf('\nResource pool trends:\n');
-    corr_R = corr(param_values(valid_idx)', R_free_solutions(valid_idx));
-    corr_E = corr(param_values(valid_idx)', E_free_solutions(valid_idx));
-    fprintf('  R_free vs %s: r = %.3f\n', parameter_to_sweep, corr_R);
-    fprintf('  E_free vs %s: r = %.3f\n', parameter_to_sweep, corr_E);
-    
-    fprintf('\nTCD trends (correlation with %s):\n', parameter_to_sweep);
-    for g_idx = 1:n_gene_lengths
-        valid_tcd = valid_idx & ~isnan(TCD_matrix(:, g_idx));
-        if sum(valid_tcd) > 1
-            corr_tcd = corr(param_values(valid_tcd)', TCD_matrix(valid_tcd, g_idx));
-            fprintf('  L=%.0f kb: r = %.3f', gene_lengths_kb(g_idx), corr_tcd);
-            if abs(corr_tcd) > 0.7
-                fprintf(' (strong)');%, corr_tcd > 0 ? 'positive' : 'negative');
-            end
-            fprintf('\n');
-        end
-    end
+% Analyze kPon_max trends
+kPon_valid = kPon_success == 1;
+if sum(kPon_valid) > 1
+    fprintf('\nkPon_max sweep trends:\n');
+    corr_R = corr(kPon_max_values(kPon_valid)', kPon_R_free(kPon_valid));
+    corr_E = corr(kPon_max_values(kPon_valid)', kPon_E_free(kPon_valid));
+    fprintf('  R_free vs kPon_max: r = %.3f\n', corr_R);
+    fprintf('  E_free vs kPon_max: r = %.3f\n', corr_E);
+end
+
+% Analyze SD_bp trends
+SD_valid = SD_success == 1;
+if sum(SD_valid) > 1
+    fprintf('\nSD_bp sweep trends:\n');
+    corr_R = corr(SD_bp_values(SD_valid)', SD_R_free(SD_valid));
+    corr_E = corr(SD_bp_values(SD_valid)', SD_E_free(SD_valid));
+    fprintf('  R_free vs SD_bp: r = %.3f\n', corr_R);
+    fprintf('  E_free vs SD_bp: r = %.3f\n', corr_E);
 end
 
 %% --- VISUALIZATION ---
-fprintf('\nGenerating comprehensive visualizations...\n');
+fprintf('\nGenerating visualizations...\n');
 
-% Create comprehensive figure
-fig = figure('Position', [50, 50, 1600, 1000]);
+% Create two-panel figure showing TCD vs gene length for each parameter
+fig = figure('Position', [50, 50, 1400, 600]);
 
-% Plot 1: Resource pools vs parameter
-subplot(2, 3, 1);
-yyaxis left;
-plot(param_display(param_values(valid_idx)), R_free_solutions(valid_idx), 'o-', ...
-    'LineWidth', 2, 'MarkerSize', 10);
-ylabel('R_{free}', 'FontSize', 12);
-yyaxis right;
-plot(param_display(param_values(valid_idx)), E_free_solutions(valid_idx), 's-', ...
-    'LineWidth', 2, 'MarkerSize', 10);
-ylabel('E_{free}', 'FontSize', 12);
-xlabel(param_label, 'FontSize', 12);
-title('Self-Consistent Resource Pools', 'FontSize', 13, 'FontWeight', 'bold');
-grid on;
-
-% Plot 2: Resource fractions
-subplot(2, 3, 2);
-R_frac = R_free_solutions(valid_idx) / R_total_target * 100;
-E_frac = E_free_solutions(valid_idx) / E_total_target * 100;
+% Panel 1: TCD vs gene length for different kPon_max values
+subplot(1, 2, 1);
+colors_kPon = parula(n_kPon);
 hold on;
-plot(param_display(param_values(valid_idx)), R_frac, 'o-', 'LineWidth', 2, ...
-    'MarkerSize', 10, 'DisplayName', 'R_{free} %');
-plot(param_display(param_values(valid_idx)), E_frac, 's-', 'LineWidth', 2, ...
-    'MarkerSize', 10, 'DisplayName', 'E_{free} %');
-ylabel('Free Resource Fraction (%)', 'FontSize', 12);
-xlabel(param_label, 'FontSize', 12);
-title('Resource Availability', 'FontSize', 13, 'FontWeight', 'bold');
-legend('Location', 'best');
-grid on;
-hold off;
-
-% Plot 3: TCD vs parameter for different gene lengths
-subplot(2, 3, 3);
-colors = jet(n_gene_lengths);
-hold on;
-for g_idx = 1:n_gene_lengths
-    valid_tcd = valid_idx & ~isnan(TCD_matrix(:, g_idx));
-    if sum(valid_tcd) > 0
-        plot(param_display(param_values(valid_tcd)), TCD_matrix(valid_tcd, g_idx), ...
-            'o-', 'LineWidth', 2, 'MarkerSize', 8, 'Color', colors(g_idx, :), ...
-            'DisplayName', sprintf('L = %.0f kb', gene_lengths_kb(g_idx)));
-    end
-end
-xlabel(param_label, 'FontSize', 12);
-ylabel(sprintf('TCD at %.0f%% (bp)', TCD_threshold*100), 'FontSize', 12);
-title('TCD vs Parameter', 'FontSize', 13, 'FontWeight', 'bold');
-legend('Location', 'best', 'FontSize', 9);
-grid on;
-hold off;
-
-% Plot 4: TCD vs gene length for different parameters
-subplot(2, 3, 4);
-colors_param = parula(n_param_values);
-hold on;
-for p_idx = 1:n_param_values
-    if success_flags(p_idx)
-        valid_tcd = ~isnan(TCD_matrix(p_idx, :));
+for k_idx = 1:n_kPon
+    if kPon_success(k_idx)
+        valid_tcd = ~isnan(kPon_TCD_matrix(k_idx, :));
         if sum(valid_tcd) > 0
-            semilogx(gene_lengths_kb(valid_tcd), TCD_matrix(p_idx, valid_tcd), ...
-                'o-', 'LineWidth', 2, 'MarkerSize', 8, 'Color', colors_param(p_idx, :), ...
-                'DisplayName', sprintf('%.3g', param_display(param_values(p_idx))));
+            semilogx(gene_lengths_kb(valid_tcd), kPon_TCD_matrix(k_idx, valid_tcd), ...
+                'o-', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors_kPon(k_idx, :), ...
+                'DisplayName', sprintf('k_{Pon,max} = %.2g', kPon_max_values(k_idx)));
         end
     end
 end
-xlabel('TSS-to-PAS Distance (kb)', 'FontSize', 12);
-ylabel(sprintf('TCD at %.0f%% (bp)', TCD_threshold*100), 'FontSize', 12);
-title('TCD vs Gene Length', 'FontSize', 13, 'FontWeight', 'bold');
-lg = legend('Location', 'best', 'FontSize', 9);
-title(lg, param_label);
+xlabel('TSS-to-PAS Distance (kb)', 'FontSize', 13, 'FontWeight', 'bold');
+ylabel(sprintf('TCD at %.0f%% (bp)', TCD_threshold*100), 'FontSize', 13, 'FontWeight', 'bold');
+title(sprintf('Effect of k_{Pon,max} (SD = %.0f kb)', P_base.SD_bp/1000), ...
+    'FontSize', 14, 'FontWeight', 'bold');
+legend('Location', 'best', 'FontSize', 10);
 grid on;
+set(gca, 'FontSize', 11);
 hold off;
 
-% Plot 5: Heatmap of TCD values
-subplot(2, 3, 5);
-TCD_plot = TCD_matrix;
-TCD_plot(~valid_idx, :) = NaN;
-imagesc(1:n_gene_lengths, 1:n_param_values, TCD_plot);
-colorbar;
-xlabel('Gene Length Index', 'FontSize', 12);
-ylabel('Parameter Value Index', 'FontSize', 12);
-title('TCD Heatmap (bp)', 'FontSize', 13, 'FontWeight', 'bold');
-set(gca, 'XTick', 1:n_gene_lengths, 'XTickLabel', ...
-    arrayfun(@(x) sprintf('%.0f', x), gene_lengths_kb, 'UniformOutput', false));
-set(gca, 'YTick', 1:n_param_values, 'YTickLabel', ...
-    arrayfun(@(x) sprintf('%.3g', x), param_display(param_values), 'UniformOutput', false));
-
-% Plot 6: TCD sensitivity (normalized)
-subplot(2, 3, 6);
-baseline_idx = ceil(n_param_values / 2);
-if success_flags(baseline_idx)
-    TCD_normalized = TCD_matrix ./ TCD_matrix(baseline_idx, :);
-    TCD_normalized(isinf(TCD_normalized) | isnan(TCD_normalized)) = 1;
-    
-    hold on;
-    for g_idx = 1:n_gene_lengths
-        valid_tcd = valid_idx & ~isnan(TCD_normalized(:, g_idx));
+% Panel 2: TCD vs gene length for different SD_bp values
+subplot(1, 2, 2);
+colors_SD = parula(n_SD);
+hold on;
+for s_idx = 1:n_SD
+    if SD_success(s_idx)
+        valid_tcd = ~isnan(SD_TCD_matrix(s_idx, :));
         if sum(valid_tcd) > 0
-            plot(param_display(param_values(valid_tcd)), TCD_normalized(valid_tcd, g_idx), ...
-                'o-', 'LineWidth', 2, 'MarkerSize', 8, 'Color', colors(g_idx, :), ...
-                'DisplayName', sprintf('L = %.0f kb', gene_lengths_kb(g_idx)));
+            semilogx(gene_lengths_kb(valid_tcd), SD_TCD_matrix(s_idx, valid_tcd), ...
+                'o-', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors_SD(s_idx, :), ...
+                'DisplayName', sprintf('SD = %.0f kb', SD_bp_values(s_idx)/1000));
         end
     end
-    yline(1, 'k--', 'LineWidth', 1.5);
-    xlabel(param_label, 'FontSize', 12);
-    ylabel('Normalized TCD', 'FontSize', 12);
-    title('TCD Sensitivity', 'FontSize', 13, 'FontWeight', 'bold');
-    legend('Location', 'best', 'FontSize', 8);
-    grid on;
-    hold off;
 end
+xlabel('TSS-to-PAS Distance (kb)', 'FontSize', 13, 'FontWeight', 'bold');
+ylabel(sprintf('TCD at %.0f%% (bp)', TCD_threshold*100), 'FontSize', 13, 'FontWeight', 'bold');
+title(sprintf('Effect of SD (k_{Pon,max} = %.2g)', P_base.kPon_max), ...
+    'FontSize', 14, 'FontWeight', 'bold');
+legend('Location', 'best', 'FontSize', 10);
+grid on;
+set(gca, 'FontSize', 11);
+hold off;
 
-sgtitle(sprintf('Parameter Sweep: %s with Resource Competition', parameter_to_sweep), ...
-    'FontSize', 15, 'FontWeight', 'bold');
+sgtitle('TCD vs Gene Length: Two-Parameter Sweep with Resource Competition', ...
+    'FontSize', 16, 'FontWeight', 'bold');
 
 %% --- SAVE RESULTS ---
 fprintf('\nSaving results...\n');
@@ -421,37 +427,74 @@ fprintf('  Figure saved: %s\n', fig_filename);
 txt_filename = fullfile(output_dir, sprintf('sweep_summary_%s.txt', timestamp));
 fid = fopen(txt_filename, 'w');
 
-fprintf(fid, '%% Parameter Sweep with Resource Competition\n');
-fprintf(fid, '%% Parameter: %s\n', parameter_to_sweep);
+fprintf(fid, '%% Two-Parameter Sweep with Resource Competition\n');
+fprintf(fid, '%% Parameters: kPon_max and SD_bp\n');
 fprintf(fid, '%% Generated: %s\n', datestr(now));
 fprintf(fid, '%% Total time: %.1f minutes\n', total_time/60);
-fprintf(fid, '%% Success rate: %d/%d\n', sum(success_flags), n_param_values);
+fprintf(fid, '%% Success rates: kPon_max=%d/%d, SD_bp=%d/%d\n', ...
+    sum(kPon_success), n_kPon, sum(SD_success), n_SD);
 fprintf(fid, '%%\n');
+
+fprintf(fid, '%% ===== SWEEP 1: kPon_max (SD_bp fixed at %.0f bp) =====\n', P_base.SD_bp);
 fprintf(fid, '%% RESOURCE POOL SOLUTIONS\n');
-fprintf(fid, '%% ParamValue\tR_free\tE_free\tR_free_pct\tE_free_pct\n');
-for p_idx = 1:n_param_values
-    if success_flags(p_idx)
+fprintf(fid, '%% kPon_max\tR_free\tE_free\tR_free_pct\tE_free_pct\n');
+for k_idx = 1:n_kPon
+    if kPon_success(k_idx)
         fprintf(fid, '%.6g\t%.2f\t%.2f\t%.2f\t%.2f\n', ...
-            param_display(param_values(p_idx)), ...
-            R_free_solutions(p_idx), E_free_solutions(p_idx), ...
-            R_free_solutions(p_idx)/R_total_target*100, ...
-            E_free_solutions(p_idx)/E_total_target*100);
+            kPon_max_values(k_idx), ...
+            kPon_R_free(k_idx), kPon_E_free(k_idx), ...
+            kPon_R_free(k_idx)/R_total_target*100, ...
+            kPon_E_free(k_idx)/E_total_target*100);
     end
 end
 
 fprintf(fid, '%%\n');
-fprintf(fid, '%% TCD VALUES (bp) at %.0f%% threshold\n', TCD_threshold*100);
-fprintf(fid, '%% ParamValue');
+fprintf(fid, '%% TCD VALUES (bp) at %.0f%% threshold - kPon_max sweep\n', TCD_threshold*100);
+fprintf(fid, '%% kPon_max');
 for g_idx = 1:n_gene_lengths
     fprintf(fid, '\tL%.0fkb', gene_lengths_kb(g_idx));
 end
 fprintf(fid, '\n');
 
-for p_idx = 1:n_param_values
-    fprintf(fid, '%.6g', param_display(param_values(p_idx)));
+for k_idx = 1:n_kPon
+    fprintf(fid, '%.6g', kPon_max_values(k_idx));
     for g_idx = 1:n_gene_lengths
-        if success_flags(p_idx) && ~isnan(TCD_matrix(p_idx, g_idx))
-            fprintf(fid, '\t%.2f', TCD_matrix(p_idx, g_idx));
+        if kPon_success(k_idx) && ~isnan(kPon_TCD_matrix(k_idx, g_idx))
+            fprintf(fid, '\t%.2f', kPon_TCD_matrix(k_idx, g_idx));
+        else
+            fprintf(fid, '\tNaN');
+        end
+    end
+    fprintf(fid, '\n');
+end
+
+fprintf(fid, '%%\n');
+fprintf(fid, '%% ===== SWEEP 2: SD_bp (kPon_max fixed at %.2g) =====\n', P_base.kPon_max);
+fprintf(fid, '%% RESOURCE POOL SOLUTIONS\n');
+fprintf(fid, '%% SD_bp\tR_free\tE_free\tR_free_pct\tE_free_pct\n');
+for s_idx = 1:n_SD
+    if SD_success(s_idx)
+        fprintf(fid, '%.0f\t%.2f\t%.2f\t%.2f\t%.2f\n', ...
+            SD_bp_values(s_idx), ...
+            SD_R_free(s_idx), SD_E_free(s_idx), ...
+            SD_R_free(s_idx)/R_total_target*100, ...
+            SD_E_free(s_idx)/E_total_target*100);
+    end
+end
+
+fprintf(fid, '%%\n');
+fprintf(fid, '%% TCD VALUES (bp) at %.0f%% threshold - SD_bp sweep\n', TCD_threshold*100);
+fprintf(fid, '%% SD_bp');
+for g_idx = 1:n_gene_lengths
+    fprintf(fid, '\tL%.0fkb', gene_lengths_kb(g_idx));
+end
+fprintf(fid, '\n');
+
+for s_idx = 1:n_SD
+    fprintf(fid, '%.0f', SD_bp_values(s_idx));
+    for g_idx = 1:n_gene_lengths
+        if SD_success(s_idx) && ~isnan(SD_TCD_matrix(s_idx, g_idx))
+            fprintf(fid, '\t%.2f', SD_TCD_matrix(s_idx, g_idx));
         else
             fprintf(fid, '\tNaN');
         end
@@ -467,24 +510,46 @@ fprintf('\n+===========================================================+\n');
 fprintf('| ANALYSIS COMPLETE                                         |\n');
 fprintf('+===========================================================+\n\n');
 
-fprintf('Parameter: %s\n', parameter_to_sweep);
-fprintf('Range: %.3g to %.3g\n', param_display(param_values(1)), param_display(param_values(end)));
-fprintf('Success rate: %d/%d (%.1f%%)\n', sum(success_flags), n_param_values, ...
-    sum(success_flags)/n_param_values*100);
+fprintf('Two-parameter sweep: kPon_max and SD_bp\n');
+fprintf('kPon_max range: %.2g to %.2g\n', kPon_max_values(1), kPon_max_values(end));
+fprintf('SD_bp range: %.0f to %.0f bp\n', SD_bp_values(1), SD_bp_values(end));
+fprintf('Success rates:\n');
+fprintf('  kPon_max sweep: %d/%d (%.1f%%)\n', sum(kPon_success), n_kPon, ...
+    sum(kPon_success)/n_kPon*100);
+fprintf('  SD_bp sweep: %d/%d (%.1f%%)\n', sum(SD_success), n_SD, ...
+    sum(SD_success)/n_SD*100);
 fprintf('Total computation time: %.1f minutes\n', total_time/60);
 
-if sum(valid_idx) > 1
-    fprintf('\nKey insights:\n');
-    fprintf('  • R_free range: %.0f to %.0f (%.1f%% to %.1f%% of total)\n', ...
-        min(R_free_solutions(valid_idx)), max(R_free_solutions(valid_idx)), ...
-        min(R_free_solutions(valid_idx))/R_total_target*100, ...
-        max(R_free_solutions(valid_idx))/R_total_target*100);
-    fprintf('  • E_free range: %.0f to %.0f (%.1f%% to %.1f%% of total)\n', ...
-        min(E_free_solutions(valid_idx)), max(E_free_solutions(valid_idx)), ...
-        min(E_free_solutions(valid_idx))/E_total_target*100, ...
-        max(E_free_solutions(valid_idx))/E_total_target*100);
+if sum(kPon_valid) > 1
+    fprintf('\nkPon_max sweep insights:\n');
+    kPon_R_range = [min(kPon_R_free(kPon_valid)), max(kPon_R_free(kPon_valid))];
+    kPon_E_range = [min(kPon_E_free(kPon_valid)), max(kPon_E_free(kPon_valid))];
+    fprintf('  • R_free range: %.0f to %.0f (%.1f%% to %.1f%%)\n', ...
+        kPon_R_range(1), kPon_R_range(2), ...
+        kPon_R_range(1)/R_total_target*100, kPon_R_range(2)/R_total_target*100);
+    fprintf('  • E_free range: %.0f to %.0f (%.1f%% to %.1f%%)\n', ...
+        kPon_E_range(1), kPon_E_range(2), ...
+        kPon_E_range(1)/E_total_target*100, kPon_E_range(2)/E_total_target*100);
     
-    valid_tcd = TCD_matrix(valid_idx, :);
+    valid_tcd = kPon_TCD_matrix(kPon_valid, :);
+    valid_tcd = valid_tcd(~isnan(valid_tcd));
+    if ~isempty(valid_tcd)
+        fprintf('  • TCD range: %.0f to %.0f bp\n', min(valid_tcd), max(valid_tcd));
+    end
+end
+
+if sum(SD_valid) > 1
+    fprintf('\nSD_bp sweep insights:\n');
+    SD_R_range = [min(SD_R_free(SD_valid)), max(SD_R_free(SD_valid))];
+    SD_E_range = [min(SD_E_free(SD_valid)), max(SD_E_free(SD_valid))];
+    fprintf('  • R_free range: %.0f to %.0f (%.1f%% to %.1f%%)\n', ...
+        SD_R_range(1), SD_R_range(2), ...
+        SD_R_range(1)/R_total_target*100, SD_R_range(2)/R_total_target*100);
+    fprintf('  • E_free range: %.0f to %.0f (%.1f%% to %.1f%%)\n', ...
+        SD_E_range(1), SD_E_range(2), ...
+        SD_E_range(1)/E_total_target*100, SD_E_range(2)/E_total_target*100);
+    
+    valid_tcd = SD_TCD_matrix(SD_valid, :);
     valid_tcd = valid_tcd(~isnan(valid_tcd));
     if ~isempty(valid_tcd)
         fprintf('  • TCD range: %.0f to %.0f bp\n', min(valid_tcd), max(valid_tcd));
@@ -496,7 +561,7 @@ fprintf('  %s\n', mat_filename);
 fprintf('  %s\n', fig_filename);
 fprintf('  %s\n', txt_filename);
 
-fprintf('\nParameter sweep with resource competition completed successfully!\n');
+fprintf('\nTwo-parameter sweep with resource competition completed successfully!\n');
 
 %% ========================================================================
 %% HELPER FUNCTIONS
