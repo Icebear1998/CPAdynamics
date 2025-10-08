@@ -1,12 +1,13 @@
 % SCRIPT to plot Proximal PAS Usage vs. Inter-PAS Distance
 % GENERALIZED to sweep over any chosen global factor
 % UPDATED with user-proposed flux-based CDF to ensure 100% completion
+save_results = true;
 
 % MODIFIED: Start a parallel pool of workers if one is not already running.
 if isempty(gcp('nocreate')); parpool; end
 
 % --- CONFIGURATION: CHOOSE THE PARAMETER TO SWEEP ---
-sweep_param_name = 'kc';
+sweep_param_name = 'E_total';
 
 switch sweep_param_name
     case 'E_total'
@@ -47,27 +48,12 @@ parfor p_idx = 1:length(sweep_param_values)
     % Run simulation to get steady-state concentrations and parameters used
     [R_sol, REH_sol, P_sim] = run_termination_simulation(P_run, EBindingNumber);
 
-    % --- NEW CALCULATION: Flux-based CDF of Total Polymerase Exit ---
-    flux_cleavage_per_node = P_sim.kc * REH_sol;
-    flux_R_exit            = P_sim.k_e * R_sol(end);
-    flux_REH_exit          = P_sim.k_e2 * REH_sol(end);
-    total_outflux          = sum(flux_cleavage_per_node) + flux_R_exit + flux_REH_exit;
-
-    if total_outflux > 1e-9
-        cumulative_exit_flux = cumsum(flux_cleavage_per_node);
-        exit_cdf = cumulative_exit_flux / total_outflux;
-    else
-        exit_cdf = zeros(size(REH_sol));
-    end
-
-    nodes_post_pas = 1:length(REH_sol);
-    bp_post_pas = nodes_post_pas * P_sim.L_a;
-    bp_for_interp = [0; bp_post_pas(:)];
-    cdf_for_interp = [0; exit_cdf(:)];
+    [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_sim);
     
     % Interpolate the CDF and store it in the results matrix.
     % parfor handles this "sliced" assignment correctly.
-    proximal_usage_results_cdf(:, p_idx) = interp1(bp_for_interp, cdf_for_interp, inter_pas_distances_bp, 'linear', 'extrap');
+    
+    proximal_usage_results_cdf(:, p_idx) = interp1(distances_bp, exit_cdf, inter_pas_distances_bp, 'linear', 'extrap');
 end
 disp('All parallel simulations complete.');
 
@@ -89,16 +75,18 @@ title(plot_title, 'FontSize', 14, 'FontWeight', 'bold');
 grid on; legend('show', 'Location', 'best'); set(gca, 'FontSize', 10); box on;
 ylim([0 100]);
 
-% --- SAVE RESULTS ---
-% Prepare data structure for saving
-data.results_matrix = proximal_usage_results_cdf;
-data.x_values = inter_pas_distances_bp;
-data.sweep_values = sweep_param_values;
-data.sweep_param = sweep_param_name;
+if save_results
+    % --- SAVE RESULTS ---
+    % Prepare data structure for saving
+    data.results_matrix = proximal_usage_results_cdf;
+    data.x_values = inter_pas_distances_bp;
+    data.sweep_values = sweep_param_values;
+    data.sweep_param = sweep_param_name;
 
-% Save results using the utility function
-extra_info = sprintf('EBinding%d', EBindingNumber);
-save_analysis_results('ParameterSweep', data, P, 'ExtraInfo', extra_info);
+    % Save results using the utility function
+    extra_info = sprintf('EBinding%d', EBindingNumber);
+    save_analysis_results('ParameterSweep', data, P, 'ExtraInfo', extra_info);
+end
 
 %% --- Helper function to run the simulation ---
 function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
@@ -114,7 +102,7 @@ function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
     RE_vals = sym(zeros(EBindingNumber + 1, N));
     for e = 1:EBindingNumber + 1
         for idx = 1:length(kPon_vals); RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const}); end
-        for idx = PAS+1:N; RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_min}); end
+        for idx = PAS+1:N; RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_const}); end
     end
     P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
 

@@ -44,7 +44,7 @@ P.PASposition = PASposition;
 % important: 'E_total', 'k_e', 'kPmin', 'kc'
 % 'E_total', 'k_e', 'kPmin', 'kc', 
 % 'kEon',
-param_list = {'Pol_total'};%'kEoff', 'kHon', 'E_total', 'k_e', 'kc'};
+param_list = {'E_total'};%'kEoff', 'kHon', 'E_total', 'k_e', 'kc'};
 
 % Ensure ode_dynamics_multipleE is available (assumed from context)
 if ~exist('ode_dynamics_multipleE', 'file')
@@ -90,7 +90,7 @@ for EBindingNumber = 1:1
                 base_range = 15/L_a:10/L_a:65/L_a; % Linear range
                 param_values = sort(unique([base_range, default_value]));
             case 'E_total'
-                param_values = 70000:10000:200000; % Linear range
+                param_values = 50000:20000:260000; % Linear range
             case 'kc'
                 param_values = 0.2:0.1:1.0; % Linear range
             case 'k_in'
@@ -154,7 +154,7 @@ for EBindingNumber = 1:1
                     RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
                 end
                 for i = PAS+1:N
-                    RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_min});
+                    RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_const});
                 end
             end
             disp('done compute EBindingNumber');
@@ -189,11 +189,11 @@ for EBindingNumber = 1:1
                 [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
                 
                 % Find position where 75% of polymerases have terminated (0.75 threshold)
-                if max(exit_cdf) < 0.75
-                    cutoff_values(k) = -1;  % Insufficient termination
-                else
-                    cutoff_values(k) = interp1(exit_cdf, distances_bp, 0.75, 'linear', 'extrap');
-                end
+                %if max(exit_cdf) < 0.75
+                    %cutoff_values(k) = -1;  % Insufficient termination
+                %else
+                    cutoff_values(k) = interp1(exit_cdf, distances_bp, 0.65, 'linear', 'extrap');
+                %end
             catch
                 cutoff_values(k) = -1;  % Error in calculation
             end
@@ -207,7 +207,7 @@ for EBindingNumber = 1:1
             set(gca, 'XScale', 'log');
         end
         plot(param_values, cutoff_values, 'o-', 'LineWidth', 2, 'MarkerSize', 8, ...
-             'Color', [0, 0.4470, 0.7410], 'DisplayName', '75% Termination');
+             'Color', [0, 0.4470, 0.7410], 'DisplayName', '50% Termination');
         
         % Highlight default parameter value with interpolation
         default_cutoff = interp1(param_values, cutoff_values, default_value, 'linear', 'extrap');
@@ -216,28 +216,28 @@ for EBindingNumber = 1:1
         
         % Customize plot
         xlabel([strrep(param_to_sweep, '_', '\_'), ' Value'], 'FontSize', 12);
-        ylabel('Position at which 75% termination (bp)', 'FontSize', 12);
-        title(['75% Termination Position vs ', strrep(param_to_sweep, '_', '\_'), ' (EBindingNumber=', num2str(EBindingNumber), ')'], ...
+        ylabel('Position at which 50% termination (bp)', 'FontSize', 12);
+        title(['50% Termination Position vs ', strrep(param_to_sweep, '_', '\_'), ' (EBindingNumber=', num2str(EBindingNumber), ')'], ...
               'FontSize', 14, 'FontWeight', 'bold');
         grid on;
         legend('show', 'Location', 'best', 'FontSize', 10);
         set(gca, 'FontSize', 10);
         box on; % Add border around plot
         
-        % Add current date and time to title
-        current_time = datestr(now, 'HH:MM AM dd-mmm-yyyy');
-        annotation('textbox', [0.1, 0.95, 0.8, 0.05], ...
-                   'String', ['Generated at ', current_time], ...
-                   'EdgeColor', 'none', 'HorizontalAlignment', 'center', 'FontSize', 8);
+%         % Add current date and time to title
+%         current_time = datestr(now, 'HH:MM AM dd-mmm-yyyy');
+%         annotation('textbox', [0.1, 0.95, 0.8, 0.05], ...
+%                    'String', ['Generated at ', current_time], ...
+%                    'EdgeColor', 'none', 'HorizontalAlignment', 'center', 'FontSize', 8);
 
-        % --- SAVE RESULTS ---
-        % Prepare data structure for saving
-        data.EBindingNumber = EBindingNumber;
-        data.sweep_param = param_to_sweep;
-        data.param_values = param_values;
-        data.cutoff_values = cutoff_values;
-        
-        % Save results using the utility function
-        save_analysis_results('parameter_sweep_1D', data, P);
+%         % --- SAVE RESULTS ---
+%         % Prepare data structure for saving
+%         data.EBindingNumber = EBindingNumber;
+%         data.sweep_param = param_to_sweep;
+%         data.param_values = param_values;
+%         data.cutoff_values = cutoff_values;
+%         
+%         % Save results using the utility function
+%         save_analysis_results('parameter_sweep_1D', data, P);
     end
 end

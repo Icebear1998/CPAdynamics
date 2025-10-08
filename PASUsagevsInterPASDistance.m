@@ -1,138 +1,172 @@
-% SCRIPT to calculate and plot Proximal PAS Usage vs. Inter-PAS Distance
+% PASUAGEVSINTERPAS DISTANCE.m
+% Calculate and plot Proximal PAS Usage vs. Inter-PAS Distance
+% Uses flux-based CDF approach for accurate termination probability
 
-clear all;
-global N PAS N_PAS Ef_ss;
-syms Ef real;
+clear; clc;
+fprintf('=== Proximal PAS Usage vs Inter-PAS Distance ===\n\n');
 
-% --- Model parameters ---
-L_a = 100; % bp per node
+% --- BASE PARAMETERS ---
+P.L_a = 100;
 P.k_in = 2;
 P.kEon = 0.00025;
 P.kEoff = 10;
-P.k_e = 65/L_a;
-P.k_e2 = 30/L_a;
+P.k_e = 65/P.L_a;
+P.k_e2 = 30/P.L_a;
 P.E_total = 70000;
 P.Pol_total = 70000;
-P.kHon = 0.05;
-P.kHoff = 0.0025;
-P.kc = 0.8;
+P.kHon = 0.2;
+P.kHoff = 0.125;
+P.kc = 0.05;
 P.kPon_min = 0.01;
-P.kPon_max = 1;
+P.kPon_max = 4;
 P.kPoff_const = 1;
-P.kPoff_max = 2;
-P.kPoff_min = 0.1;
-EBindingNumber = 2; % Set the desired EBindingNumber
+P.geneLength_bp = 25000;
+P.PASposition = 20000;
 
-geneLength_bp = 25000;
-PASposition = 20000;
-N = floor(geneLength_bp / L_a);
-PAS = floor(PASposition / L_a);
-N_PAS = N - PAS + 1;
+% --- CONFIGURATION ---
+EBindingNumber = 5;
+save_result = false;
 
-% --- Run Simulation to Get Termination Profile ---
-% (This section uses the robust iterative solver to get a stable result)
-disp('Starting simulation...');
-kHon_base = P.kHon; % Store the base kHon for this run
-    
-% --- Symbolic Pre-computation ---
-[r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1);
-kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS);
-RE_vals = sym(zeros(EBindingNumber + 1, N));
-for e = 1:EBindingNumber + 1
-    for idx = 1:length(kPon_vals)
-        kPon_val = kPon_vals(idx);
-        RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
-    end
-    for idx = PAS+1:N
-        RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_min});
-    end
-end
-P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
+% --- RUN SIMULATION ---
+fprintf('Running simulation for EBindingNumber = %d...\n', EBindingNumber);
 
-% --- STABLE TWO-STEP SOLVER ---
-X_guess = 1e-6 * ones(N + N_PAS, 1);
-options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
-
-% Step 1: Solve for the initial steady state and self-consistent Ef_ss
-P.FirstRun = true; 
-P.is_unphysical = false; 
-Ef_ss = 0;
 try
-    X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
-catch
-    error('Solver failed in Step 1.');
+    [R_sol, REH_sol, P_sim] = run_termination_simulation(P, EBindingNumber);
+    fprintf('Simulation completed successfully.\n');
+catch ME
+    error('Simulation failed: %s', ME.message);
 end
-if P.is_unphysical; error('Solver returned unphysical result in Step 1.'); end
 
-% Step 2: Update kHon and solve for the final steady state
-avg_E_bound = P.RE_val_bind_E(Ef_ss);
-P.FirstRun = false; 
-P.kHon = kHon_base * avg_E_bound(end);
+% --- CALCULATE TERMINATION PROFILE (CDF) ---
+fprintf('Calculating termination profile...\n');
 
-% Use the result of Step 1 as the initial guess for Step 2
-X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_base, options);
+% Use standardized function to calculate PAS usage profile
+[exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_sim);
 
-% --- Calculate and return the final ratio ---
-R_sol = X_final(1:N);
-REH_sol = X_final(N+1 : N+N_PAS);
-ratio_vector = (REH_sol(1:end) + R_sol(PAS:end)) / (R_sol(PAS-1) + 1e-9);
+% Prepend zero for interpolation at distance = 0
+distances_for_interp = [0; distances_bp(:)];
+cdf_for_interp = [0; exit_cdf(:)];
 
-% --- GENERATE THE REQUESTED PLOT ---
-disp('Generating APA plot...');
+% --- CALCULATE PROXIMAL PAS USAGE ---
+fprintf('Calculating proximal PAS usage...\n');
 
-% 1. Define the relevant distances between a proximal and a distal PAS
-inter_pas_distances_bp = 0:100:2500; % e.g., from 0 to 2.5 kb
+% Define inter-PAS distances
+inter_pas_distances_bp = 100:50:500;
 
-% 2. Calculate the proximal site usage for each distance
+% Calculate proximal PAS usage for each inter-PAS distance
 proximal_usage_prob = zeros(size(inter_pas_distances_bp));
+
 for i = 1:length(inter_pas_distances_bp)
     dist_bp = inter_pas_distances_bp(i);
-    % Convert distance in bp to a node index
-    node_idx = round(dist_bp / L_a);
-
-    % Ensure node_idx is within the bounds of our 'ratio' vector
-    if node_idx < 1
-        node_idx = 1;
-    end
-    if node_idx > length(ratio_vector)
-        node_idx = length(ratio_vector);
-    end
-
-    % The probability of using the DISTAL site is the read-through 'ratio'
-    distal_prob = ratio_vector(node_idx);
     
-    % The choice is binary, so the probability of using the PROXIMAL site is 1 minus the distal probability
-    proximal_usage_prob(i) = 1 - distal_prob;
+    % CDF at this distance tells us fraction that terminated by this point (at proximal PAS)
+    % So proximal usage = CDF at that distance
+    proximal_usage_prob(i) = interp1(distances_for_interp, cdf_for_interp, dist_bp, 'linear', 'extrap');
 end
 
-% 3. Create the plot
+% --- PLOT RESULTS ---
+fprintf('Generating plot...\n');
+
 figure('Position', [100, 100, 800, 600]);
 hold on;
 
-plot(inter_pas_distances_bp, proximal_usage_prob * 100, 'o-', 'LineWidth', 2, 'MarkerSize', 6);
+plot(inter_pas_distances_bp, proximal_usage_prob * 100, 'o-', 'LineWidth', 2.5, ...
+     'MarkerSize', 6, 'Color', [0, 0.4470, 0.7410], 'DisplayName', 'Proximal PAS Usage');
 
-% Add a vertical line at 300 nt for biological context
-line([300 300], ylim, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5, 'DisplayName', 'Median Tandem Distance');
+% Add vertical line at 300 bp (median tandem distance)
+line([300 300], [0 100], 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5, ...
+     'DisplayName', 'Typical inter-PAS distance (300 bp)');
 
-% Customize the plot
-xlabel('Inter-PAS Distance (bp)', 'FontSize', 12);
-ylabel('Proximal Site Usage (%)', 'FontSize', 12);
-title(['Predicted Proximal PAS Usage (EBindingNumber=', num2str(EBindingNumber), ')'], 'FontSize', 14, 'FontWeight', 'bold');
+% Customize plot
+xlabel('Inter-PAS Distance (bp)', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Proximal Site Usage (%)', 'FontSize', 12, 'FontWeight', 'bold');
+title(sprintf('Proximal PAS Usage vs Inter-PAS Distance (EBindingNumber=%d)', EBindingNumber), ...
+      'FontSize', 14, 'FontWeight', 'bold');
 grid on;
-legend('show', 'Location', 'best');
-set(gca, 'FontSize', 10);
+legend('show', 'Location', 'best', 'FontSize', 11);
+set(gca, 'FontSize', 11);
 box on;
-ylim([0 100]); % Ensure y-axis is from 0% to 100%
+ylim([0 100]);
+
+hold off;
 
 % --- SAVE RESULTS ---
-% Prepare data structure for saving
-data.EBindingNumber = EBindingNumber;
-data.inter_pas_distances_bp = inter_pas_distances_bp;
-data.proximal_usage_prob = proximal_usage_prob;
-data.R_sol = R_sol;
-data.REH_sol = REH_sol;
+if save_result
+    fprintf('Saving results...\n');
+    
+    % Prepare data structure
+    data.EBindingNumber = EBindingNumber;
+    data.inter_pas_distances_bp = inter_pas_distances_bp;
+    data.proximal_usage_prob = proximal_usage_prob;
+    data.exit_cdf = exit_cdf;
+    data.distances_bp = distances_bp;
+    data.R_sol = R_sol;
+    data.REH_sol = REH_sol;
+    
+    % Save using utility function
+    save_analysis_results('PASUsagevsInterPASDistance', data, P);
+end
 
-% Save results using the utility function
-save_analysis_results('PASUsagevsInterPASDistance', data, P);
+fprintf('\n=== Analysis Complete ===\n');
+fprintf('Results at key distances:\n');
+fprintf('  100 bp: %.1f%% proximal usage\n', interp1(inter_pas_distances_bp, proximal_usage_prob*100, 100));
+fprintf('  300 bp: %.1f%% proximal usage\n', interp1(inter_pas_distances_bp, proximal_usage_prob*100, 300));
+fprintf('  500 bp: %.1f%% proximal usage\n', interp1(inter_pas_distances_bp, proximal_usage_prob*100, 500));
+fprintf('  1000 bp: %.1f%% proximal usage\n', interp1(inter_pas_distances_bp, proximal_usage_prob*100, 1000));
 
-disp('Done.');
+%% --- HELPER FUNCTION ---
+function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
+    % Run termination simulation for given E binding number
+    global N PAS N_PAS Ef_ss;
+    syms Ef real;
+    
+    % Setup geometry
+    L_a = P.L_a;
+    N = floor(P.geneLength_bp / L_a);
+    PAS = floor(P.PASposition / L_a);
+    N_PAS = N - PAS + 1;
+    kHon_base = P.kHon;
+    
+    % Compute steady states
+    [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1);
+    
+    % Setup kPon values
+    kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS);
+    RE_vals = sym(zeros(EBindingNumber + 1, N));
+    
+    for e = 1:(EBindingNumber + 1)
+        for idx = 1:length(kPon_vals)
+            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const});
+        end
+        for idx = (PAS+1):N
+            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_const});
+        end
+    end
+    
+    % Create E binding function
+    P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
+    
+    % Solve system - Step 1
+    X_guess = 1e-6 * ones(N + N_PAS, 1);
+    options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
+    
+    P.FirstRun = true;
+    P.is_unphysical = false;
+    Ef_ss = 0;
+    
+    X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
+    
+    if P.is_unphysical
+        error('Unphysical result in Step 1');
+    end
+    
+    % Solve system - Step 2 with adjusted kHon
+    avg_E_bound = P.RE_val_bind_E(Ef_ss);
+    P.FirstRun = false;
+    P.kHon = kHon_base * avg_E_bound(end);
+    
+    X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_base, options);
+    
+    R_sol = X_final(1:N);
+    REH_sol = X_final(N+1:N+N_PAS);
+end

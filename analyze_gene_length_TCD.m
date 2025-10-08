@@ -173,11 +173,11 @@ end
 fprintf('\nCalculating TCD for different gene lengths...\n');
 
 % Define gene lengths for TCD analysis (cover the distribution well)
-L_TCD_analysis = logspace(log10(2000), log10(200000), 50);  % 2 kb to 200 kb
+L_TCD_analysis = logspace(log10(2000), log10(200000), 20);  % 2 kb to 200 kb
 n_L_TCD = length(L_TCD_analysis);
 
 % TCD calculation parameters
-TCD_thresholds = [0.25, 0.5, 0.75];  % 25%, 50%, 75% termination thresholds
+TCD_thresholds = [0.5];  % 25%, 50%, 75% termination thresholds
 n_thresholds = length(TCD_thresholds);
 
 % Pre-allocate results

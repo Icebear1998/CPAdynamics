@@ -16,11 +16,13 @@ P.kHoff = 0.0125;
 P.kc = 0.05; %not sure
 
 kPon_min = 0.01; % at TSS
-kPon_max = 0.1; % at PAS
-kPoff_min = 0.1; % at PAS
-kPoff_max = 2; % at TSS
+kPon_max = 4; % at PAS
 kPoff_const = 1;
-kPon_const = 1;
+% kPoff_min = 0.1; % at PAS
+% kPoff_max = 2; % at TSS
+% kPon_const = 1;
+
+
 
 geneLength_bp = 25000;
 PASposition   = 20000;
@@ -31,7 +33,7 @@ SD = floor(20000 / L_a); % Saturation distance
 kPon_option = 1;
 Ef_ss = 0;
 
-EBindingNumber = 5; 
+EBindingNumber = 1; 
 [r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 

@@ -7,7 +7,7 @@ if isempty(gcp('nocreate')); parpool; end
 save_result = true;
 % 1. Define the ranges for the two sweep parameters
 kHoff_values = logspace(log10(0.001), log10(0.1), 6);
-E_total_values = 40000:40000:360000;
+E_total_values = 30000:40000:200000;
 
 % 2. Define the fixed, biologically relevant distance for the metric
 fixed_distance_bp = 300;
@@ -17,8 +17,8 @@ fixed_distance_bp = 300;
 P.L_a = 100; P.k_in = 2; P.kEon = 0.00025; P.kEoff = 10;
 P.k_e = 65/100; P.k_e2 = 30/100; P.E_total = 70000;
 P.L_total = 100000; P.Pol_total = 70000; P.kHon = 0.2;
-P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_max = 0.1;
-P.kPoff_min = 0.1; P.kPoff_max = 1; P.kPoff_const = 1;
+P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_max = 1;
+P.kPoff_min = 0.1; P.kPoff_max = 2; P.kPoff_const = 1;
 P.geneLength_bp = 25000; P.PASposition = 20000; P.EBindingNumber = 5;
 
 % --- Pre-allocate the results matrix ---
@@ -137,7 +137,7 @@ function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
     RE_vals = sym(zeros(EBindingNumber + 1, N));
     for e = 1:EBindingNumber + 1
         for idx = 1:length(kPon_vals); RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const}); end
-        for idx = PAS+1:N; RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_min}); end
+        for idx = PAS+1:N; RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_const}); end
     end
     P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
 
