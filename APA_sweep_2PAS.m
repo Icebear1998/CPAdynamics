@@ -22,7 +22,7 @@ P_base.PAS_prox_pos = 20000;
 
 % For this simulation, we use a simplified constant for average E-binding
 % A full model would calculate this dynamically
-P_base.avg_E_bound_value = 2.0;
+P_base.avg_E_bound_value = 1.0;
 
 % --- SWEEP PARAMETERS ---
 % Define the ranges for the two axes of the parameter sweep

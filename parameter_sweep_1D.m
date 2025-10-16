@@ -2,6 +2,7 @@
 global N PAS N_PAS Ef_ss;
 syms Ef real;
 
+save_result = false;
 % Model parameters (base values)
 L_a = 100;
 P.k_in = 2;
@@ -16,17 +17,8 @@ P.kHon = 0.2;
 P.kHoff = 0.0125;
 P.kc = 0.05;
 P.kPon_min = 0.01;
-P.kPon_max = 1;
-P.kPoff_min = 0.1;
-P.kPoff_max = 2;
-P.kPoff_const = 1;
-
-P.kPon_min = 0.01; % at TSS
-P.kPon_max = 1.5; % at PAS
-P.kPoff_min = 0.1; % at PAS
-P.kPoff_max = 20; % at TSS
-P.kPoff_const = 1;
-P.kPon_const = 1;
+P.kPon_slope = 0.05; % slope of linear increase
+P.kPoff = 1;
 
 geneLength_bp = 25000;
 PASposition = 20000;
@@ -73,10 +65,10 @@ for EBindingNumber = 1:1
         P.kHoff = 0.0125;
         P.kc = 0.05;
         P.kPon_min = 0.01;
-        P.kPon_max = 1;
+        P.kPon_slope = 0.05;
         P.kPoff_min = 0.1;
         P.kPoff_max = 2;
-        P.kPoff_const = 1;
+        P.kPoff = 1;
         
         param_to_sweep = param_list{param_idx};
         default_value = P.(param_to_sweep);
@@ -114,8 +106,8 @@ for EBindingNumber = 1:1
             case 'kPmax'
                 base_range = logspace(1, 2, 5); % Log range
                 param_values = sort(unique([base_range, default_value]));
-            case 'kPon_max'
-                param_values = logspace(-2, 1, 6); % Log range
+            case 'kPon_slope'
+                param_values = 0.01:0.01:0.1; % Linear range
             case 'Pol_total'
                 param_values = 20000:20000:180000;
             otherwise
@@ -145,16 +137,13 @@ for EBindingNumber = 1:1
                 continue;
             end
             
-            kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS); % Range of Kp for kPon increases linearly 
+            kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1); % Linear increase with slope
             RE_vals = sym(zeros(EBindingNumber+1, N));
 
             for e = 1:EBindingNumber+1
-                for i = 1:PAS
+                for i = 1:N
                     kPon_val = kPon_vals(i);
-                    RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
-                end
-                for i = PAS+1:N
-                    RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_const});
+                    RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff});
                 end
             end
             disp('done compute EBindingNumber');
@@ -216,7 +205,7 @@ for EBindingNumber = 1:1
         
         % Customize plot
         xlabel([strrep(param_to_sweep, '_', '\_'), ' Value'], 'FontSize', 12);
-        ylabel('Position at which 50% termination (bp)', 'FontSize', 12);
+        ylabel('CAD', 'FontSize', 12);
         title(['50% Termination Position vs ', strrep(param_to_sweep, '_', '\_'), ' (EBindingNumber=', num2str(EBindingNumber), ')'], ...
               'FontSize', 14, 'FontWeight', 'bold');
         grid on;
@@ -224,20 +213,16 @@ for EBindingNumber = 1:1
         set(gca, 'FontSize', 10);
         box on; % Add border around plot
         
-%         % Add current date and time to title
-%         current_time = datestr(now, 'HH:MM AM dd-mmm-yyyy');
-%         annotation('textbox', [0.1, 0.95, 0.8, 0.05], ...
-%                    'String', ['Generated at ', current_time], ...
-%                    'EdgeColor', 'none', 'HorizontalAlignment', 'center', 'FontSize', 8);
+        if save_result
+            %         % --- SAVE RESULTS ---
+            %         % Prepare data structure for saving
+            data.EBindingNumber = EBindingNumber;
+            data.sweep_param = param_to_sweep;
+            data.param_values = param_values;
+            data.cutoff_values = cutoff_values;
 
-%         % --- SAVE RESULTS ---
-%         % Prepare data structure for saving
-%         data.EBindingNumber = EBindingNumber;
-%         data.sweep_param = param_to_sweep;
-%         data.param_values = param_values;
-%         data.cutoff_values = cutoff_values;
-%         
-%         % Save results using the utility function
-%         save_analysis_results('parameter_sweep_1D', data, P);
+            % Save results using the utility function
+            save_analysis_results('parameter_sweep_1D', data, P);
+        end
     end
 end

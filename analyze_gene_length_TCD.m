@@ -184,10 +184,15 @@ n_thresholds = length(TCD_thresholds);
 TCD_results = zeros(n_L_TCD, n_thresholds);
 termination_profiles = cell(n_L_TCD, 1);
 
-fprintf('Calculating TCD for %d gene lengths...\n', n_L_TCD);
+fprintf('Calculating TCD for %d gene lengths in parallel...\n', n_L_TCD);
+
+% Start parallel pool if not already running
+if isempty(gcp('nocreate'))
+    parpool;
+end
 
 % Use the solved (R_free, E_free) for all TCD calculations
-for i = 1:n_L_TCD
+parfor i = 1:n_L_TCD
     L_current = L_TCD_analysis(i);
     
     try
@@ -196,18 +201,17 @@ for i = 1:n_L_TCD
         termination_profiles{i} = struct('distances', distances_bp, 'profile', termination_profile);
         
         % Calculate TCD for each threshold
+        temp_TCD = zeros(1, n_thresholds);
         for j = 1:n_thresholds
             threshold = TCD_thresholds(j);
-            TCD_results(i, j) = calculate_TCD_from_profile(termination_profile, distances_bp, threshold);
+            temp_TCD(j) = calculate_TCD_from_profile(termination_profile, distances_bp, threshold);
         end
+        TCD_results(i, :) = temp_TCD;
         
     catch ME
-        fprintf('Warning: Failed to calculate TCD for L = %.0f bp: %s\n', L_current, ME.message);
+        % Note: fprintf in parfor may not display in order
+        warning('Failed to calculate TCD for L = %.0f bp: %s', L_current, ME.message);
         TCD_results(i, :) = NaN;
-    end
-    
-    if mod(i, 10) == 0
-        fprintf('  Completed %d/%d gene lengths\n', i, n_L_TCD);
     end
 end
 
@@ -253,8 +257,8 @@ for j = 1:n_thresholds
     semilogx(L_TCD_valid/1000, TCD_valid(:, j), 'o-', 'LineWidth', 2, 'MarkerSize', 4, ...
         'Color', colors(j, :), 'DisplayName', sprintf('%.0f%% threshold', TCD_thresholds(j)*100));
 end
-xlabel('TSS-to-PAS Distance (kb)', 'FontSize', 12);
-ylabel('TCD (bp)', 'FontSize', 12);
+xlabel('Gene length (kb)', 'FontSize', 12);
+ylabel('CAD (bp)', 'FontSize', 12);
 title('Termination Commitment Distance vs Gene Length', 'FontSize', 14, 'FontWeight', 'bold');
 legend('Location', 'best');
 grid on;

@@ -2,12 +2,12 @@ global N PAS N_PAS Ef_ss;
 syms Ef real;
 saveData = false;
 % ------------ MODEL PARAMETERS ------------
-L_a = 100;
+P.L_a = 100;
 P.k_in    = 2;
 P.kEon    = 0.00025;
 P.kEoff   = 10;
-P.k_e     = 65/L_a;
-P.k_e2    = 30/L_a;
+P.k_e     = 65/P.L_a;
+P.k_e2    = 30/P.L_a;
 P.E_total = 70000;
 P.L_total = 100000;
 P.Pol_total = 70000;
@@ -16,69 +16,32 @@ P.kHoff = 0.0125;
 P.kc = 0.05; %not sure
 
 kPon_min = 0.01; % at TSS
-kPon_max = 4; % at PAS
-kPoff_const = 1;
-% kPoff_min = 0.1; % at PAS
-% kPoff_max = 2; % at TSS
-% kPon_const = 1;
-
-
+kPon_slope = 0.05; % slope of linear increase (default: 4/200 = 0.00095)
+kPoff = 1;
 
 geneLength_bp = 25000;
 PASposition   = 20000;
-N      = floor(geneLength_bp / L_a);  % total nodes
-PAS    = floor(PASposition   / L_a);  % node index of PAS
+N      = floor(geneLength_bp / P.L_a);  % total nodes
+PAS    = floor(PASposition   / P.L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
-SD = floor(20000 / L_a); % Saturation distance
-kPon_option = 1;
 Ef_ss = 0;
 
 EBindingNumber = 1; 
 [r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 
-% Set up kPon values based on the saturation distance concept
-kPon_vals = zeros(1, PAS);
-
-if PAS <= SD
-    % Case 1: PAS is before or at saturation distance
-    % Linear increase from kPon_min to value at PAS (never reaches kPon_max)
-    kPon_vals = linspace(kPon_min, kPon_min + (kPon_max - kPon_min) * (PAS / SD), PAS);
-else
-    % Case 2: PAS is beyond saturation distance
-    if kPon_option == 1
-        % Option 1: Saturate at SD, then constant
-        kPon_vals(1:SD) = linspace(kPon_min, kPon_max, SD);
-        kPon_vals((SD+1):PAS) = kPon_max;  % Constant at kPon_max
-    else
-        % Option 2: Continue linear increase after SD
-        kPon_vals(1:SD) = linspace(kPon_min, kPon_max, SD);
-        % Continue linear increase beyond kPon_max
-        slope = (kPon_max - kPon_min) / SD;
-        for i = (SD+1):PAS
-            kPon_vals(i) = kPon_max + slope * (i - SD);
-        end
-    end
-end
-% kPon_vals = linspace(kPon_min, kPon_max, SD); % Range of Kp for kPon increases linearly 
-% kPon_vals = kPon_vals(1:PAS);
-%kPoff_vals = linspace(kPoff_min, kPoff_min, PAUSE_LENGTH); % Range of Kp for kPoff decreases linearly 
+% Set up kPon values with linear increase
+kPon_vals = kPon_min + kPon_slope * (0:N-1); 
 
 RE_vals = sym(zeros(EBindingNumber+1, N));
 P_vals = sym(zeros(EBindingNumber+1, N));
 avg_P = zeros(1,N);
 
 for e = 1:EBindingNumber+1
-    for i = 1:PAS
+    for i = 1:N
         kPon_val = kPon_vals(i);
-        %kPoff_val = kPval_vals(i);
-        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
-        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
-    end
-    for i = PAS+1:N
-        kPon_val = kPon_vals(PAS);
-        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
-        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff_const});
+        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, kPoff});
+        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff});
     end
 end
 disp('done compute EBindingNumber');

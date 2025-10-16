@@ -18,8 +18,8 @@ P.kHon = 0.2;
 P.kHoff = 0.125;
 P.kc = 0.05;
 P.kPon_min = 0.01;
-P.kPon_max = 4;
-P.kPoff_const = 1;
+P.kPon_slope = 0.05;
+P.kPoff = 1;
 P.geneLength_bp = 25000;
 P.PASposition = 20000;
 
@@ -70,23 +70,23 @@ fprintf('Generating plot...\n');
 figure('Position', [100, 100, 800, 600]);
 hold on;
 
-plot(inter_pas_distances_bp, proximal_usage_prob * 100, 'o-', 'LineWidth', 2.5, ...
-     'MarkerSize', 6, 'Color', [0, 0.4470, 0.7410], 'DisplayName', 'Proximal PAS Usage');
+plot(inter_pas_distances_bp, proximal_usage_prob * 100, '-', 'LineWidth', 2.5, ...
+     'MarkerSize', 6, 'Color', 'r', 'DisplayName', 'Proximal PAS Usage');
 
 % Add vertical line at 300 bp (median tandem distance)
-line([300 300], [0 100], 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5, ...
+line([300 300], [0 100], 'Color', 'k', 'LineStyle', '--', 'LineWidth', 1.5, ...
      'DisplayName', 'Typical inter-PAS distance (300 bp)');
 
 % Customize plot
 xlabel('Inter-PAS Distance (bp)', 'FontSize', 12, 'FontWeight', 'bold');
 ylabel('Proximal Site Usage (%)', 'FontSize', 12, 'FontWeight', 'bold');
-title(sprintf('Proximal PAS Usage vs Inter-PAS Distance (EBindingNumber=%d)', EBindingNumber), ...
-      'FontSize', 14, 'FontWeight', 'bold');
+%title(sprintf('Proximal PAS Usage vs Inter-PAS Distance (EBindingNumber=%d)', EBindingNumber), ...
+      %'FontSize', 14, 'FontWeight', 'bold');
 grid on;
 legend('show', 'Location', 'best', 'FontSize', 11);
 set(gca, 'FontSize', 11);
 box on;
-ylim([0 100]);
+ylim([0 60]);
 
 hold off;
 
@@ -130,16 +130,13 @@ function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
     % Compute steady states
     [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1);
     
-    % Setup kPon values
-    kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS);
+    % Setup kPon values with linear increase
+    kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
     RE_vals = sym(zeros(EBindingNumber + 1, N));
     
     for e = 1:(EBindingNumber + 1)
-        for idx = 1:length(kPon_vals)
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const});
-        end
-        for idx = (PAS+1):N
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_const});
+        for idx = 1:N
+            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff});
         end
     end
     

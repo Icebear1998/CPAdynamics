@@ -1,4 +1,5 @@
 % --- Model parameters (base values) ---
+save_result = false;
 P = struct();
 P.k_in = 2;
 P.kEon = 0.00025;
@@ -12,10 +13,8 @@ P.kHon = 0.2;
 P.kHoff = 0.0125;
 P.kc = 0.05;
 P.kPon_min = 0.01;
-P.kPon_max = 1;
-P.kPoff_min = 0.1;
-P.kPoff_max = 2;
-P.kPoff_const = 1;
+P.kPon_slope = 0.05;
+P.kPoff = 1;
 
 L_a = 100;
 geneLength_bp = 25000;
@@ -37,15 +36,12 @@ N_PAS = N - PAS + 1;
 syms Ef real;
 fprintf('Performing one-time symbolic pre-computation...\n');
 [r_E_BeforePas] = compute_steady_states(P, EBindingNumber+1);
-kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS);
+kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1); % Linear increase with slope
 RE_vals = sym(zeros(EBindingNumber + 1, N));
 for e = 1:EBindingNumber + 1
-    for idx = 1:PAS
+    for idx = 1:N
         kPon_val = kPon_vals(idx);
-        RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
-    end
-    for idx = PAS+1:N
-        RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_min});
+        RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff});
     end
 end
 P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
@@ -160,15 +156,16 @@ for pair_idx = 1:length(param_pairs)
     
     % --- SAVE RESULTS ---
     % Prepare data structure for saving
-%     data.EBindingNumber = EBindingNumber;
-%     data.param1 = param1;
-%     data.param2 = param2;
-%     data.param1_values = param1_values;
-%     data.param2_values = param2_values;
-%     data.cutoff_matrix = cutoff_matrix;
-    
-    % Save results using the utility function
-    %save_analysis_results('parameter_sweep_2D', data, P);
-end
+    if save_result
+        data.EBindingNumber = EBindingNumber;
+        data.param1 = param1;
+        data.param2 = param2;
+        data.param1_values = param1_values;
+        data.param2_values = param2_values;
+        data.cutoff_matrix = cutoff_matrix;
 
-% --- Helper Functions (ode_dynamics_multipleE, compute_steady_states, etc. would be here) ---
+        Save results using the utility function
+        save_analysis_results('parameter_sweep_2D', data, P);
+    end
+
+end

@@ -21,7 +21,7 @@ E_total_base = 70000;
 
 % R_free range: should be much larger than 1/70000 of total
 % Using range from ~10% to ~90% of total (well above the 1/70000 threshold)
-R_free_min = 10;   % 7,000
+R_free_min = 1;   % 7,000
 R_free_max = 1000;   % 63,000
 R_free_points = 5;                % Resolution for R_free
 
@@ -38,7 +38,7 @@ L_max = 200000;    % 200 kb (covers most genes, excludes extreme outliers)
 L_points = 10;     % Resolution for TSS-to-PAS length
 
 % Fixed after-PAS length for all genes
-after_PAS_length = 5000;  % 5 kb constant after-PAS region
+after_PAS_length = 6000;  % 5 kb constant after-PAS region
 
 %% --- BASE PARAMETERS ---
 % Use standard parameter set from existing analyses
@@ -57,12 +57,12 @@ P_base.kHon = 0.2;
 P_base.kHoff = 0.0125;
 P_base.kc = 0.05;
 P_base.kPon_min = 0.01;
-P_base.kPon_max = 4;
+P_base.kPon_max = 1;
 P_base.kPoff_min = 0.1;
 P_base.kPoff_const = 1;
-P_base.SD_bp = 10000;  % Saturation distance in bp
+P_base.SD_bp = 20000;  % Saturation distance in bp
 P_base.kPon_option = 1;  % 1: saturate at SD, 2: continue linear after SD
-P_base.EBindingNumber = 5;  % Use standard value
+P_base.EBindingNumber = 1;  % Use standard value
 
 % Create parameter grids
 R_free_values = linspace(R_free_min, R_free_max, R_free_points);

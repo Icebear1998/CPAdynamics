@@ -17,8 +17,8 @@ fixed_distance_bp = 300;
 P.L_a = 100; P.k_in = 2; P.kEon = 0.00025; P.kEoff = 10;
 P.k_e = 65/100; P.k_e2 = 30/100; P.E_total = 70000;
 P.L_total = 100000; P.Pol_total = 70000; P.kHon = 0.2;
-P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_max = 1;
-P.kPoff_min = 0.1; P.kPoff_max = 2; P.kPoff_const = 1;
+P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_slope = 0.05;
+P.kPoff = 1;
 P.geneLength_bp = 25000; P.PASposition = 20000; P.EBindingNumber = 5;
 
 % --- Pre-allocate the results matrix ---
@@ -129,15 +129,22 @@ function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
     global N PAS N_PAS Ef_ss;
     syms Ef real;
     
-    L_a = P.L_a; N = floor(P.geneLength_bp / L_a); PAS = floor(P.PASposition / L_a); N_PAS = N - PAS + 1;
+    L_a = P.L_a; 
+    N = floor(P.geneLength_bp / L_a); 
+    PAS = floor(P.PASposition / L_a); 
+    N_PAS = N - PAS + 1;
     kHon_base = P.kHon;
     
     [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1);
-    kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS);
+    
+    % Set up kPon values with linear increase
+    kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
+    
     RE_vals = sym(zeros(EBindingNumber + 1, N));
     for e = 1:EBindingNumber + 1
-        for idx = 1:length(kPon_vals); RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const}); end
-        for idx = PAS+1:N; RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {P.kPon_max, P.kPoff_const}); end
+        for idx = 1:N
+            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff});
+        end
     end
     P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
 
@@ -145,12 +152,18 @@ function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
     options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
 
     P.FirstRun = true; P.is_unphysical = false; Ef_ss = 0;
-    try; X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
-    catch; error('Solver failed in Step 1.'); end
-    if P.is_unphysical; error('Solver returned unphysical result in Step 1.'); end
+    try
+        X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
+    catch
+        error('Solver failed in Step 1.');
+    end
+    if P.is_unphysical
+        error('Solver returned unphysical result in Step 1.');
+    end
 
     avg_E_bound = P.RE_val_bind_E(Ef_ss);
-    P.FirstRun = false; P.kHon = kHon_base * avg_E_bound(end);
+    P.FirstRun = false;
+    P.kHon = kHon_base * avg_E_bound(PAS);  % Fixed: use avg_E_bound(PAS) instead of avg_E_bound(end)
     X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_base, options);
     
     R_sol = X_final(1:N);

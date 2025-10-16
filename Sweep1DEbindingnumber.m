@@ -17,11 +17,8 @@ P.kHoff = 0.0025;
 P.kc = 0.8;
  
 P.kPon_min = 0.01; % at TSS
-P.kPon_max = 1.5; % at PAS
-P.kPoff_min = 0.1; % at PAS
-P.kPoff_max = 20; % at TSS
-P.kPoff_const = 1;
-P.kPon_const = 1;
+P.kPon_slope = 0.05; % slope of linear increase
+P.kPoff = 1;
  
 geneLength_bp = 25000;
 PASposition = 20000;
@@ -55,13 +52,13 @@ for EBindingNumber = 1:3
         continue;
     end
     
-    kPon_vals = linspace(P.kPon_min, P.kPon_max, PAS);
-    RE_vals = sym(zeros(EBindingNumber + 1, PAS));
+    kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1); % Linear increase with slope
+    RE_vals = sym(zeros(EBindingNumber + 1, N));
  
     for e = 1:EBindingNumber + 1
-        for idx = 1:length(kPon_vals)
+        for idx = 1:N
             kPon_val = kPon_vals(idx);
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
+            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff});
         end
     end
  
