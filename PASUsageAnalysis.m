@@ -1,10 +1,7 @@
-% PASUsageAnalysis_parallel.m
-
-% MODIFIED: Start a parallel pool of workers. MATLAB will use the default number of cores.
-if isempty(gcp('nocreate')); parpool; end
+% PASUsageAnalysis.m
 
 % --- CONFIGURATION ---
-save_result = true;
+save_result = false;
 % 1. Define the ranges for the two sweep parameters
 kHoff_values = logspace(log10(0.001), log10(0.1), 6);
 E_total_values = 30000:40000:200000;
@@ -19,31 +16,24 @@ P.k_e = 65/100; P.k_e2 = 30/100; P.E_total = 70000;
 P.L_total = 100000; P.Pol_total = 70000; P.kHon = 0.2;
 P.kHoff = 0.0125; P.kc = 0.05; P.kPon_min = 0.01; P.kPon_slope = 0.05;
 P.kPoff = 1;
-P.geneLength_bp = 25000; P.PASposition = 20000; P.EBindingNumber = 5;
+P.geneLength_bp = 25000; P.PASposition = 20000; P.EBindingNumber = 1;
 
 % --- Pre-allocate the results matrix ---
-% MODIFIED: It's good practice to pre-allocate before the parallel loop.
 results_matrix = zeros(length(E_total_values), length(kHoff_values));
 
 % --- 2D PARAMETER SWEEP LOOP ---
-fprintf('Starting 2D sweep over kHoff and E_total in parallel...\n');
+fprintf('Starting 2D sweep over kHoff and E_total...\n');
 
-% MODIFIED: Changed the outer 'for' loop to 'parfor'.
-% Each worker will process one value of E_total_values (one 'i').
-parfor i = 1:length(E_total_values)
-    % MODIFIED: Create a temporary row vector for the results of the inner loop.
-    % This is a cleaner pattern for parfor.
+for i = 1:length(E_total_values)
+    % Create a temporary row vector for the results of the inner loop
     temp_row = zeros(1, length(kHoff_values));
     
-    % The inner loop remains a standard 'for' loop, executed by the worker.
     for j = 1:length(kHoff_values)
+        fprintf('  Running E_total = %d, kHoff = %.4g (%d,%d)...\n', E_total_values(i), kHoff_values(j), i, j);
+        
         P_run = P;
         P_run.E_total = E_total_values(i);
         P_run.kHoff = kHoff_values(j);
-
-        % We can't print from inside a parfor loop easily, so it's best to remove this line
-        % or use a more advanced method if progress monitoring is essential.
-        % fprintf('Running: E_total = %d, kHoff = %.4g\n', E_total_values(i), kHoff_values(j));
 
         [R_sol, REH_sol, P_sim] = run_termination_simulation(P_run, P_run.EBindingNumber);
         
@@ -52,32 +42,26 @@ parfor i = 1:length(E_total_values)
             continue;
         end
 
-        flux_cleavage_per_node = P_sim.kc * REH_sol;
-        flux_R_exit = P_sim.k_e * R_sol(end);
-        flux_REH_exit = P_sim.k_e2 * REH_sol(end);
-        total_outflux = sum(flux_cleavage_per_node) + flux_R_exit + flux_REH_exit;
-
-        if total_outflux > 1e-9
-            cumulative_exit_flux = cumsum(flux_cleavage_per_node);
-            exit_cdf = cumulative_exit_flux / total_outflux;
-        else
-            exit_cdf = zeros(size(REH_sol));
+        % Use standardized function to calculate PAS usage profile
+        try
+            [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_sim);
+            
+            % Interpolate to get usage at fixed distance
+            % Prepend zero for interpolation at distance = 0
+            distances_for_interp = [0; distances_bp(:)];
+            cdf_for_interp = [0; exit_cdf(:)];
+            
+            usage_at_dist = interp1(distances_for_interp, cdf_for_interp, fixed_distance_bp, 'linear', 'extrap');
+            temp_row(j) = usage_at_dist * 100;
+        catch
+            temp_row(j) = NaN;
         end
-
-        nodes_post_pas = 1:length(REH_sol);
-        bp_post_pas = nodes_post_pas * P_sim.L_a;
-        bp_for_interp = [0; bp_post_pas(:)];
-        cdf_for_interp = [0; exit_cdf(:)];
-        
-        usage_at_dist = interp1(bp_for_interp, cdf_for_interp, fixed_distance_bp, 'linear', 'extrap');
-        
-        temp_row(j) = usage_at_dist * 100;
     end
-    % MODIFIED: Assign the entire computed row to the results matrix.
+    % Assign the entire computed row to the results matrix
     results_matrix(i, :) = temp_row;
-    fprintf('Finished row for E_total = %d\n', E_total_values(i));
+    fprintf('Finished row %d/%d for E_total = %d\n', i, length(E_total_values), E_total_values(i));
 end
-disp('All parallel simulations complete.');
+disp('All simulations complete.');
 
 % % --- PLOT THE CONTOUR MAP ---
 figure('Position', [100, 100, 900, 700]);
@@ -168,67 +152,4 @@ function [R_sol, REH_sol, P] = run_termination_simulation(P, EBindingNumber)
     
     R_sol = X_final(1:N);
     REH_sol = X_final(N+1 : N+N_PAS);
-end
-
-
-%% ------------ ODE DYNAMICS FUNCTION ------------
-function dxdt = ode_dynamics_multipleE(X, P)
-global N PAS Ef_ss
-
-k_in   = P.k_in;
-k_e    = P.k_e;
-k_e2   = P.k_e2;
-kHoff_t= P.kHoff;
-kc_t   = P.kc;
-RE_val_bind_E = P.RE_val_bind_E;
-kHon_t = P.kHon;
-
-R   = X(1:N);
-REH = X(N+1:end);
-
-if P.FirstRun
-    % Set initial Ef_ss once (using P.E_total as a starting guess)
-    if Ef_ss == 0
-        Ef_ss = P.E_total; % Initial guess
-    end
-
-    % Convert symbolic expression to a numerical function
-    REvalbindEAfterPas = RE_val_bind_E(Ef_ss);
-    E_used = sum(R(1:N)'.* RE_val_bind_E(Ef_ss)) + sum(REH' .* REvalbindEAfterPas(PAS:N)); %sum(REH, 1); 
-    E_f = abs(P.E_total - E_used);
-    %E_f = max(1, P.E_total - E_used);
-    Ef_ss = E_f;
-    %disp({sum(RE_val_bind_E(Ef_ss)), sum(R(1:PAS)), Ef_ss});
-
-    % If E_f < 0, throw error and stop solver
-    if Ef_ss < 0
-        P.is_unphysical = true; % Set flag instead of throwing error
-        dxdt = 1e6 * ones(length(X), 1); % Large residual to signal fsolve to stop
-        return;
-    end
-end
-
-Pol_f = P.Pol_total - sum(R) - sum(REH);
-% L_f = P.L_total - sum()
-
-dxdt = zeros(length(X),1);
-
-n = 1;
-dxdt(n) = Pol_f*k_in - k_e*R(n);
-
-for n = 2:(PAS-1)
-    dxdt(n) = k_e*R(n-1) - k_e*R(n);
-end
-
-n = PAS;
-j = n - PAS + 1;
-dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
-dxdt(N+j) = -k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j);
-
-for n = (PAS+1):N
-    j = n - PAS + 1;
-    dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
-    dxdt(N+j) = k_e2*REH(j-1) - k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j) - kc_t*REH(j);
-end
-
 end

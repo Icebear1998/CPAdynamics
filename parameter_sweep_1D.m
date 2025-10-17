@@ -34,9 +34,8 @@ P.PASposition = PASposition;
 % List of parameters to sweep
 % 'k_e2', 'k_in', 'kHoff', 'kPmax'
 % important: 'E_total', 'k_e', 'kPmin', 'kc'
-% 'E_total', 'k_e', 'kPmin', 'kc', 
 % 'kEon',
-param_list = {'E_total'};%'kEoff', 'kHon', 'E_total', 'k_e', 'kc'};
+param_list = {'k_e','k_e2', 'E_total','Pol_total', 'kc', 'kEon', 'kEoff','k_in', 'kHoff','kHon', 'kPon_slope'};
 
 % Ensure ode_dynamics_multipleE is available (assumed from context)
 if ~exist('ode_dynamics_multipleE', 'file')
@@ -47,7 +46,7 @@ if ~exist('compute_steady_states', 'file')
 end
 
 % Iterate over EBindingNumber
-for EBindingNumber = 1:1
+for EBindingNumber = 5:5
     fprintf('Running for EBindingNumber = %d\n', EBindingNumber);
     
     % Iterate over each parameter to sweep
@@ -66,8 +65,6 @@ for EBindingNumber = 1:1
         P.kc = 0.05;
         P.kPon_min = 0.01;
         P.kPon_slope = 0.05;
-        P.kPoff_min = 0.1;
-        P.kPoff_max = 2;
         P.kPoff = 1;
         
         param_to_sweep = param_list{param_idx};
@@ -82,9 +79,11 @@ for EBindingNumber = 1:1
                 base_range = 15/L_a:10/L_a:65/L_a; % Linear range
                 param_values = sort(unique([base_range, default_value]));
             case 'E_total'
-                param_values = 50000:20000:260000; % Linear range
+                param_values = 30000:20000:260000; % Linear range
+            case 'Pol_total'
+                param_values = 30000:20000:260000;
             case 'kc'
-                param_values = 0.2:0.1:1.0; % Linear range
+                param_values = 0.01:0.1:0.8; % Linear range
             case 'k_in'
                 base_range = logspace(log10(0.2), log10(10), 5); % Log range
                 param_values = sort(unique([base_range, default_value]));
@@ -100,16 +99,8 @@ for EBindingNumber = 1:1
             case 'kHoff'
                 base_range = logspace(-3, 0, 8); % Log range
                 param_values = sort(unique([base_range, default_value]));
-            case 'kPmin'
-                base_range = logspace(log10(0.05), log10(0.4), 5); % Log range
-                param_values = sort(unique([base_range, default_value]));
-            case 'kPmax'
-                base_range = logspace(1, 2, 5); % Log range
-                param_values = sort(unique([base_range, default_value]));
             case 'kPon_slope'
                 param_values = 0.01:0.01:0.1; % Linear range
-            case 'Pol_total'
-                param_values = 20000:20000:180000;
             otherwise
                 error('Invalid parameter selected');
         end
@@ -117,27 +108,37 @@ for EBindingNumber = 1:1
         % Initialize arrays
         cutoff_values = zeros(1, length(param_values));
 
-        % Parameter sweep
+        % --- PRE-COMPUTE SYMBOLIC EXPRESSIONS ONCE ---
+        % Most parameters (E_total, Pol_total, etc.) don't affect symbolic steady states
+        % Only rate constants (kEon, kEoff, etc.) would affect them
+        fprintf('Pre-computing symbolic steady states once...\n');
+        
+        
+
+        % Parameter sweep (sequential for now - parfor has issues with symbolic function handles)
+        % Note: Global variables N, PAS, N_PAS, Ef_ss are already declared at script level
+        fprintf('Starting sweep for %s...\n', param_to_sweep);
         for k = 1:length(param_values)
-            Ef_ss = 0;
-            P.kHon = kHon_default;
+            fprintf('  Running %s = %.4g (%d/%d)...\n', param_to_sweep, param_values(k), k, length(param_values));
+            P_run = P;
+            P_run.kHon = kHon_default;
             % Update the parameter
-            P.(param_to_sweep) = param_values(k);
+            P_run.(param_to_sweep) = param_values(k);
             
+            % Update kHon_default for this iteration if sweeping kHon
+            kHon_iter = kHon_default;
             if strcmp(param_to_sweep, 'kHon')
-                kHon_default = param_values(k);
+                kHon_iter = param_values(k);
             end
             
             try
                 [r_E_BeforePas] = compute_steady_states(P, EBindingNumber + 1);
-                disp('done compute steady states');
             catch ME
-                fprintf('Error in compute_steady_states for %s = %.4g: %s\n', param_to_sweep, param_values(k), ME.message);
-                cutoff_values(k) = NaN;
+                fprintf('Error in compute_steady_states: %s\n', ME.message);
                 continue;
             end
-            
-            kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1); % Linear increase with slope
+
+            kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
             RE_vals = sym(zeros(EBindingNumber+1, N));
 
             for e = 1:EBindingNumber+1
@@ -146,48 +147,46 @@ for EBindingNumber = 1:1
                     RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff});
                 end
             end
-            disp('done compute EBindingNumber');
 
-            P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
-            disp('done compute RE_val_bind_E');
+            RE_val_bind_E_func = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
+            fprintf('Symbolic pre-computation complete.\n');
+        
+            % Use the pre-computed function handle
+            P_run.RE_val_bind_E = RE_val_bind_E_func;
 
-            P.FirstRun = true;
-            P.is_unphysical = false; % Reset flag
+            P_run.FirstRun = true;
+            P_run.is_unphysical = false; % Reset flag
             X0 = 1e-6 * ones(N + N_PAS, 1); % Small positive initial guess
 
             options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8, 'MaxIterations', 1000);
-            X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X0, options);
-            if P.is_unphysical || any(isnan(X)) || any(isinf(X))
+            X = fsolve(@(xx) ode_dynamics_multipleE(xx, P_run), X0, options);
+            if P_run.is_unphysical || any(isnan(X)) || any(isinf(X))
                 cutoff_values(k) = -1;
                 continue;
             end
 
-            avg_E_bound = P.RE_val_bind_E(Ef_ss);
+            avg_E_bound = P_run.RE_val_bind_E(Ef_ss);
 
             % Recalculate kHon
-            P.FirstRun = false;
+            P_run.FirstRun = false;
             X1 = X;
-            P.kHon = kHon_default * avg_E_bound(end);
-            X_adj = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X1, options);
+            P_run.kHon = kHon_iter * avg_E_bound(end);
+            X_adj = fsolve(@(xx) ode_dynamics_multipleE(xx, P_run), X1, options);
 
             R_sol = X_adj(1:N);
             REH_sol = X_adj(N+1 : N+N_PAS);
             
             % Calculate cutoff position using flux-based PAS usage calculation
             try
-                [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
+                [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_run);
                 
-                % Find position where 75% of polymerases have terminated (0.75 threshold)
-                %if max(exit_cdf) < 0.75
-                    %cutoff_values(k) = -1;  % Insufficient termination
-                %else
-                    cutoff_values(k) = interp1(exit_cdf, distances_bp, 0.65, 'linear', 'extrap');
-                %end
+                % Find position where 65% of polymerases have terminated
+                cutoff_values(k) = interp1(exit_cdf, distances_bp, 0.65, 'linear', 'extrap');
             catch
                 cutoff_values(k) = -1;  % Error in calculation
             end
-
         end
+        fprintf('Sweep for %s complete.\n\n', param_to_sweep);
 
         % Plot
         figure('Position', [100, 100, 800, 600]); % Set figure size

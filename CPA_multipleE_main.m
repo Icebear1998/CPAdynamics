@@ -16,7 +16,7 @@ P.kHoff = 0.0125;
 P.kc = 0.05; %not sure
 
 kPon_min = 0.01; % at TSS
-kPon_slope = 0.05; % slope of linear increase (default: 4/200 = 0.00095)
+kPon_slope = 0.02; % slope of linear increase (default: 4/200 = 0.00095)
 kPoff = 1;
 
 geneLength_bp = 25000;
@@ -26,7 +26,7 @@ PAS    = floor(PASposition   / P.L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
 
-EBindingNumber = 1; 
+EBindingNumber = 4; 
 [r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 

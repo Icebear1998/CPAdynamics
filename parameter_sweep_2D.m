@@ -54,20 +54,21 @@ for pair_idx = 1:length(param_pairs)
     param1 = param_pairs{pair_idx}{1};
     param2 = param_pairs{pair_idx}{2};
     
-    param1_values = 20000:10000:100000;
-    param2_values = 0.1:-0.01:0.01;
+    param1_values = 30000:10000:100000;
+    param2_values = logspace(-2,1,10);
 
     cutoff_matrix = zeros(length(param2_values), length(param1_values));
     options = optimoptions('fsolve', 'Algorithm', 'trust-region', 'Display', 'none', 'FunctionTolerance', 1e-10);
 
-    % --- 2D Parameter Sweep Loop ---
+    % --- 2D Parameter Sweep Loop (Sequential - parfor has issues with symbolic function handles) ---
+    % Note: Global variables N, PAS, N_PAS, Ef_ss are already declared at script level
+    fprintf('Starting 2D sweep for %s vs %s...\n', param1, param2);
     for i = 1:length(param2_values)
-        
-        % --- NEW: Initialize history buffer for each row of the sweep ---
+        % --- Initialize history buffer for each row of the sweep ---
         X_history = cell(1, length(param1_values));
         
         for j = 1:length(param1_values)
-            fprintf('Running sweep: %s = %.2g, %s = %.2g\n', param2, param2_values(i), param1, param1_values(j));
+            fprintf('  Running %s = %.2g, %s = %.2g (%d,%d)\n', param2, param2_values(i), param1, param1_values(j), i, j);
             
             % --- NEW: EXTRAPOLATION-BASED GUESS LOGIC ---
             if j == 1
@@ -99,7 +100,8 @@ for pair_idx = 1:length(param_pairs)
             % --- DIRECT TWO-STEP SOLVER ---
             P_run.is_unphysical = false;
             
-            P_run.FirstRun = true; Ef_ss = 0;
+            P_run.FirstRun = true; 
+            Ef_ss = 0;
             try
                 X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P_run), X_guess, options);
             catch
@@ -107,7 +109,8 @@ for pair_idx = 1:length(param_pairs)
             end
             
             if P_run.is_unphysical || any(isnan(X_base))
-                cutoff_matrix(i,j) = NaN; continue;
+                cutoff_matrix(i,j) = NaN; 
+                continue;
             end
 
             avg_E_bound = P_run.RE_val_bind_E(Ef_ss);
@@ -119,26 +122,25 @@ for pair_idx = 1:length(param_pairs)
             X_history{j} = X_final;
             
             % --- Process and Store Result ---
-            if any(isnan(X_final)); cutoff_matrix(i,j) = NaN; continue; end
+            if any(isnan(X_final))
+                cutoff_matrix(i,j) = NaN; 
+                continue; 
+            end
             
             R_sol = X_final(1:N);
             REH_sol = X_final(N+1 : N+N_PAS);
             
             % Calculate cutoff position using flux-based PAS usage calculation
             try
-                [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_run);
-                
-                % Find position where 75% of polymerases have terminated (0.75 threshold)
-                if max(exit_cdf) < 0.75
-                    cutoff_matrix(i,j) = -1;  % Insufficient termination
-                else
-                    cutoff_matrix(i,j) = interp1(exit_cdf, distances_bp, 0.75, 'linear', 'extrap');
-                end
+                [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_run);             
+                cutoff_matrix(i,j) = interp1(exit_cdf, distances_bp, 0.5, 'linear', 'extrap');
             catch
                 cutoff_matrix(i,j) = -1;  % Error in calculation
             end
         end
+        fprintf('Completed row %d/%d for %s = %.2g\n', i, length(param2_values), param2, param2_values(i));
     end
+    fprintf('2D sweep complete.\n');
 
     % --- Plotting ---
     figure('Position', [100, 100, 800, 600]);
@@ -149,7 +151,7 @@ for pair_idx = 1:length(param_pairs)
              'Color', colors(i, :), 'DisplayName', sprintf('%s = %.2g', param2, param2_values(i)));
     end
     xlabel([strrep(param1, '_', '\_'), ' Value'], 'FontSize', 12);
-    ylabel('Position at which 75% termination (bp)', 'FontSize', 12);
+    ylabel('Position at which 50% termination (bp)', 'FontSize', 12);
     title(['75% Termination Position vs ', strrep(param1, '_', '\_'), ' by ', strrep(param2, '_', '\_')], 'FontSize', 14);
     grid on; legend('show', 'Location', 'best'); set(gca, 'FontSize', 10); box on;
     hold off;
@@ -164,7 +166,7 @@ for pair_idx = 1:length(param_pairs)
         data.param2_values = param2_values;
         data.cutoff_matrix = cutoff_matrix;
 
-        Save results using the utility function
+        % Save results using the utility function
         save_analysis_results('parameter_sweep_2D', data, P);
     end
 
