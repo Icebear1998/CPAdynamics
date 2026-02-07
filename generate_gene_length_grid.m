@@ -38,7 +38,7 @@ L_max = 200000;    % 200 kb (covers most genes, excludes extreme outliers)
 L_points = 10;     % Resolution for TSS-to-PAS length
 
 % Fixed after-PAS length for all genes
-after_PAS_length = 6000;  % 5 kb constant after-PAS region
+after_PAS_length = 5000;  % 5 kb constant after-PAS region
 
 %% --- BASE PARAMETERS ---
 % Use standard parameter set from existing analyses
@@ -55,14 +55,11 @@ P_base.k_e = 65/100;
 P_base.k_e2 = 30/100;
 P_base.kHon = 0.2;
 P_base.kHoff = 0.0125;
-P_base.kc = 0.05;
+P_base.kc = 0.1;
 P_base.kPon_min = 0.01;
-P_base.kPon_max = 1;
-P_base.kPoff_min = 0.1;
-P_base.kPoff_const = 1;
-P_base.SD_bp = 20000;  % Saturation distance in bp
-P_base.kPon_option = 1;  % 1: saturate at SD, 2: continue linear after SD
-P_base.EBindingNumber = 1;  % Use standard value
+P_base.kPon_slope = 0.01;  % slope of linear increase
+P_base.kPoff = 1;
+P_base.EBindingNumber = 4;  % Use standard value
 
 % Create parameter grids
 R_free_values = linspace(R_free_min, R_free_max, R_free_points);
@@ -74,13 +71,7 @@ fprintf('  R_free: %.0f to %.0f (%d points)\n', R_free_min, R_free_max, R_free_p
 fprintf('  E_free: %.0f to %.0f (%d points)\n', E_free_min, E_free_max, E_free_points);
 fprintf('  L (TSS-to-PAS): %.0f to %.0f bp (%d points, log-spaced)\n', L_min, L_max, L_points);
 fprintf('  After-PAS length: %.0f bp (fixed for all genes)\n', after_PAS_length);
-fprintf('  Saturation distance (SD): %.0f bp\n', P_base.SD_bp);
-fprintf('  kPon behavior: Option %d ', P_base.kPon_option);
-if P_base.kPon_option == 1
-    fprintf('(saturate at SD, then constant)\n');
-else
-    fprintf('(continue linear increase after SD)\n');
-end
+fprintf('  kPon: linear increase with slope = %.4f\n', P_base.kPon_slope);
 fprintf('  Total grid points: %d\n\n', R_free_points * E_free_points * L_points);
 
 %% --- GRID GENERATION ---
@@ -284,43 +275,18 @@ function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
     N = floor(P.geneLength_bp / L_a);
     PAS = floor(P.PASposition / L_a);
     N_PAS = N - PAS + 1;
-    SD = floor(P.SD_bp / L_a);  % Saturation distance in nodes
     
     % Compute steady states
     [r_E_BeforePas] = compute_steady_states(P, P.EBindingNumber + 1);
     
-    % Set up kPon values based on the saturation distance concept
-    kPon_vals = zeros(1, PAS);
+    % Set up kPon values with linear increase
+    kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
     
-    if PAS <= SD
-        % Case 1: PAS is before or at saturation distance
-        % Linear increase from kPon_min to value at PAS (never reaches kPon_max)
-        kPon_vals = linspace(P.kPon_min, P.kPon_min + (P.kPon_max - P.kPon_min) * (PAS / SD), PAS);
-    else
-        % Case 2: PAS is beyond saturation distance
-        if P.kPon_option == 1
-            % Option 1: Saturate at SD, then constant
-            kPon_vals(1:SD) = linspace(P.kPon_min, P.kPon_max, SD);
-            kPon_vals((SD+1):PAS) = P.kPon_max;  % Constant at kPon_max
-        else
-            % Option 2: Continue linear increase after SD
-            kPon_vals(1:SD) = linspace(P.kPon_min, P.kPon_max, SD);
-            % Continue linear increase beyond kPon_max
-            slope = (P.kPon_max - P.kPon_min) / SD;
-            for i = (SD+1):PAS
-                kPon_vals(i) = P.kPon_max + slope * (i - SD);
-            end
-        end
-    end
     RE_vals = sym(zeros(P.EBindingNumber + 1, N));
     
     for e = 1:(P.EBindingNumber + 1)
-        for idx = 1:length(kPon_vals)
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const});
-        end
-        for idx = (PAS+1):N
-            kPon_val = kPon_vals(end);  % Use the kPon value at PAS for after-PAS region
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
+        for idx = 1:N
+            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff});
         end
     end
     

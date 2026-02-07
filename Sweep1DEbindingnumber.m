@@ -35,10 +35,10 @@ if ~exist('compute_steady_states', 'file')
 end
  
 % Initialize storage for average E binding
-avg_E_bind_data = zeros(1, 4); % 4 values for EBindingNumber 2 to 5
- 
+avg_E_bind_data = zeros(size(EBindingNumber_values)); % 4 values for EBindingNumber 2 to 5
+cutoff_positions = zeros(size(EBindingNumber_values));
 % Iterate over EBindingNumber
-for EBindingNumber = 1:3
+for EBindingNumber = 4:5
     fprintf('Running for EBindingNumber = %d\n', EBindingNumber);
     
     Ef_ss = 0;
@@ -88,6 +88,18 @@ for EBindingNumber = 1:3
     % Compute average E binding at PAS
     avg_E_bind = avg_E_bound_kPon(end); % Use the last value (at PAS)
     avg_E_bind_data(EBindingNumber) = avg_E_bind; % Store for EBindingNumber 2 to 5
+    
+    % Calculate termination profile (CDF)
+    [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
+
+    % Find position where cutoff threshold is reached
+    if max(exit_cdf) >= cutoff_threshold
+        cutoff_positions(EBindingNumber) = interp1(exit_cdf, distances_bp, cutoff_threshold, 'linear', 'extrap');
+    else
+        cutoff_positions(EBindingNumber) = NaN;  % Threshold not reached
+    end
+
+    fprintf('Cutoff position = %.0f bp\n', cutoff_positions(EBindingNumber));
 end
  
 % Plot Average E binding vs EBindingNumber
@@ -113,4 +125,3 @@ box on;
 % saveas(gcf, filename, 'png');
 % print(gcf, filename, '-dpng', '-r300'); % High-resolution save
 % close(gcf);
-

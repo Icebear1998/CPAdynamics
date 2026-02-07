@@ -8,15 +8,15 @@ P.kEon    = 0.00025;
 P.kEoff   = 10;
 P.k_e     = 65/P.L_a;
 P.k_e2    = 30/P.L_a;
-P.E_total = 70000;
+P.E_total = 100000;
 P.L_total = 100000;
 P.Pol_total = 70000;
 P.kHon = 0.2; % based on typical k bind and estimated J factor for H.
 P.kHoff = 0.0125; 
-P.kc = 0.05; %not sure
+P.kc = 0.1; %not sure
 
 kPon_min = 0.01; % at TSS
-kPon_slope = 0.02; % slope of linear increase (default: 4/200 = 0.00095)
+kPon_slope = 0.02; % determined how fast Sep2P increasing from TSS
 kPoff = 1;
 
 geneLength_bp = 25000;
@@ -26,7 +26,7 @@ PAS    = floor(PASposition   / P.L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
 
-EBindingNumber = 4; 
+EBindingNumber = 2; 
 [r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
 disp('done compute steady states');
 
@@ -75,7 +75,7 @@ R_sol   = X(1:N);
 REH_sol = X(N+1 : N+N_PAS);
 
 [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
-TCD50 = interp1(exit_cdf, distances_bp, 0.65, 'linear', 'extrap');
+TCD50 = interp1(exit_cdf, distances_bp, 0.5, 'linear', 'extrap');
 disp(TCD50);
 
 for i = 1:N

@@ -47,6 +47,30 @@ num_active_genes = interpolation_results.original_grid.num_active_genes;
 % Extract base parameters used for grid generation to ensure consistency
 base_params = interpolation_results.original_grid.base_parameters;
 
+% Remove old/deprecated fields if they exist (for backward compatibility)
+if isfield(base_params, 'SD_bp')
+    base_params = rmfield(base_params, 'SD_bp');
+end
+if isfield(base_params, 'kPon_max')
+    base_params = rmfield(base_params, 'kPon_max');
+end
+if isfield(base_params, 'kPoff_const')
+    base_params = rmfield(base_params, 'kPoff_const');
+end
+if isfield(base_params, 'kPon_option')
+    base_params = rmfield(base_params, 'kPon_option');
+end
+
+% Ensure kPon_slope parameter exists (for backward compatibility)
+if ~isfield(base_params, 'kPon_slope')
+    base_params.kPon_slope = 0.02;  % Default slope
+    fprintf('Warning: kPon_slope not found in base_params, using default value of 0.02\n');
+end
+% Ensure kPoff parameter exists (for backward compatibility)
+if ~isfield(base_params, 'kPoff')
+    base_params.kPoff = 1;  % Default value
+    fprintf('Warning: kPoff not found in base_params, using default value of 1\n');
+end
 fprintf('Target totals: R_total = %.0f, E_total = %.0f\n', R_total_target, E_total_target);
 fprintf('System size: %d active genes\n', num_active_genes);
 
@@ -55,7 +79,7 @@ fprintf('\nSetting up integration domain...\n');
 
 % Gene length integration range (cover main distribution)
 L_min_int = 1000;      % 1 kb
-L_max_int = 300000;    % 300 kb (covers >99% of distribution)
+L_max_int = 200000;    % 300 kb (covers >99% of distribution)
 L_integration_points = 200;  % High resolution for accurate integration
 
 L_integration = logspace(log10(L_min_int), log10(L_max_int), L_integration_points);
@@ -313,8 +337,17 @@ fprintf('\n=== GENE LENGTH TCD ANALYSIS COMPLETE ===\n');
 fprintf('Key findings:\n');
 fprintf('  Self-consistent solution: R_free = %.0f (%.1f%%), E_free = %.0f (%.1f%%)\n', ...
     R_free_solution, R_free_solution/R_total_target*100, E_free_solution, E_free_solution/E_total_target*100);
-fprintf('  TCD range (50%% threshold): %.0f to %.0f bp\n', min(TCD_valid(:,2)), max(TCD_valid(:,2)));
-fprintf('  TCD-length correlation (50%%): r = %.3f\n', analysis_results.statistics.correlation_with_log_length(2));
+
+% Display TCD statistics for each threshold
+for j = 1:n_thresholds
+    if j <= size(TCD_valid, 2) && sum(valid_TCD) > 0
+        threshold = TCD_thresholds(j);
+        fprintf('  TCD range (%.0f%% threshold): %.0f to %.0f bp\n', threshold*100, min(TCD_valid(:,j)), max(TCD_valid(:,j)));
+        if j <= length(analysis_results.statistics.correlation_with_log_length)
+            fprintf('  TCD-length correlation (%.0f%%): r = %.3f\n', threshold*100, analysis_results.statistics.correlation_with_log_length(j));
+        end
+    end
+end
 
 fprintf('\nBiological insights:\n');
 fprintf('  - Resource competition affects termination commitment\n');
@@ -426,6 +459,15 @@ function [termination_profile, distances_bp] = calculate_termination_profile(tss
     
     % Set up parameters for this gene length, using the consistent base parameters
     P = base_params; % Load the consistent parameter set
+    
+    % Ensure required parameters exist (for backward compatibility)
+    if ~isfield(P, 'kPon_slope')
+        P.kPon_slope = 0.02;  % Default slope
+    end
+    if ~isfield(P, 'kPoff')
+        P.kPoff = 1;  % Default value
+    end
+    
     P.E_free = E_free;    % Use solved free E for local analysis
     P.Pol_free = R_free;  % Use solved free R for local analysis
     
@@ -487,48 +529,31 @@ function [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P)
     global N PAS N_PAS;
     syms Ef real;
     
+    % Ensure required parameters exist (for backward compatibility)
+    if ~isfield(P, 'kPon_slope')
+        P.kPon_slope = 0.02;  % Default slope
+    end
+    if ~isfield(P, 'kPoff')
+        P.kPoff = 1;  % Default value
+    end
+    
     % Set up geometry
     L_a = P.L_a;
     N = floor(P.geneLength_bp / L_a);
     PAS = floor(P.PASposition / L_a);
     N_PAS = N - PAS + 1;
-    SD = floor(P.SD_bp / L_a);  % Saturation distance in nodes
     
     % Compute steady states
     [r_E_BeforePas] = compute_steady_states(P, P.EBindingNumber + 1);
     
-    % Set up kPon values based on the saturation distance concept
-    kPon_vals = zeros(1, PAS);
+    % Set up kPon values with linear increase
+    kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
     
-    if PAS <= SD
-        % Case 1: PAS is before or at saturation distance
-        % Linear increase from kPon_min to value at PAS (never reaches kPon_max)
-        kPon_vals = linspace(P.kPon_min, P.kPon_min + (P.kPon_max - P.kPon_min) * (PAS / SD), PAS);
-    else
-        % Case 2: PAS is beyond saturation distance
-        if P.kPon_option == 1
-            % Option 1: Saturate at SD, then constant
-            kPon_vals(1:SD) = linspace(P.kPon_min, P.kPon_max, SD);
-            kPon_vals((SD+1):PAS) = P.kPon_max;  % Constant at kPon_max
-        else
-            % Option 2: Continue linear increase after SD
-            kPon_vals(1:SD) = linspace(P.kPon_min, P.kPon_max, SD);
-            % Continue linear increase beyond kPon_max
-            slope = (P.kPon_max - P.kPon_min) / SD;
-            for i = (SD+1):PAS
-                kPon_vals(i) = P.kPon_max + slope * (i - SD);
-            end
-        end
-    end
     RE_vals = sym(zeros(P.EBindingNumber + 1, N));
     
     for e = 1:(P.EBindingNumber + 1)
-        for idx = 1:length(kPon_vals)
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff_const});
-        end
-        for idx = (PAS+1):N
-            kPon_val = kPon_vals(end);  % Use the kPon value at PAS for after-PAS region
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff_const});
+        for idx = 1:N
+            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff});
         end
     end
     

@@ -35,6 +35,38 @@ fprintf('Grid data loaded successfully!\n');
 fprintf('  Grid points: %d\n', length(results.data.R_free_vec));
 fprintf('  Success rate: %.1f%%\n', results.metadata.success_rate);
 
+% Ensure backward compatibility: clean up old parameters and ensure new ones exist
+if isfield(results, 'parameters') && isfield(results.parameters, 'base_parameters')
+    base_params = results.parameters.base_parameters;
+    
+    % Remove old/deprecated fields if they exist
+    if isfield(base_params, 'SD_bp')
+        base_params = rmfield(base_params, 'SD_bp');
+    end
+    if isfield(base_params, 'kPon_max')
+        base_params = rmfield(base_params, 'kPon_max');
+    end
+    if isfield(base_params, 'kPoff_const')
+        base_params = rmfield(base_params, 'kPoff_const');
+    end
+    if isfield(base_params, 'kPon_option')
+        base_params = rmfield(base_params, 'kPon_option');
+    end
+    
+    % Ensure new parameters exist
+    if ~isfield(base_params, 'kPon_slope')
+        base_params.kPon_slope = 0.02;  % Default slope
+        fprintf('  Note: kPon_slope not found, using default value of 0.02\n');
+    end
+    if ~isfield(base_params, 'kPoff')
+        base_params.kPoff = 1;  % Default value
+        fprintf('  Note: kPoff not found, using default value of 1\n');
+    end
+    
+    % Update the stored parameters
+    results.parameters.base_parameters = base_params;
+end
+
 %% --- DATA VALIDATION AND CLEANING ---
 fprintf('\nValidating and cleaning data...\n');
 
