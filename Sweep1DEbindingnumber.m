@@ -33,12 +33,16 @@ end
 if ~exist('compute_steady_states', 'file')
     error('compute_steady_states function not found. Please ensure it is defined.');
 end
+
+% Range of EBindingNumber to sweep (loop index 1..K means model uses 2..K+1 binding states)
+EBindingNumber_values = 1:3;
+cutoff_threshold = 0.5;  % for cutoff position (used in calculate_pas_usage_profile)
  
 % Initialize storage for average E binding
-avg_E_bind_data = zeros(size(EBindingNumber_values)); % 4 values for EBindingNumber 2 to 5
+avg_E_bind_data = zeros(size(EBindingNumber_values));
 cutoff_positions = zeros(size(EBindingNumber_values));
 % Iterate over EBindingNumber
-for EBindingNumber = 4:5
+for EBindingNumber = EBindingNumber_values
     fprintf('Running for EBindingNumber = %d\n', EBindingNumber);
     
     Ef_ss = 0;
@@ -106,7 +110,8 @@ end
 figure('Position', [100, 100, 800, 600]);
 hold on;
  
-EBindingNumbers = 2:5;
+% X-axis: model uses EBindingNumber+1 binding states (2, 3, 4 for loop 1:3)
+EBindingNumbers = EBindingNumber_values + 1;
 plot(EBindingNumbers, avg_E_bind_data, 'o-', 'LineWidth', 2, 'MarkerSize', 8, ...
      'Color', [0, 0.4470, 0.7410], 'DisplayName', 'Average E Binding');
  
