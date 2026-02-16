@@ -8,30 +8,36 @@ P.kEon    = 0.00025;
 P.kEoff   = 10;
 P.k_e     = 65/P.L_a;
 P.k_e2    = 30/P.L_a;
-P.E_total = 100000;
+P.E_total = 400000;
 P.L_total = 100000;
 P.Pol_total = 70000;
 P.kHon = 0.2; % based on typical k bind and estimated J factor for H.
 P.kHoff = 0.0125; 
 P.kc = 0.1; %not sure
 
-kPon_min = 0.01; % at TSS
-kPon_slope = 0.02; % determined how fast Sep2P increasing from TSS
-kPoff = 1;
+P.kPon_min = 0.01; % at TSS
+P.kPon_slope = 0.02; % determined how fast Sep2P increasing from TSS
+P.kPoff = 1;
 
-geneLength_bp = 25000;
-PASposition   = 20000;
-N      = floor(geneLength_bp / P.L_a);  % total nodes
-PAS    = floor(PASposition   / P.L_a);  % node index of PAS
+P.geneLength_bp = 25000;
+P.PASposition   = 20000;
+
+N      = floor(P.geneLength_bp / P.L_a);  % total nodes
+PAS    = floor(P.PASposition   / P.L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
 
-EBindingNumber = 2; 
-[r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1); 
-disp('done compute steady states');
+EBindingNumber = 4; 
 
-% Set up kPon values with linear increase
-kPon_vals = kPon_min + kPon_slope * (0:N-1); 
+% Run termination simulation using the new function
+[R_sol, REH_sol, P, r_E_BeforePas] = run_termination_simulation(P, EBindingNumber);
+disp('done compute simulation');
+
+% Compute r_P for Ser2P calculations (needed for this analysis)
+[~, r_P] = compute_steady_states(P, EBindingNumber + 1);
+
+% Set up kPon values with linear increase for P_vals calculation
+kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1); 
 
 RE_vals = sym(zeros(EBindingNumber+1, N));
 P_vals = sym(zeros(EBindingNumber+1, N));
@@ -40,39 +46,14 @@ avg_P = zeros(1,N);
 for e = 1:EBindingNumber+1
     for i = 1:N
         kPon_val = kPon_vals(i);
-        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, kPoff});
-        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, kPoff});
+        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff});
+        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff});
     end
 end
-disp('done compute EBindingNumber');
+disp('done compute P_vals for Ser2P');
 
-P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
-disp('done compute RE_val_bind_E');
-
-% ------------ SOLVE THE STEADY STATE ------------ %
-P.FirstRun = true;
-P.is_unphysical = false; % Reset flag
-X0 = 1e-6 * ones(N + N_PAS, 1); % Small positive initial guess
-options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8, 'MaxIterations', 1000);
-X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X0, options);
-if P.is_unphysical || any(isnan(X)) || any(isinf(X))
-    error('Simulation failed: unphysical solution detected');
-end
-disp('done compute fsolve');
-
-disp(Ef_ss);
+% Get average E bound values
 avg_E_bound = P.RE_val_bind_E(Ef_ss);
-disp(avg_E_bound(PAS));
-
-disp('Recalculate kHon');
-% Recalculate kHon (calculate kHon_tt)
-P.FirstRun = false;
-P.kHon = P.kHon * avg_E_bound(PAS);
-X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X, options);
-
-%Extract solutions
-R_sol   = X(1:N);
-REH_sol = X(N+1 : N+N_PAS);
 
 [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
 TCD50 = interp1(exit_cdf, distances_bp, 0.5, 'linear', 'extrap');

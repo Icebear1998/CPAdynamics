@@ -21,18 +21,18 @@ P.kEon = 0.00025;
 P.kEoff = 10;
 P.k_e = 65 / P.L_a;
 P.k_e2 = 30 / P.L_a;
-P.E_total = 70000;
+P.E_total = 100000;
 P.L_total = 100000;
 P.Pol_total = 70000;
-P.kc = 0.05;
+P.kc = 0.1;
 
 % Parameters for kHon calculation (from main: kHon approx 0.2, then renormalized)
 % Note: The main script recalculates kHon based on E_bound at PAS. We will replicate this.
-Initial_kHon = 0.2;
-P.kHoff = 0.0125;
+Initial_kHon = 0.1;
+P.kHoff = 0.01;
 
 kPon_min = 0.01;
-kPon_slope = 0.005;
+kPon_slope = 0.02;
 kPoff = 1;
 
 geneLength_bp = 25000;
@@ -172,8 +172,8 @@ end
 xlabel('Position relative to PAS (kb)');
 ylabel('Average Number of Bound E Factors');
 title('Average E-Factor Binding Profile');
-xline(0, 'k--', 'PAS');
 legend('Location', 'northwest');
+xline(0, 'k--', 'PAS');
 grid on;
 
 saveas(gcf, fullfile(outputDir, 'Average_E_Binding_Comparison.png'));
