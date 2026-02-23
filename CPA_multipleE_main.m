@@ -8,7 +8,7 @@ P.kEon    = 0.00025;
 P.kEoff   = 10;
 P.k_e     = 65/P.L_a;
 P.k_e2    = 30/P.L_a;
-P.E_total = 400000;
+P.E_total = 100000;
 P.L_total = 100000;
 P.Pol_total = 70000;
 P.kHon = 0.2; % based on typical k bind and estimated J factor for H.
@@ -27,14 +27,11 @@ PAS    = floor(P.PASposition   / P.L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
 
-EBindingNumber = 4; 
+EBindingNumber = 3; 
 
 % Run termination simulation using the new function
-[R_sol, REH_sol, P, r_E_BeforePas] = run_termination_simulation(P, EBindingNumber);
+[R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P, EBindingNumber);
 disp('done compute simulation');
-
-% Compute r_P for Ser2P calculations (needed for this analysis)
-[~, r_P] = compute_steady_states(P, EBindingNumber + 1);
 
 % Set up kPon values with linear increase for P_vals calculation
 kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1); 
@@ -53,11 +50,11 @@ end
 disp('done compute P_vals for Ser2P');
 
 % Get average E bound values
+fprintf('E free %d', Ef_ss);
 avg_E_bound = P.RE_val_bind_E(Ef_ss);
 
 [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
-TCD50 = interp1(exit_cdf, distances_bp, 0.5, 'linear', 'extrap');
-disp(TCD50);
+CAD = interp1(exit_cdf, distances_bp, 0.5, 'linear', 'extrap');
 
 for i = 1:N
     total_P_bound = 0;
@@ -93,9 +90,9 @@ figure; hold on;
 
 plot(l_values, R_sol, 'b-','LineWidth',2.5, 'DisplayName','R(l)');
 plot(l_values, [zeros(PAS-1,1);REH_sol], 'r-','LineWidth',2.5, 'DisplayName','REH(l)');
-TCD50 = TCD50/100;
-line([TCD50 TCD50], ylim, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5, 'DisplayName', 'Median Tandem Distance');
-text(TCD50, 8, num2str(int32(TCD50)));
+CAD = CAD/100;
+line([CAD CAD], ylim, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5, 'DisplayName', 'Median Tandem Distance');
+text(CAD, 8, num2str(int32(CAD)));
 xlabel('Position relative to PAS (x100 basepair)'); ylabel('Concentration');
 legend({'Total R', 'Total REH', '50% TCD'}, 'Location', 'best');
 title('CPA model dynamic simulation');

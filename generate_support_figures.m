@@ -1,8 +1,8 @@
-% Multi-Threaded Simulation for Support Figures
-% This script runs simulations with different EBindingNumbers and generates:
-% 1. Average E-binding profile comparison
-% 2. Pol II state distribution heatmap (for N=5 or similar)
-% 3. Fraction of "Competent" Pol II
+% Support Figures: Average E Binding and Ser2P Profiles
+% For each EBindingNumber, generates:
+%   - Average E binding profile (solid line)
+%   - Ser2P profile (dashed line, same color)
+% on a single combined figure
 
 clear;
 close all;
@@ -14,43 +14,35 @@ if ~exist(outputDir, 'dir')
     mkdir(outputDir);
 end
 
-% --- Common Parameters (Match CPA_multipleE_main.m) ---
-P.L_a = 100;
-P.k_in = 2;
-P.kEon = 0.00025;
-P.kEoff = 1;
-P.k_e = 65 / P.L_a;
-P.k_e2 = 30 / P.L_a;
+% --- Common Parameters ---
+P.L_a     = 100;
+P.k_in    = 2;
+P.kEon    = 0.00025;
+P.kEoff   = 1;
+P.k_e     = 65 / P.L_a;
+P.k_e2    = 30 / P.L_a;
 P.E_total = 100000;
 P.L_total = 100000;
 P.Pol_total = 70000;
-P.kc = 0.1;
+P.kc      = 0.1;
+P.kHon    = 0.1;
+P.kHoff   = 0.01;
 
-% Parameters for kHon calculation (from main: kHon approx 0.2, then renormalized)
-% Note: The main script recalculates kHon based on E_bound at PAS. We will replicate this.
-Initial_kHon = 0.1;
-P.kHoff = 0.01;
+P.kPon_min   = 0.01;
+P.kPon_slope = 0.005;
+P.kPoff      = 1;
 
-kPon_min = 0.01;
-kPon_slope = 0.005;
-kPoff = 1;
-
-geneLength_bp = 25000;
-PASposition = 20000;
-N = floor(geneLength_bp / P.L_a);
-PAS = floor(PASposition / P.L_a);
-N_PAS = N - PAS + 1;
-kPon_vals = kPon_min + kPon_slope * (0 : N - 1);
+P.geneLength_bp = 25000;
+P.PASposition   = 20000;
 
 % Analysis Scenarios
 BindingNumbers = [9];
 Colors = {'r', 'g', 'b', 'm', 'c'};
-avg_E_profiles = {};
 
 fprintf('Starting simulations for Support Figures...\n');
 
-%% 1. Loop over Binding Numbers for Profile Comparison
-figure('Name', 'Average E Binding Profile', 'Position', [100, 100, 800, 600]);
+%% Combined plot: Average E (solid) + Ser2P (dashed)
+fig = figure('Name', 'Average E and Ser2P Profiles', 'Position', [100, 100, 900, 600]);
 hold on;
 
 for idx = 1 : length(BindingNumbers)
@@ -58,63 +50,59 @@ for idx = 1 : length(BindingNumbers)
     fprintf('Simulating EBindingNumber = %d...\n', nb);
 
     P.EBindingNumber = nb;
-    P.kHon = Initial_kHon;
-    
-    % Reset global Ef for each binding number
-    Ef_ss = 0;
 
-    % Step A: Pre-compute Steady States (Symbolic)
-    [r_E_BeforePas] = compute_steady_states(P, nb + 1);
+    % --- Run simulation (uses file cache for symbolic step) ---
+    [R_sol, REH_sol, P_out, r_E_BeforePas, r_P] = run_termination_simulation(P, nb);
 
-    % Prepare RE_vals (Symbolic array)
-    RE_vals = sym(zeros(nb + 1, N));
-    
-    % Construct RE_vals matching main script logic
+    % Retrieve geometry and Ef_ss set by run_termination_simulation
+    kPon_vals = P_out.kPon_min + P_out.kPon_slope * (0 : N - 1);
+
+    % --- Average E binding profile ---
+    avg_E_bound = P_out.RE_val_bind_E(Ef_ss);
+
+    % --- Ser2P profile ---
+    % Build P_vals by substituting kPon and kPoff into r_P (matches CPA_multipleE_main.m)
+    P_vals = sym(zeros(nb + 1, N));
     for e = 1:nb+1
-        % Substitute kPoff once (scalar)
-        r_E_e_fixed = subs(r_E_BeforePas(e), 'kPoff', kPoff);
-        
-        % Substitute kPon vector element-wise
         for i = 1:N
-            RE_vals(e, i) = subs(r_E_e_fixed, 'kPon', kPon_vals(i));
+            P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_vals(i), P_out.kPoff});
         end
     end
-    
-    % Create handle for total E bound (function of Ef)
-    % Sums weighted average: sum( (1:nb) * Probability )
-    P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:nb)' .* RE_vals(2:end, :), 1)), 'Vars', {'Ef'});
-    
-    % Step B: Solve ODE
-    P.FirstRun = true;
-    P.is_unphysical = false;
-    X0 = 1e-6 * ones(N + N_PAS, 1);
-    options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
-    X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X0, options);
-    
-    % Recalculate kHon constraint (match run_termination_simulation)
-    avg_E_bound_temp = P.RE_val_bind_E(Ef_ss);
-    P.kHon = P.kHon * avg_E_bound_temp(end);
-    P.FirstRun = false;
-    X = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X, options);
-    
-    % Step C: Extract Results
-    avg_E_bound = P.RE_val_bind_E(Ef_ss);
-    
-    % Store for plotting (PAS-centered coordinates)
-    x_coords = ((1-PAS):(N-PAS)) * P.L_a / 1000;  % Position relative to PAS in kb
-    plot(x_coords, avg_E_bound, 'Color', Colors{idx}, 'LineWidth', 2, ...
-        'DisplayName', sprintf('Max Sites = %d', nb));
 
+    avg_Ser2P = zeros(1, N);
+    for i = 1:N
+        total_P_bound = 0;
+        total_P = 0;
+        for e = 1:nb+1
+            P_e = double(R_sol(i) * double(subs(P_vals(e, i), 'Ef', Ef_ss)));
+            total_P_bound = total_P_bound + (e - 1) * P_e;
+            total_P = total_P + P_e;
+        end
+        if total_P > 0
+            avg_Ser2P(i) = total_P_bound / total_P;
+        else
+            avg_Ser2P(i) = 0;
+        end
+    end
+
+    % --- Plot ---
+    x_coords = ((1 - PAS):(N - PAS)) * P.L_a / 1000;  % Position relative to PAS in kb
+    col = Colors{idx};
+
+    plot(x_coords, avg_E_bound, '-',  'Color', col, 'LineWidth', 2, ...
+        'DisplayName', sprintf('Avg E (N=%d)', nb));
+    plot(x_coords, avg_Ser2P,  '--', 'Color', col, 'LineWidth', 2, ...
+        'DisplayName', sprintf('Ser2P (N=%d)', nb));
 end
 
-% Finalize Profile Plot
-xlabel('Position relative to PAS (kb)');
-ylabel('Average Number of Bound E Factors');
-title('Average E-Factor Binding Profile');
-legend('Location', 'northwest');
-xline(0, 'k--', 'PAS');
+% Finalize plot
+xlabel('Position relative to PAS (kb)', 'FontSize', 12);
+ylabel('Average Bound Factors', 'FontSize', 12);
+title('Average E-Factor Binding (solid) and Ser2P (dashed) Profiles', 'FontSize', 14);
+legend('Location', 'northwest', 'FontSize', 10);
+xline(0, 'k--', 'PAS', 'LineWidth', 1.5);
 grid on;
 
-saveas(gcf, fullfile(outputDir, 'Average_E_Binding_Comparison.png'));
+saveas(fig, fullfile(outputDir, 'Average_E_and_Ser2P_Comparison.png'));
 
 fprintf('Support figures generated in %s\n', outputDir);
