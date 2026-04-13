@@ -14,30 +14,35 @@ if ~exist(outputDir, 'dir')
     mkdir(outputDir);
 end
 
-% --- Common Parameters ---
-P.L_a     = 100;
+% --- BASE PARAMETERS ---
+P.L_a = 100;
 P.k_in    = 2;
-P.kEon    = 0.00025;
-P.kEoff   = 1;
-P.k_e     = 65 / P.L_a;
-P.k_e2    = 30 / P.L_a;
+P.k_e     = 65/P.L_a;
+P.k_e2    = 30/P.L_a;
 P.E_total = 100000;
 P.L_total = 100000;
 P.Pol_total = 70000;
-P.kc      = 0.1;
-P.kHon    = 0.1;
-P.kHoff   = 0.01;
 
-P.kPon_min   = 0.01;
+% Binding/unbinding rates
+P.kEon = 0.0000025;
+P.kEoff = 0.1;
+P.kHon = 2;
+P.kHoff = 1;
+P.kc = 0.1;
+
+% Phosphorylation profile
+P.kPon_min = 0.01;
 P.kPon_slope = 0.005;
-P.kPoff      = 1;
+P.kPoff = 1;
 
+% Gene geometry
 P.geneLength_bp = 25000;
-P.PASposition   = 20000;
+P.PASposition = 20000;
+
 
 % Analysis Scenarios
-BindingNumbers = [9];
-Colors = {'r', 'g', 'b', 'm', 'c'};
+BindingNumbers = [1, 3, 5];
+Colors = {'r', 'g', 'b'};
 
 fprintf('Starting simulations for Support Figures...\n');
 

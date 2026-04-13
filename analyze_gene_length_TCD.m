@@ -63,8 +63,8 @@ end
 
 % Ensure kPon_slope parameter exists (for backward compatibility)
 if ~isfield(base_params, 'kPon_slope')
-    base_params.kPon_slope = 0.02;  % Default slope
-    fprintf('Warning: kPon_slope not found in base_params, using default value of 0.02\n');
+    base_params.kPon_slope = 0.005;  % Default slope
+    fprintf('Warning: kPon_slope not found in base_params, using default value of 0.005\n');
 end
 % Ensure kPoff parameter exists (for backward compatibility)
 if ~isfield(base_params, 'kPoff')
@@ -462,7 +462,7 @@ function [termination_profile, distances_bp] = calculate_termination_profile(tss
     
     % Ensure required parameters exist (for backward compatibility)
     if ~isfield(P, 'kPon_slope')
-        P.kPon_slope = 0.02;  % Default slope
+        P.kPon_slope = 0.005;  % Default slope
     end
     if ~isfield(P, 'kPoff')
         P.kPoff = 1;  % Default value
@@ -480,21 +480,7 @@ function [termination_profile, distances_bp] = calculate_termination_profile(tss
     [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P);
     
     % Calculate termination profile
-    flux_cleavage_per_node = P_sim.kc * REH_sol;
-    flux_R_exit = P_sim.k_e * R_sol(end);
-    flux_REH_exit = P_sim.k_e2 * REH_sol(end);
-    total_outflux = sum(flux_cleavage_per_node) + flux_R_exit + flux_REH_exit;
-    
-    if total_outflux > 1e-9
-        cumulative_exit_flux = cumsum(flux_cleavage_per_node);
-        termination_profile = cumulative_exit_flux / total_outflux;
-    else
-        termination_profile = zeros(size(REH_sol));
-    end
-    
-    % Distance from PAS
-    nodes_post_pas = 1:length(REH_sol);
-    distances_bp = nodes_post_pas * P_sim.L_a;
+    [termination_profile, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_sim);
 end
 
 function TCD = calculate_TCD_from_profile(termination_profile, distances_bp, threshold)
@@ -531,7 +517,7 @@ function [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P)
     
     % Ensure required parameters exist (for backward compatibility)
     if ~isfield(P, 'kPon_slope')
-        P.kPon_slope = 0.02;  % Default slope
+        P.kPon_slope = 0.005;  % Default slope
     end
     if ~isfield(P, 'kPoff')
         P.kPoff = 1;  % Default value
@@ -543,21 +529,12 @@ function [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P)
     PAS = floor(P.PASposition / L_a);
     N_PAS = N - PAS + 1;
     
-    % Compute steady states
-    [r_E_BeforePas] = compute_steady_states(P, P.EBindingNumber + 1);
-    
     % Set up kPon values with linear increase
     kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
     
-    RE_vals = sym(zeros(P.EBindingNumber + 1, N));
-    
-    for e = 1:(P.EBindingNumber + 1)
-        for idx = 1:N
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff});
-        end
-    end
-    
-    P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:P.EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
+    % Create E binding function using numerical computation
+    n_states = P.EBindingNumber + 1;
+    P.RE_val_bind_E = @(Ef_val) compute_avg_E_bound_numerical(Ef_val, kPon_vals, P.kPoff, P.kEon, P.kEoff, n_states);
     
     % Solve system
     X_guess = 1e-6 * ones(N + N_PAS, 1);
@@ -572,38 +549,4 @@ function [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P)
     P_sim = P;
 end
 
-%% ------------ ODE DYNAMICS FUNCTION ------------
-function dxdt = ode_dynamics_multipleE(X, P)
-global N PAS
 
-k_in   = P.k_in;
-k_e    = P.k_e;
-k_e2   = P.k_e2;
-kHoff_t= P.kHoff;
-kc_t   = P.kc;
-kHon_t = P.kHon;
-
-R   = X(1:N);
-REH = X(N+1:end);
-
-dxdt = zeros(length(X),1);
-
-n = 1;
-dxdt(n) = P.Pol_free*k_in - k_e*R(n);
-
-for n = 2:(PAS-1)
-    dxdt(n) = k_e*R(n-1) - k_e*R(n);
-end
-
-n = PAS;
-j = n - PAS + 1;
-dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
-dxdt(N+j) = -k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j);
-
-for n = (PAS+1):N
-    j = n - PAS + 1;
-    dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
-    dxdt(N+j) = k_e2*REH(j-1) - k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j) - kc_t*REH(j);
-end
-
-end

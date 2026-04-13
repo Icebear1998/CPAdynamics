@@ -21,11 +21,6 @@ function [r_E_BeforePas, r_P] = compute_steady_states(P, n)
     % Normalize the steady-state probabilities
     r_E_BeforePas = simplify(r_E_BeforePas / sum(r_E_BeforePas));
     r_P = simplify(r_P / sum(r_P));
-    
-    % Compute the steady-state properties after passage
-    %kon_t = afterPasPams(r_After, n, P.kHon);
-    
-    %r_k_AfterPas = kon_t;
 
 end
 
@@ -64,41 +59,5 @@ function r_P = compute_block_sums(r, n)
         block_indices = block_start:block_end;
         r_P(i) = sum(r(block_indices));
     end
-end
-
-function kon_t = afterPasPams(r, n, kHon)
-    RE_index = cumsum(0:n-1) + 1;  % Generate RE_index: [1, 2, 4, 7, ...]
-    result_index = [];
-
-    % Iteratively append modified subsequences
-    for i = 2:length(RE_index)
-        result_index = [result_index, (RE_index(i:end) + (i-1))];
-    end
-
-    % Ensure indexes are within valid range
-    result_index = result_index(result_index <= length(r));
-    RI_index = sum(1:n);
-    % Compute the sum of r values at the selected indexes
-    Ri = sum(r(1:RI_index));  % Total probability of states without Hexamer
-    Rii = sum(r(RI_index:end));  % Total probability of states with Hexamer
-
-    % Compute kHon_t by weighting each state by its number of E
-    weighted_sum = sym(0);
-    idx = 1;
-    for i = 2:length(RE_index)
-        % Number of E for states in this iteration: i-1
-        num_E = i - 1;
-        % Number of states in this iteration: length(RE_index(i:end))
-        num_states = length(RE_index(i:end));
-        % Indices for this iteration
-        current_indices = result_index(idx:idx+num_states-1);
-        idx = idx + num_states;
-        % Sum the probabilities of these states, weighted by number of E
-        weighted_sum = weighted_sum + num_E * sum(r(current_indices));
-    end
-
-    kon_t = simplify(weighted_sum * kHon / Ri);
-%     koff_t = simplify(sum(r(RI_index:end)) * kHoff / Rii);
-%     kc_t = simplify(sum(r(RI_index:end)) * kc / Rii);
 end
 

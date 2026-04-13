@@ -47,16 +47,12 @@ function [R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P,
     
     % Setup kPon values with linear increase
     kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
-    RE_vals = sym(zeros(EBindingNumber + 1, N));
     
-    for e = 1:(EBindingNumber + 1)
-        for idx = 1:N
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff});
-        end
-    end
-    
-    % Create E binding function
-    P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
+    % Create E binding function using numerical computation
+    % For high EBindingNumber (>=5), symbolic expressions become too complex
+    % and cause numerical overflow/NaN. Use numerical null-space instead.
+    n_states = EBindingNumber + 1;
+    P.RE_val_bind_E = @(Ef_val) compute_avg_E_bound_numerical(Ef_val, kPon_vals, P.kPoff, P.kEon, P.kEoff, n_states);
     
     % Solve system - Step 1
     X_guess = 1e-6 * ones(N + N_PAS, 1);

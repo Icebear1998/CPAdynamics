@@ -55,8 +55,8 @@ if isfield(results, 'parameters') && isfield(results.parameters, 'base_parameter
     
     % Ensure new parameters exist
     if ~isfield(base_params, 'kPon_slope')
-        base_params.kPon_slope = 0.02;  % Default slope
-        fprintf('  Note: kPon_slope not found, using default value of 0.02\n');
+        base_params.kPon_slope = 0.005;  % Default slope
+        fprintf('  Note: kPon_slope not found, using default value of 0.005\n');
     end
     if ~isfield(base_params, 'kPoff')
         base_params.kPoff = 1;  % Default value

@@ -17,7 +17,7 @@ fprintf('Generating lookup data for R_occupied and E_occupied...\n\n');
 
 % Base totals from typical simulations
 R_total_base = 70000;
-E_total_base = 70000;
+E_total_base = 100000;
 
 % R_free range: should be much larger than 1/70000 of total
 % Using range from ~10% to ~90% of total (well above the 1/70000 threshold)
@@ -49,17 +49,17 @@ P_base.L_a = 100;
 k_in_global = 2;
 num_active_genes = 10000; % Estimated number of active genes in the system
 P_base.k_in = k_in_global / num_active_genes;
-P_base.kEon = 0.00025;
-P_base.kEoff = 10;
+P_base.kEon = 0.0000025;
+P_base.kEoff = 0.1;
 P_base.k_e = 65/100;
 P_base.k_e2 = 30/100;
-P_base.kHon = 0.2;
-P_base.kHoff = 0.0125;
+P_base.kHon = 2;
+P_base.kHoff = 1;
 P_base.kc = 0.1;
 P_base.kPon_min = 0.01;
-P_base.kPon_slope = 0.01;  % slope of linear increase
+P_base.kPon_slope = 0.005;  % slope of linear increase
 P_base.kPoff = 1;
-P_base.EBindingNumber = 4;  % Use standard value
+P_base.EBindingNumber = 1;  % Use standard value
 
 % Create parameter grids
 R_free_values = linspace(R_free_min, R_free_max, R_free_points);
@@ -188,12 +188,11 @@ if ~exist(output_dir, 'dir')
 end
 
 % Save MATLAB data file
-timestamp = datestr(now, 'yyyymmdd_HHMMSS');
-mat_filename = fullfile(output_dir, sprintf('gene_length_grid_data_%s.mat', timestamp));
+mat_filename = fullfile(output_dir, sprintf('gene_length_grid_data_%d.mat', P_base.EBindingNumber));
 save(mat_filename, 'results', '-v7.3');  % Use v7.3 for large files
 
 % Save text file with summary and data
-txt_filename = fullfile(output_dir, sprintf('gene_length_grid_data_%s.txt', timestamp));
+txt_filename = fullfile(output_dir, sprintf('gene_length_grid_data_%d.txt', P_base.EBindingNumber));
 fid = fopen(txt_filename, 'w');
 
 % Header
@@ -276,21 +275,13 @@ function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
     PAS = floor(P.PASposition / L_a);
     N_PAS = N - PAS + 1;
     
-    % Compute steady states
-    [r_E_BeforePas] = compute_steady_states(P, P.EBindingNumber + 1);
-    
     % Set up kPon values with linear increase
     kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
     
-    RE_vals = sym(zeros(P.EBindingNumber + 1, N));
-    
-    for e = 1:(P.EBindingNumber + 1)
-        for idx = 1:N
-            RE_vals(e, idx) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_vals(idx), P.kPoff});
-        end
-    end
-    
-    P.RE_val_bind_E = matlabFunction(simplify(sum(sym(1:P.EBindingNumber)' .* RE_vals(2:end, :), 1)), 'Vars', {Ef});
+    % Create E binding function using numerical computation
+    % For high EBindingNumber (>=5), symbolic expressions become too complex
+    n_states = P.EBindingNumber + 1;
+    P.RE_val_bind_E = @(Ef_val) compute_avg_E_bound_numerical(Ef_val, kPon_vals, P.kPoff, P.kEon, P.kEoff, n_states);
     
     % Solve system
     X_guess = 1e-6 * ones(N + N_PAS, 1);
@@ -331,39 +322,5 @@ function E_occupied = calculate_E_occupied(R_sol, REH_sol, avg_E_bound)
 end
 
 
-%% ------------ ODE DYNAMICS FUNCTION ------------
-function dxdt = ode_dynamics_multipleE(X, P)
-global N PAS
 
-k_in   = P.k_in;
-k_e    = P.k_e;
-k_e2   = P.k_e2;
-kHoff_t= P.kHoff;
-kc_t   = P.kc;
-kHon_t = P.kHon;
-
-R   = X(1:N);
-REH = X(N+1:end);
-
-dxdt = zeros(length(X),1);
-
-n = 1;
-dxdt(n) = P.Pol_free*k_in - k_e*R(n);
-
-for n = 2:(PAS-1)
-    dxdt(n) = k_e*R(n-1) - k_e*R(n);
-end
-
-n = PAS;
-j = n - PAS + 1;
-dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
-dxdt(N+j) = -k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j);
-
-for n = (PAS+1):N
-    j = n - PAS + 1;
-    dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
-    dxdt(N+j) = k_e2*REH(j-1) - k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j) - kc_t*REH(j);
-end
-
-end
 

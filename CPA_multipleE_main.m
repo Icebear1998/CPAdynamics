@@ -4,19 +4,21 @@ saveData = false;
 % ------------ MODEL PARAMETERS ------------
 P.L_a = 100;
 P.k_in    = 2;
-P.kEon    = 0.00025;
-P.kEoff   = 10;
 P.k_e     = 65/P.L_a;
 P.k_e2    = 30/P.L_a;
 P.E_total = 100000;
 P.L_total = 100000;
 P.Pol_total = 70000;
-P.kHon = 0.2; % based on typical k bind and estimated J factor for H.
-P.kHoff = 0.0125; 
-P.kc = 0.1; %not sure
+
+% We are not confident here
+P.kEon = 0.0000025;
+P.kEoff = 0.1;
+P.kHon = 2; 
+P.kHoff = 1; % for early poly A site with kd ~ 2000
+P.kc = 0.1; 
 
 P.kPon_min = 0.01; % at TSS
-P.kPon_slope = 0.02; % determined how fast Sep2P increasing from TSS
+P.kPon_slope = 0.005; % determined how fast Sep2P increasing from TSS
 P.kPoff = 1;
 
 P.geneLength_bp = 25000;
@@ -27,52 +29,39 @@ PAS    = floor(P.PASposition   / P.L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
 
-EBindingNumber = 3; 
+EBindingNumber = 5; 
 
 % Run termination simulation using the new function
 [R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P, EBindingNumber);
 disp('done compute simulation');
 
-% Set up kPon values with linear increase for P_vals calculation
+% Compute Ser2P profile numerically (avoids symbolic overflow for high EBindingNumber)
+avg_P = zeros(1,N);
 kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1); 
 
-RE_vals = sym(zeros(EBindingNumber+1, N));
-P_vals = sym(zeros(EBindingNumber+1, N));
-avg_P = zeros(1,N);
-
-for e = 1:EBindingNumber+1
-    for i = 1:N
-        kPon_val = kPon_vals(i);
-        RE_vals(e, i) = subs(r_E_BeforePas(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff});
-        P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_val, P.kPoff});
+for i = 1:N
+    kPon_val = kPon_vals(i);
+    % Compute steady-state distributions numerically for this position
+    [r_E_num, r_P_num] = compute_steady_states_numerical(kPon_val, P.kPoff, P.kEon, P.kEoff, Ef_ss, EBindingNumber + 1);
+    
+    % Average P bound = sum over p-levels of p * P(P=p)
+    % r_P_num(e) is probability of P-block e-1, so P-level = e-1
+    total_P_bound = 0;
+    for e = 1:(EBindingNumber+1)
+        total_P_bound = total_P_bound + (e - 1) * r_P_num(e);
     end
+    avg_P(i) = total_P_bound;
 end
-disp('done compute P_vals for Ser2P');
+
+Ser2P = avg_P;
 
 % Get average E bound values
-fprintf('E free %d', Ef_ss);
+fprintf('E free %d\n', Ef_ss);
 avg_E_bound = P.RE_val_bind_E(Ef_ss);
 
 [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
 CAD = interp1(exit_cdf, distances_bp, 0.5, 'linear', 'extrap');
 
-for i = 1:N
-    total_P_bound = 0;
-    total_P = 0;
-    for e = 1:EBindingNumber+1
-        RE_vals(e, i) = double(R_sol(i)*double(subs(RE_vals(e, i), {'Ef'}, {Ef_ss})));
-        P_e = double(R_sol(i)*double(subs(P_vals(e, i), {'Ef'}, {Ef_ss}))); % Amount of Pol II with num_E E molecules
-        total_P_bound = total_P_bound + (e - 1) * P_e;
-        total_P = total_P + P_e;
-    end
-    if total_P > 0
-        avg_P(i) = total_P_bound / total_P;
-    else
-        avg_P(i) = 0; % Avoid division by zero
-    end
-end
-
-Ser2P = avg_P;
 hold on;
 plot((1-PAS):N_PAS-1, Ser2P, 'g-','LineWidth',2.5, 'DisplayName','Ser2P');
 plot((1-PAS):N_PAS-1, avg_E_bound, 'b-','LineWidth',2.5, 'DisplayName','AverageE');

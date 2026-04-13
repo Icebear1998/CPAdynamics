@@ -13,7 +13,7 @@ kHon_t = P.kHon;
 R   = X(1:N);
 REH = X(N+1:end);
 
-if P.FirstRun
+if isfield(P, 'FirstRun') && P.FirstRun
     %% FIXED: Self-consistent E_free calculation
     
     % Initialize Ef_ss if needed (warm start for subsequent calls)
@@ -59,7 +59,11 @@ if P.FirstRun
     end
 end
 
-Pol_f = P.Pol_total - sum(R) - sum(REH);
+if isfield(P, 'Pol_free')
+    Pol_f = P.Pol_free;
+else
+    Pol_f = P.Pol_total - sum(R) - sum(REH);
+end
 % L_f = P.L_total - sum()
 %kHon_t = REvalbindEAfterPas(PAS:N)*P.kHon;
 
