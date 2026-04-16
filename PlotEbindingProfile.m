@@ -90,8 +90,21 @@ for idx = 1 : length(BindingNumbers)
         end
     end
 
-    % --- Plot ---
+        % --- Plot coordinates ---
     x_coords = ((1 - PAS):(N - PAS)) * P.L_a / 1000;  % Position relative to PAS in kb
+    
+    % --- Save raw data ---
+    dataOutDir = fullfile('SecondVersionResults', 'Ser2P_Eaverage_Profile');
+    if ~exist(dataOutDir, 'dir')
+        mkdir(dataOutDir);
+    end
+    
+    filename = fullfile(dataOutDir, sprintf('ProfileData_N%d.txt', nb));
+    T = table(x_coords(:), avg_E_bound(:), avg_Ser2P(:), ...
+        'VariableNames', {'PositionRelPAS_kb', 'Avg_E_bound', 'Avg_Ser2P'});
+    writetable(T, filename, 'Delimiter', '\t');
+
+    % --- Plot ---
     col = Colors{idx};
 
     plot(x_coords, avg_E_bound, '-',  'Color', col, 'LineWidth', 2, ...
