@@ -9,10 +9,10 @@ function [R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P,
     %   R_sol - Solution vector for active polymerase concentrations
     %   REH_sol - Solution vector for terminating polymerase concentrations
     %   P - Updated parameter structure with computed values
-    %   r_E_BeforePas - (Optional) Symbolic steady state expressions for E binding
+    %   r_E_BeforePas - Unused (kept for call-site compatibility); always []
+    %   r_P - Unused (kept for call-site compatibility); always []
     
     global N PAS N_PAS Ef_ss;
-    syms Ef real;
     
     % Setup geometry
     L_a = P.L_a;
@@ -21,29 +21,9 @@ function [R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P,
     N_PAS = N - PAS + 1;
     kHon_base = P.kHon;
     
-    % Compute steady states (with file-based cache keyed by EBindingNumber, kEon, kEoff)
-    % kEon and kEoff are baked numerically into the symbolic result, so all three
-    % parameters are needed to uniquely identify the cached expression.
-    cacheDir = 'SymbolicCache';
-    if ~exist(cacheDir, 'dir'), mkdir(cacheDir); end
-    
-    cacheFile = fullfile(cacheDir, sprintf('ss_N%d_kEon%s_kEoff%s.mat', ...
-        EBindingNumber, ...
-        strrep(num2str(P.kEon,  '%.6g'), '.', 'p'), ...
-        strrep(num2str(P.kEoff, '%.6g'), '.', 'p')));
-    
-    if exist(cacheFile, 'file')
-        fprintf('  [Cache] Loading symbolic steady states from %s\n', cacheFile);
-        loaded = load(cacheFile, 'r_E_BeforePas', 'r_P');
-        r_E_BeforePas = loaded.r_E_BeforePas;
-        r_P = loaded.r_P;
-    else
-        fprintf('  [Cache] Computing symbolic steady states (EBindingNumber=%d, kEon=%.4g, kEoff=%.4g)...\n', ...
-            EBindingNumber, P.kEon, P.kEoff);
-        [r_E_BeforePas, r_P] = compute_steady_states(P, EBindingNumber + 1);
-        save(cacheFile, 'r_E_BeforePas', 'r_P');
-        fprintf('  [Cache] Saved to %s\n', cacheFile);
-    end
+    % Symbolic outputs are no longer computed; numerical approach is used throughout.
+    r_E_BeforePas = [];
+    r_P = [];
     
     % Setup kPon values with linear increase
     kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);

@@ -43,7 +43,7 @@ function avg_E_bound = compute_avg_E_bound_numerical(Ef_val, kPon_vals, kPoff_va
         kPon = kPon_vals(pos);
 
         % Build numerical rate matrix
-        A = build_numerical_rate_matrix(n, kPon, kPoff_val, kEon_val, kEoff_val, Ef_val);
+        A = build_rate_matrix_numerical(n, kPon, kPoff_val, kEon_val, kEoff_val, Ef_val);
 
         % Compute numerical null space via SVD
         % The null space of the rate matrix gives the steady-state distribution
@@ -63,63 +63,5 @@ function avg_E_bound = compute_avg_E_bound_numerical(Ef_val, kPon_vals, kPoff_va
 
         % Compute average E bound = sum(E_count .* probability)
         avg_E_bound(pos) = sum(E_count .* ss_dist);
-    end
-end
-
-
-function A = build_numerical_rate_matrix(n, kPon, kPoff, kEon, kEoff, Ef)
-    % BUILD_NUMERICAL_RATE_MATRIX Build the rate matrix numerically
-    %
-    % This replicates the logic of construct_rate_matrix.m but works with
-    % numerical values directly, avoiding symbolic computation.
-
-    sz = [n, n];
-    A_full = zeros(n*n, n*n);
-
-    % --- kPon/kPoff transitions (phosphorylation) ---
-    rows_kPon = repelem(1:n, fliplr(1:n));
-    cellArray1 = arrayfun(@(x) x:n, 1:n, 'UniformOutput', false);
-    cols_kPon = [cellArray1{:}];
-    ind_kPon = sub2ind(sz, rows_kPon, cols_kPon);
-
-    for i = 1:length(ind_kPon)-2
-        current_idx = ind_kPon(i);
-        next_idx = ind_kPon(i+1);
-        if next_idx > current_idx
-            A_full(next_idx, current_idx) = kPon;
-            A_full(current_idx, next_idx) = kPoff;
-        end
-    end
-
-    % --- kEon/kEoff transitions (E binding) ---
-    cellArray2 = arrayfun(@(x) 1:x, 1:n, 'UniformOutput', false);
-    rwos_kEon = [cellArray2{:}];
-    cols_kEon = repelem(1:n, 1:n);
-    ind_kEon = sub2ind(sz, rwos_kEon, cols_kEon);
-
-    a1 = 1;
-    a2 = 0;
-    for i = 1:length(ind_kEon)-1
-        current_idx = ind_kEon(i);
-        next_idx = ind_kEon(i+1);
-        if next_idx == current_idx + 1
-            A_full(next_idx, current_idx) = a2 * kEon * Ef;
-            A_full(current_idx, next_idx) = a1 * kEoff;
-            a1 = a1 + 1;
-            a2 = a2 - 1;
-        else
-            a2 = a1;
-            a1 = 1;
-        end
-    end
-
-    % Remove all-zero rows and columns
-    row_mask = any(A_full ~= 0, 2);
-    col_mask = any(A_full ~= 0, 1);
-    A = A_full(row_mask, col_mask);
-
-    % Set diagonal: A(i,i) = -sum of column i (excluding diagonal)
-    for i = 1:size(A, 1)
-        A(i, i) = -sum(A(:, i)) + A(i, i); % subtract existing diagonal if any
     end
 end

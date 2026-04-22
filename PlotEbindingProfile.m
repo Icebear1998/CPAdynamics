@@ -66,28 +66,15 @@ for idx = 1 : length(BindingNumbers)
     avg_E_bound = P_out.RE_val_bind_E(Ef_ss);
 
     % --- Ser2P profile ---
-    % Build P_vals by substituting kPon and kPoff into r_P (matches CPA_multipleE_main.m)
-    P_vals = sym(zeros(nb + 1, N));
-    for e = 1:nb+1
-        for i = 1:N
-            P_vals(e, i) = subs(r_P(e), {'kPon', 'kPoff'}, {kPon_vals(i), P_out.kPoff});
-        end
-    end
-
     avg_Ser2P = zeros(1, N);
     for i = 1:N
+        kPon_val = kPon_vals(i);
+        [~, r_P_num] = compute_steady_states_numerical(kPon_val, P_out.kPoff, P_out.kEon, P_out.kEoff, Ef_ss, nb + 1);
         total_P_bound = 0;
-        total_P = 0;
-        for e = 1:nb+1
-            P_e = double(R_sol(i) * double(subs(P_vals(e, i), 'Ef', Ef_ss)));
-            total_P_bound = total_P_bound + (e - 1) * P_e;
-            total_P = total_P + P_e;
+        for e = 1:(nb+1)
+            total_P_bound = total_P_bound + (e - 1) * r_P_num(e);
         end
-        if total_P > 0
-            avg_Ser2P(i) = total_P_bound / total_P;
-        else
-            avg_Ser2P(i) = 0;
-        end
+        avg_Ser2P(i) = total_P_bound;
     end
 
         % --- Plot coordinates ---
