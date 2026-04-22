@@ -34,22 +34,23 @@ This is Version 2.0 of the model. The key advance over Version 1.0 is that each 
 - `N_PAS = N - PAS + 1` nodes after PAS (where REH exists)
 - Global variables: `N`, `PAS`, `N_PAS`, `Ef_ss`
 
-### Rate matrix for E binding (`construct_rate_matrix.m`):
+### Rate matrix for E binding:
 
-States are indexed in a 2D (P-level, E-level) block structure. The rate matrix is built symbolically once and cached to disk (`SymbolicCache/` folder).
+States are indexed in a 2D (P-level, E-level) block structure. The rate matrix is built **numerically** via `build_rate_matrix_numerical.m`, which is shared by both `compute_steady_states_numerical.m` and `compute_avg_E_bound_numerical.m`. The old symbolic path (`construct_rate_matrix.m` + `compute_steady_states.m`) is no longer called by any active script.
 
 ## File Map
 
 ### Core simulation
 
-| File                                | Role                                                                                         |
-| ----------------------------------- | -------------------------------------------------------------------------------------------- |
-| `run_termination_simulation.m`      | Top-level function: sets up geometry, loads/computes symbolic cache, solves ODE in two steps |
-| `ode_dynamics_multipleE.m`          | ODE RHS; computes self-consistent `Ef_ss` via `fsolve` on first call                         |
-| `construct_rate_matrix.m`           | Symbolic rate matrix for E-binding states                                                    |
-| `compute_steady_states_numerical.m` | Numerical null-space (SVD) steady-state solver for E-binding                                 |
-| `compute_avg_E_bound_numerical.m`   | Computes average E bound at each gene position numerically                                   |
-| `calculate_pas_usage_profile.m`     | Flux-based CDF of termination events downstream of PAS                                       |
+| File                                | Role                                                                                    |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| `run_termination_simulation.m`      | Top-level function: sets up geometry, builds `P.RE_val_bind_E`, solves ODE in two steps |
+| `ode_dynamics_multipleE.m`          | ODE RHS; computes self-consistent `Ef_ss` via `fsolve` on first call                    |
+| `construct_rate_matrix.m`           | Symbolic rate matrix — kept for reference; not called by active scripts                 |
+| `build_rate_matrix_numerical.m`     | **Shared** numerical rate matrix builder used by both steady-state functions            |
+| `compute_steady_states_numerical.m` | Numerical null-space (SVD) steady-state distributions for E-binding and Ser2P           |
+| `compute_avg_E_bound_numerical.m`   | Computes average E bound at each gene position numerically                              |
+| `calculate_pas_usage_profile.m`     | Flux-based CDF of termination events downstream of PAS                                  |
 
 ### Analysis scripts
 
@@ -106,9 +107,15 @@ EBindingNumber  = 5;       % Max E factors per polymerase
 1. **Step 1** (`P.FirstRun = true`): Solve ODE with initial `kHon`, simultaneously solving for self-consistent `Ef_ss` (free E concentration) using a nested `fsolve`.
 2. **Step 2** (`P.FirstRun = false`): Update `P.kHon = kHon_base * avg_E_bound(PAS)` (scale by average E bound at PAS), then re-solve ODE from Step 1 solution.
 
-## Symbolic Cache
+`P.RE_val_bind_E` is set inside `run_termination_simulation.m` as:
 
-`run_termination_simulation.m` caches the symbolic steady-state result to `SymbolicCache/ss_N{n}_kEon{val}_kEoff{val}.mat`. If the cache exists, it is loaded instead of recomputed. Delete cache files if `kEon`, `kEoff`, or `EBindingNumber` change.
+```matlab
+P.RE_val_bind_E = @(Ef_val) compute_avg_E_bound_numerical(Ef_val, kPon_vals, P.kPoff, P.kEon, P.kEoff, n_states);
+```
+
+The returned `r_E_BeforePas` and `r_P` outputs are always `[]` — they exist only for call-site compatibility.
+
+**There is no symbolic cache.** The `SymbolicCache/` folder and `compute_steady_states.m` are no longer used.
 
 ## Output Organization
 
@@ -135,8 +142,9 @@ where $f(L)$ is a log-normal gene length distribution fit to human genomic data.
 ## Common Gotchas
 
 - **Global variables** (`N`, `PAS`, `N_PAS`, `Ef_ss`) must be declared `global` in any function that uses them and in the calling script.
-- **Symbolic cache invalidation**: if you change `kEon`, `kEoff`, or `EBindingNumber`, delete the relevant `.mat` file from `SymbolicCache/`.
+- **No symbolic cache**: the old `SymbolicCache/` folder and `compute_steady_states.m` are no longer part of the active pipeline. Do not reintroduce them.
 - **Parallel workers** (`parfor`): `SweepParameterPASusage.m` and `analyze_gene_length_TCD.m` use `parfor`; global variables are not shared across workers, so each worker must recompute `Ef_ss` locally.
-- **`P.RE_val_bind_E`** is a function handle `@(Ef_val) ...` returning a `1×N` vector of average E bound at each node. It is created in `run_termination_simulation.m` and must be present in `P` before calling `ode_dynamics_multipleE`.
+- **`P.RE_val_bind_E`** is a function handle `@(Ef_val) ...` returning a `1×N` vector of average E bound at each node. It is set inside `run_termination_simulation.m` and must be present in `P` before calling `ode_dynamics_multipleE`.
+- **Rate matrix**: all active code builds the rate matrix numerically via `build_rate_matrix_numerical.m`. `construct_rate_matrix.m` is kept for reference only.
 - The `FirstVersion/` folder contains legacy code (single E binding). Do not modify; use for reference only.
-- `SparedCodes/` contains experimental/archived variants of core functions.
+- `SparedCodes/` contains archived/experimental variants. `compute_steady_states.m` lives there but is no longer on the active call path.
