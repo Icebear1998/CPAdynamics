@@ -29,7 +29,7 @@ PAS    = floor(P.PASposition   / P.L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
 
-EBindingNumber = 5; 
+EBindingNumber = 1; 
 
 % Run termination simulation using the new function
 [R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P, EBindingNumber);
