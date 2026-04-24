@@ -35,29 +35,10 @@ EBindingNumber = 1;
 [R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P, EBindingNumber);
 disp('done compute simulation');
 
-% Compute Ser2P profile numerically (avoids symbolic overflow for high EBindingNumber)
-avg_P = zeros(1,N);
-kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1); 
-
-for i = 1:N
-    kPon_val = kPon_vals(i);
-    % Compute steady-state distributions numerically for this position
-    [r_E_num, r_P_num] = compute_steady_states_numerical(kPon_val, P.kPoff, P.kEon, P.kEoff, Ef_ss, EBindingNumber + 1);
-    
-    % Average P bound = sum over p-levels of p * P(P=p)
-    % r_P_num(e) is probability of P-block e-1, so P-level = e-1
-    total_P_bound = 0;
-    for e = 1:(EBindingNumber+1)
-        total_P_bound = total_P_bound + (e - 1) * r_P_num(e);
-    end
-    avg_P(i) = total_P_bound;
-end
-
-Ser2P = avg_P;
-
-% Get average E bound values
+% Get average E bound and Ser2P profiles in a single pass
 fprintf('E free %d\n', Ef_ss);
-avg_E_bound = P.RE_val_bind_E(Ef_ss);
+kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
+[avg_E_bound, Ser2P] = P.RE_val_bind_E(Ef_ss);
 
 [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
 CAD = interp1(exit_cdf, distances_bp, 0.5, 'linear', 'extrap');

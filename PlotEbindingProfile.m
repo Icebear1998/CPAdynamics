@@ -60,22 +60,9 @@ for idx = 1 : length(BindingNumbers)
     [R_sol, REH_sol, P_out, r_E_BeforePas, r_P] = run_termination_simulation(P, nb);
 
     % Retrieve geometry and Ef_ss set by run_termination_simulation
-    kPon_vals = P_out.kPon_min + P_out.kPon_slope * (0 : N - 1);
 
-    % --- Average E binding profile ---
-    avg_E_bound = P_out.RE_val_bind_E(Ef_ss);
-
-    % --- Ser2P profile ---
-    avg_Ser2P = zeros(1, N);
-    for i = 1:N
-        kPon_val = kPon_vals(i);
-        [~, r_P_num] = compute_steady_states_numerical(kPon_val, P_out.kPoff, P_out.kEon, P_out.kEoff, Ef_ss, nb + 1);
-        total_P_bound = 0;
-        for e = 1:(nb+1)
-            total_P_bound = total_P_bound + (e - 1) * r_P_num(e);
-        end
-        avg_Ser2P(i) = total_P_bound;
-    end
+    % --- Average E binding and Ser2P profiles in a single pass ---
+    [avg_E_bound, avg_Ser2P] = P_out.RE_val_bind_E(Ef_ss);
 
         % --- Plot coordinates ---
     x_coords = ((1 - PAS):(N - PAS)) * P.L_a / 1000;  % Position relative to PAS in kb
