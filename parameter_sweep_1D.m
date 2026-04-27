@@ -17,7 +17,7 @@ P_default.Pol_total = 70000;
 % We are not confident here
 P_default.kEon = 0.0000025;
 P_default.kEoff = 0.1;
-P_default.kHon = 2; 
+P_default.kHon = 1; 
 P_default.kHoff = 1; 
 P_default.kc = 0.1; 
 
@@ -38,13 +38,13 @@ N_PAS = N - PAS + 1;
 % Note: kEon and kEoff affect symbolic steady states and will be slower
 param_list = {'kHon'};%, 'kEon', 'kEoff'};
 
-% Ensure ode_dynamics_multipleE is available (assumed from context)
-if ~exist('ode_dynamics_multipleE', 'file')
-    error('ode_dynamics_multipleE function not found. Please ensure it is defined.');
-end
-if ~exist('compute_steady_states', 'file')
-    error('compute_steady_states function not found. Please ensure it is defined.');
-end
+% % Ensure ode_dynamics_multipleE is available (assumed from context)
+% if ~exist('ode_dynamics_multipleE', 'file')
+%     error('ode_dynamics_multipleE function not found. Please ensure it is defined.');
+% end
+% if ~exist('compute_steady_states', 'file')
+%     error('compute_steady_states function not found. Please ensure it is defined.');
+% end
 
 % Iterate over EBindingNumber
 for EBindingNumber = 1:1
@@ -82,8 +82,9 @@ for EBindingNumber = 1:1
                 base_range = logspace(0, log10(100), 5); % Log range
                 param_values = sort(unique([base_range, default_value]));
             case 'kHon'
-                base_range = logspace(-1, 1, 6); % Log range
-                param_values = sort(unique([base_range, default_value]));
+                param_values = 1:1:10;
+%                 base_range = logspace(-1, 1, 6); % Log range
+%                 param_values = sort(unique([base_range, default_value]));
             case 'kHoff'
                 base_range = logspace(-3, 0, 8); % Log range
                 param_values = sort(unique([base_range, default_value]));
