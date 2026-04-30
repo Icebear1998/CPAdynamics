@@ -54,8 +54,7 @@ for pair_idx = 1:length(param_pairs)
 
             try
                 [R_sol, REH_sol, P_sim] = run_termination_simulation(P_run, EBindingNumber);
-                [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_sim);
-                cutoff_matrix(i,j) = interp1(exit_cdf, distances_bp, 0.5, 'linear', 'extrap');
+                [~, ~, cutoff_matrix(i,j)] = calculate_pas_cleavage_profile(R_sol, REH_sol, P_sim, 'PercentCleavage', 50);
             catch
                 cutoff_matrix(i,j) = NaN;
             end

@@ -79,7 +79,7 @@ for EBindingNumber = 1:1
                 base_range = logspace(-6, -4, 10); % Log range
                 param_values = sort(unique([base_range, default_value]));
             case 'kEoff'
-                base_range = logspace(-2, log10(10), 10); % Log range
+                base_range = logspace(0, log10(100), 5); % Log range
                 param_values = sort(unique([base_range, default_value]));
             case 'kHon'
                 param_values = 1:1:10;

@@ -40,8 +40,7 @@ fprintf('E free %d\n', Ef_ss);
 kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
 [avg_E_bound, Ser2P] = P.RE_val_bind_E(Ef_ss);
 
-[exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P);
-CAD = interp1(exit_cdf, distances_bp, 0.5, 'linear', 'extrap');
+[exit_cdf, distances_bp, CAD] = calculate_pas_cleavage_profile(R_sol, REH_sol, P, 'PercentCleavage', 50);
 
 hold on;
 plot((1-PAS):N_PAS-1, Ser2P, 'g-','LineWidth',2.5, 'DisplayName','Ser2P');

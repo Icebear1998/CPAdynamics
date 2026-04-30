@@ -480,7 +480,7 @@ function [termination_profile, distances_bp] = calculate_termination_profile(tss
     [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P);
     
     % Calculate termination profile
-    [termination_profile, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_sim);
+    [termination_profile, distances_bp] = calculate_pas_cleavage_profile(R_sol, REH_sol, P_sim);
 end
 
 function TCD = calculate_TCD_from_profile(termination_profile, distances_bp, threshold)

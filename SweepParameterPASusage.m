@@ -65,7 +65,7 @@ parfor p_idx = 1:length(sweep_param_values)
     % Calculate termination profile (CDF)
     % The CDF at distance X represents the fraction of polymerases that 
     % terminated by distance X, which IS the proximal site usage
-    [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_sim);
+    [exit_cdf, distances_bp] = calculate_pas_cleavage_profile(R_sol, REH_sol, P_sim);
     
     % Interpolate to get proximal usage at specific inter-PAS distances
     proximal_usage_results(:, p_idx) = interp1(distances_bp, exit_cdf, inter_pas_distances_bp, 'linear', 'extrap');

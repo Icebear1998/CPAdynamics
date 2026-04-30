@@ -15,7 +15,7 @@ P.Pol_total = 70000;
 % We are not sure here
 P.kEon    = 0.0000025;
 P.kEoff   = 0.1;
-P.kHon = 1; 
+P.kHon = 2; 
 P.kHoff = 1; 
 P.kc = 0.1; 
 
@@ -27,7 +27,7 @@ P.PASposition = 20000;
 
 
 % --- SWEEP CONFIGURATION ---
-EBindingNumber_values = [1, 2, 3, 4, 5];
+EBindingNumber_values = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 cutoff_threshold = 0.5;  % 50% termination threshold
 
 % Pre-allocate results
@@ -44,15 +44,9 @@ for i = 1:length(EBindingNumber_values)
         % Run simulation
         [R_sol, REH_sol, P_sim] = run_termination_simulation(P, EBindingNumber);
         
-        % Calculate termination profile (CDF)
-        [exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_sim);
-        
-        % Find position where cutoff threshold is reached
-        if max(exit_cdf) >= cutoff_threshold
-            cutoff_positions(i) = interp1(exit_cdf, distances_bp, cutoff_threshold, 'linear', 'extrap');
-        else
-            cutoff_positions(i) = NaN;  % Threshold not reached
-        end
+        % Find distance where cutoff_threshold% of polymerases have cleaved
+        [~, ~, CAD] = calculate_pas_cleavage_profile(R_sol, REH_sol, P_sim, 'PercentCleavage', cutoff_threshold * 100);
+        cutoff_positions(i) = CAD;
         
         fprintf('Cutoff position = %.0f bp\n', cutoff_positions(i));
         
@@ -78,7 +72,7 @@ end
 
 xlabel('Number of maxium CPA factor binding', 'FontSize', 12, 'FontWeight', 'bold');
 ylabel('CAD (bp)', 'FontSize', 12, 'FontWeight', 'bold');
-xlim([0.5 7.5]);
+%xlim([0.5 7.5]);
 % Set x-axis ticks to only integer values
 ax = gca;
 ax.XTick = unique(round(ax.XTick));

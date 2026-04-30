@@ -50,7 +50,7 @@ end
 
 % --- CALCULATE TERMINATION CDF ---
 fprintf('Calculating termination profile (CDF)...\n');
-[exit_cdf, distances_bp] = calculate_pas_usage_profile(R_sol, REH_sol, P_sim);
+[exit_cdf, distances_bp] = calculate_pas_cleavage_profile(R_sol, REH_sol, P_sim);
 
 % Prepend zero for interpolation at distance = 0
 distances_for_interp = [0; distances_bp(:)];
