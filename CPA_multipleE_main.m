@@ -12,7 +12,7 @@ P.Pol_total = 70000;
 
 % We are not confident here
 P.kEon = 0.0000025;
-P.kEoff = 0.1;
+P.kEoff = 0.5;
 P.kHon = 2; 
 P.kHoff = 1; % for early poly A site with kd ~ 2000
 P.kc = 0.1; 

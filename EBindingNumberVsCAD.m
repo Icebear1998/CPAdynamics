@@ -14,7 +14,7 @@ P.Pol_total = 70000;
 
 % We are not sure here
 P.kEon    = 0.0000025;
-P.kEoff   = 0.1;
+P.kEoff   = 0.5;
 P.kHon = 2; 
 P.kHoff = 1; 
 P.kc = 0.1; 
@@ -27,7 +27,7 @@ P.PASposition = 20000;
 
 
 % --- SWEEP CONFIGURATION ---
-EBindingNumber_values = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+EBindingNumber_values = [1, 2, 3, 4, 5, 6, 7, 8];
 cutoff_threshold = 0.5;  % 50% termination threshold
 
 % Pre-allocate results

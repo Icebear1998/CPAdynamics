@@ -36,7 +36,7 @@ N_PAS = N - PAS + 1;
 % Available: 'k_e', 'k_e2', 'E_total', 'Pol_total', 'kc', 'kEon', 'kEoff', 
 %            'k_in', 'kHoff', 'kHon', 'kPon_slope'
 % Note: kEon and kEoff affect symbolic steady states and will be slower
-param_list = {'kEon', 'kEoff'};
+param_list = {'kHon'};
 
 % % Ensure ode_dynamics_multipleE is available (assumed from context)
 % if ~exist('ode_dynamics_multipleE', 'file')
@@ -71,7 +71,7 @@ for EBindingNumber = 1:1
             case 'Pol_total'
                 param_values = 50000:20000:240000;
             case 'kc'
-                param_values = 0.1:0.1:0.9; % Linear range
+                param_values = 0.05:0.05:0.9; % Linear range
             case 'k_in'
                 base_range = logspace(log10(0.2), log10(10), 5); % Log range
                 param_values = sort(unique([base_range, default_value]));
