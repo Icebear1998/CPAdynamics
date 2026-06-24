@@ -2,7 +2,7 @@
 % Generates lookup data for R_occupied and E_occupied as functions of
 % (R_free, E_free, L) for the gene length analysis
 %
-% This script implements Step 1 of the gene length analysis:
+% This script implements Step 1 of the gene length analysis
 % - Grid Generation: Create 3D grid of (R_free, E_free, L)
 % - Parallel Computation: Run single-gene model for each grid point
 % - Data Saving: Store results for later interpolation
@@ -41,25 +41,14 @@ L_points = 10;     % Resolution for TSS-to-PAS length
 after_PAS_length = 5000;  % 5 kb constant after-PAS region
 
 %% --- BASE PARAMETERS ---
-% Use standard parameter set from existing analyses
-P_base.L_a = 100;
+P_base = default_parameters();
 % k_in must be rescaled for the local model. The original value (e.g., 2)
 % was for a global model where one gene represented the whole system.
 % Here, we scale it to represent a single gene's promoter strength.
 k_in_global = 2;
 num_active_genes = 10000; % Estimated number of active genes in the system
 P_base.k_in = k_in_global / num_active_genes;
-P_base.kEon = 0.0000025;
-P_base.kEoff = 0.1;
-P_base.k_e = 65/100;
-P_base.k_e2 = 30/100;
-P_base.kHon = 2;
-P_base.kHoff = 1;
-P_base.kc = 0.1;
-P_base.kPon_min = 0.01;
-P_base.kPon_slope = 0.005;  % slope of linear increase
-P_base.kPoff = 1;
-P_base.EBindingNumber = 1;  % Use standard value
+P_base.EBindingNumber = 5;  % Use standard value
 
 % Create parameter grids
 R_free_values = linspace(R_free_min, R_free_max, R_free_points);
@@ -98,7 +87,7 @@ fprintf('Starting parallel computation...\n\n');
 tic;
 
 parfor i = 1:n_points
-    %try
+    try
         % Extract parameters for this grid point
         R_free_i = R_free_vec(i);
         E_free_i = E_free_vec(i);
@@ -125,8 +114,11 @@ parfor i = 1:n_points
         R_occupied_vec(i) = R_occupied_i;
         E_occupied_vec(i) = E_occupied_i;
         success_flag(i) = 1;
+    catch
+        success_flag(i) = 0;
+    end
     
-    % Progress indication (every 1000 points)
+    % Progress indication (every 100 points)
     if mod(i, 100) == 0
         fprintf('Completed %d/%d points\n', i, n_points);
     end
@@ -267,7 +259,6 @@ fprintf('4. Calculate TCD(L) relationships\n');
 function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
     % Run single gene simulation similar to existing scripts
     global N PAS N_PAS;
-    syms Ef real;
     
     % Set up geometry
     L_a = P.L_a;
@@ -300,7 +291,7 @@ function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
 %     % Update kHon and resolve
      avg_E_bound = P.RE_val_bind_E(P.E_free);
 %     P.FirstRun = false;
-    P.kHon = P.kHon * avg_E_bound(PAS);
+    P.kHon = P.kHon * avg_E_bound(end);
     X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
     
     R_sol = X_final(1:N);

@@ -15,29 +15,7 @@ if ~exist(outputDir, 'dir')
 end
 
 % --- BASE PARAMETERS ---
-P.L_a = 100;
-P.k_in    = 2;
-P.k_e     = 65/P.L_a;
-P.k_e2    = 30/P.L_a;
-P.E_total = 100000;
-P.L_total = 100000;
-P.Pol_total = 70000;
-
-% Binding/unbinding rates
-P.kEon = 0.0000025;
-P.kEoff = 0.1;
-P.kHon = 2;
-P.kHoff = 1;
-P.kc = 0.1;
-
-% Phosphorylation profile
-P.kPon_min = 0.01;
-P.kPon_slope = 0.005;
-P.kPoff = 1;
-
-% Gene geometry
-P.geneLength_bp = 25000;
-P.PASposition = 20000;
+P = default_parameters();
 
 
 % Analysis Scenarios

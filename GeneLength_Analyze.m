@@ -1,4 +1,3 @@
-% ANALYZE_GENE_LENGTH_TCD.m
 % Final analysis script for gene length effects on Termination Commitment Distance (TCD)
 %
 % This script implements Steps 3-5 of the gene length analysis:
@@ -455,7 +454,7 @@ function [termination_profile, distances_bp] = calculate_termination_profile(tss
     % Calculate termination profile for a specific TSS-to-PAS distance
     % This is a simplified version - in practice, you'd run the full simulation
     
-    syms Ef real;
+
     
     % Set up parameters for this gene length, using the consistent base parameters
     P = base_params; % Load the consistent parameter set
@@ -513,7 +512,6 @@ function [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P)
     % Consistent single gene simulation for TCD analysis.
     % This logic is mirrored from generate_gene_length_grid.m
     global N PAS N_PAS;
-    syms Ef real;
     
     % Ensure required parameters exist (for backward compatibility)
     if ~isfield(P, 'kPon_slope')
@@ -541,7 +539,7 @@ function [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P)
     options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
     
     avg_E_bound = P.RE_val_bind_E(P.E_free);
-    P.kHon = P.kHon * avg_E_bound(PAS);
+    P.kHon = P.kHon * avg_E_bound(end);
     X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
     
     R_sol = X_final(1:N);

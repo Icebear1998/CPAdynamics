@@ -1,47 +1,27 @@
 global N PAS N_PAS Ef_ss;
-syms Ef real;
 saveData = false;
 % ------------ MODEL PARAMETERS ------------
-P.L_a = 100;
-P.k_in    = 2;
-P.k_e     = 65/P.L_a;
-P.k_e2    = 30/P.L_a;
-P.E_total = 100000;
-P.L_total = 100000;
-P.Pol_total = 70000;
+P = default_parameters();
 
-% We are not confident here
-P.kEon = 0.0000025;
-P.kEoff = 0.5;
-P.kHon = 2; 
-P.kHoff = 1; % for early poly A site with kd ~ 2000
-P.kc = 0.1; 
-
-P.kPon_min = 0.01; % at TSS
-P.kPon_slope = 0.005; % determined how fast Sep2P increasing from TSS
-P.kPoff = 1;
-
-P.geneLength_bp = 25000;
-P.PASposition   = 20000;
 
 N      = floor(P.geneLength_bp / P.L_a);  % total nodes
 PAS    = floor(P.PASposition   / P.L_a);  % node index of PAS
 N_PAS  = N - PAS + 1;                 % number of nodes at/after PAS
 Ef_ss = 0;
 
-EBindingNumber = 1; 
+EBindingNumber = 5; 
 
 % Run termination simulation using the new function
 [R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P, EBindingNumber);
 disp('done compute simulation');
 
 % Get average E bound and Ser2P profiles in a single pass
-fprintf('E free %d\n', Ef_ss);
-kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
+fprintf('E free %.2f\n', Ef_ss);
 [avg_E_bound, Ser2P] = P.RE_val_bind_E(Ef_ss);
 
 [exit_cdf, distances_bp, CAD] = calculate_pas_cleavage_profile(R_sol, REH_sol, P, 'PercentCleavage', 50);
 
+figure;
 hold on;
 plot((1-PAS):N_PAS-1, Ser2P, 'g-','LineWidth',2.5, 'DisplayName','Ser2P');
 plot((1-PAS):N_PAS-1, avg_E_bound, 'b-','LineWidth',2.5, 'DisplayName','AverageE');
@@ -59,6 +39,7 @@ figure; hold on;
 
 plot(l_values, R_sol, 'b-','LineWidth',2.5, 'DisplayName','R(l)');
 plot(l_values, [zeros(PAS-1,1);REH_sol], 'r-','LineWidth',2.5, 'DisplayName','REH(l)');
+fprintf('CAD %.2f\n', CAD);
 CAD = CAD/100;
 line([CAD CAD], ylim, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5, 'DisplayName', 'Median Tandem Distance');
 text(CAD, 8, num2str(int32(CAD)));

@@ -269,7 +269,7 @@ function write_sweep_1d_data(fid, data, P)
     fprintf(fid, '%g ', data.param_values);
     fprintf(fid, '\n');
     fprintf(fid, '%% \n');
-    fprintf(fid, '%% Cutoff values (bp at 25%% cleavage):\n');
+    fprintf(fid, '%% Cutoff values (bp at 50%% cleavage):\n');
     fprintf(fid, '%.6f ', data.cutoff_values);
     fprintf(fid, '\n');
 end

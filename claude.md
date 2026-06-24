@@ -78,9 +78,12 @@ States are indexed in a 2D (P-level, E-level) block structure. The rate matrix i
 
 | File                      | Role                                                       |
 | ------------------------- | ---------------------------------------------------------- |
+| `default_parameters.m`    | Standard parameter set; called by all analysis scripts     |
 | `save_analysis_results.m` | Standardized result/plot saving to `SecondVersionResults/` |
 
 ## Standard Parameter Set
+
+These are defined in `default_parameters.m`. All scripts call `default_parameters()` and override only what they need.
 
 ```matlab
 P.L_a        = 100;        % bp per node

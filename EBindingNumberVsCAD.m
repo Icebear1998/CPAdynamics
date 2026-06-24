@@ -4,30 +4,11 @@
 fprintf('=== E Binding Number Sweep Analysis ===\n\n');
 
 % --- BASE PARAMETERS ---
-P.L_a = 100;
-P.k_in    = 2;
-P.k_e     = 65/P.L_a;
-P.k_e2    = 30/P.L_a;
-P.E_total = 100000;
-P.L_total = 100000;
-P.Pol_total = 70000;
-
-% We are not sure here
-P.kEon    = 0.0000025;
-P.kEoff   = 0.5;
-P.kHon = 2; 
-P.kHoff = 1; 
-P.kc = 0.1; 
-
-P.kPon_min = 0.01; % at TSS
-P.kPon_slope = 0.005; % determined how fast Sep2P increasing from TSS
-P.kPoff = 1;
-P.geneLength_bp = 25000;
-P.PASposition = 20000;
+P = default_parameters();
 
 
 % --- SWEEP CONFIGURATION ---
-EBindingNumber_values = [1, 2, 3, 4, 5, 6, 7, 8];
+EBindingNumber_values = [1, 2, 3, 4, 5, 6];
 cutoff_threshold = 0.5;  % 50% termination threshold
 
 % Pre-allocate results

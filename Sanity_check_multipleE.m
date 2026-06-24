@@ -1,24 +1,7 @@
 global N PAS N_PAS Ef_ss;
 
 %% 1. Define Model Parameters
-P.L_a = 100;
-P.k_in    = 2;
-P.kEon    = 0.0000025;
-P.kEoff   = 0.1;
-P.k_e     = 65/P.L_a;
-P.k_e2    = 30/P.L_a;
-P.E_total = 100000;
-P.L_total = 100000;
-P.Pol_total = 70000;
-P.kHon    = 2;
-P.kHoff   = 1;
-P.kc      = 0.1;
-P.kPon_min   = 0.01;
-P.kPon_slope = 0.005;
-P.kPoff   = 1;
-
-P.geneLength_bp = 25000;
-P.PASposition   = 20000;
+P = default_parameters();
 
 N      = floor(P.geneLength_bp / P.L_a);
 PAS    = floor(P.PASposition   / P.L_a);
@@ -141,7 +124,7 @@ else
     fprintf('Edge Case 3 (k_e2 = 0): Pol II also present beyond PAS? [FAIL]\n');
     fprintf('Pol II at PAS: %g\n', accumPAS);
     fprintf('Pol II elsewhere: %g\n', otherSum);
-    plot_spatial_distribution(R_test, REH_test, RE_vals*0, N, PAS, EBindingNumber, 'Edge Case 3 (k_e2 = 0): Pol II Distribution');
+    plot_spatial_distribution(R_test, REH_test, zeros(EBindingNumber+1, N), N, PAS, EBindingNumber, 'Edge Case 3 (k_e2 = 0): Pol II Distribution');
 end
 
 % Edge Case 4: k_c = 0 → Pol II should accumulate at last node
@@ -159,7 +142,7 @@ else
     fprintf('Edge Case 4 (k_c = 0): Pol II found in earlier nodes? [FAIL]\n');
     fprintf('Pol II at last node: %g\n', lastPosPop);
     fprintf('Pol II elsewhere: %g\n', othersPop);
-    plot_spatial_distribution(R_test, REH_test, RE_vals*0, N, PAS, EBindingNumber, 'Edge Case 4 (k_c = 0): Pol II Distribution');
+    plot_spatial_distribution(R_test, REH_test, zeros(EBindingNumber+1, N), N, PAS, EBindingNumber, 'Edge Case 4 (k_c = 0): Pol II Distribution');
 end
 
 % Edge Case 5: E_total = 0 → No E-binding should occur
@@ -190,7 +173,7 @@ if finalPol < 1e-3
 else
     fprintf('Edge Case 6 (k_c, kHon large): Pol II remains in system? [FAIL]\n');
     fprintf('Total Pol II in system: %g\n', finalPol);
-    plot_spatial_distribution(R_test, REH_test, RE_vals*0, N, PAS, EBindingNumber, 'Edge Case 6 (k_c, kHon large): Pol II Distribution');
+    plot_spatial_distribution(R_test, REH_test, zeros(EBindingNumber+1, N), N, PAS, EBindingNumber, 'Edge Case 6 (k_c, kHon large): Pol II Distribution');
 end
 
 fprintf('\n--- All Edge Cases Completed ---\n');

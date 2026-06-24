@@ -7,7 +7,7 @@ save_results = true;
 if isempty(gcp('nocreate')); parpool; end
 
 % --- CONFIGURATION: CHOOSE THE PARAMETER TO SWEEP ---
-sweep_param_name = 'kHoff';
+sweep_param_name = 'E_total';
 
 switch sweep_param_name
     case 'E_total'
@@ -22,27 +22,9 @@ switch sweep_param_name
         error('Selected sweep parameter is not defined in the switch-case block.');
 end
 
-% --- BASE PARAMETERS (matched to CPA_multipleE_main.m) ---
-P.L_a = 100;
-P.k_in    = 2;
-P.k_e     = 65/P.L_a;
-P.k_e2    = 30/P.L_a;
-P.E_total = 100000;
-P.L_total = 100000;
-P.Pol_total = 70000;
-
-P.kEon = 0.0000025;
-P.kEoff = 0.1;
-P.kHon = 2;
-P.kHoff = 1;
-P.kc = 0.1;
-
-P.kPon_min = 0.01;
-P.kPon_slope = 0.005;
-P.kPoff = 1;
-
-P.geneLength_bp = 50000;
-P.PASposition = 20000;
+% --- BASE PARAMETERS ---
+P = default_parameters();
+P.geneLength_bp = 50000;  % Extended gene for inter-PAS distance analysis
 EBindingNumber = 5;
 
 % --- SIMULATION SETUP ---
