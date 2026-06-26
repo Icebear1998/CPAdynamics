@@ -46,39 +46,46 @@ custom_name = p.Results.CustomName;
 extra_info = p.Results.ExtraInfo;
 
 % Create output directory
-output_dir = sprintf('SecondVersionResults/%s/', analysis_type);
+output_dir = sprintf('Results/%s/', analysis_type);
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);
 end
 
 % Generate filename
-timestamp = datestr(now, 'yyyymmdd_HHMMSS');
-
 if ~isempty(custom_name)
     base_filename = custom_name;
 else
     switch analysis_type
         case 'PASUsage'
-            base_filename = sprintf('PASUsage_kHoff%.0e-%.0e_Etotal%d-%d_%s', ...
+            base_filename = sprintf('PASUsage_kHoff%.0e-%.0e_Etotal%d-%d', ...
                 min(data.x_values), max(data.x_values), ...
-                min(data.y_values), max(data.y_values), timestamp);
+                min(data.y_values), max(data.y_values));
         case 'ParameterSweep'
-            base_filename = sprintf('Sweep_%s_%.3g-%.3g_%s', ...
-                data.sweep_param, min(data.sweep_values), max(data.sweep_values), timestamp);
+            base_filename = sprintf('Sweep_%s_%.3g-%.3g', ...
+                data.sweep_param, min(data.sweep_values), max(data.sweep_values));
         case 'CPA_multipleE_main'
-            base_filename = sprintf('CPA_main_EBinding%d_%s', ...
-                data.EBindingNumber, timestamp);
+            base_filename = sprintf('CPA_main_EBinding%d', ...
+                data.EBindingNumber);
         case 'parameter_sweep_1D'
-            base_filename = sprintf('Sweep1D_%s_EBinding%d_%s', ...
-                data.sweep_param, data.EBindingNumber, timestamp);
+            base_filename = sprintf('Sweep1D_%s_EBinding%d', ...
+                data.sweep_param, data.EBindingNumber);
         case 'parameter_sweep_2D'
-            base_filename = sprintf('Sweep2D_%s_%s_EBinding%d_%s', ...
-                data.param1, data.param2, data.EBindingNumber, timestamp);
+            base_filename = sprintf('Sweep2D_%s_%s_EBinding%d', ...
+                data.param1, data.param2, data.EBindingNumber);
         case 'PASUsagevsInterPASDistance'
-            base_filename = sprintf('PASvsDistance_EBinding%d_%s', ...
-                data.EBindingNumber, timestamp);
+            base_filename = sprintf('PASvsDistance_EBinding%d', ...
+                data.EBindingNumber);
+        case 'EBindingNumber_vs_CAD'
+            base_filename = sprintf('EBinding_vs_CAD_N%d-%d', ...
+                min(data.EBindingNumber_values), max(data.EBindingNumber_values));
+        case 'CPA_assembly'
+            base_filename = sprintf('CPA_assembly_EBinding%d', data.EBindingNumber);
+        case 'sweep_2D_kHd_kEd_CAD'
+            base_filename = sprintf('sweep2D_kHd_kEd_CAD_EBinding%d', data.EBindingNumber);
+        case 'ProximalPASUsage_ParameterSweep'
+            base_filename = sprintf('ProxPASUsage_%s', data.sweep_param);
         otherwise
-            base_filename = sprintf('%s_%s', analysis_type, timestamp);
+            base_filename = analysis_type;
     end
 end
 
@@ -125,6 +132,14 @@ switch analysis_type
         write_sweep_2d_data(fid, data, parameters);
     case 'PASUsagevsInterPASDistance'
         write_pas_distance_data(fid, data, parameters);
+    case 'EBindingNumber_vs_CAD'
+        write_ebinding_vs_cad_data(fid, data, parameters);
+    case 'CPA_assembly'
+        write_cpa_assembly_data(fid, data, parameters);
+    case 'sweep_2D_kHd_kEd_CAD'
+        write_sweep_2d_khd_ked_data(fid, data, parameters);
+    case 'ProximalPASUsage_ParameterSweep'
+        write_parameter_sweep_data(fid, data, parameters);
     otherwise
         write_generic_data(fid, data, parameters);
 end
@@ -322,6 +337,59 @@ function write_pas_distance_data(fid, data, P)
     if isfield(data, 'REH_sol')
         fprintf(fid, '%% REH_sol (Paused polymerase concentrations):\n');
         fprintf(fid, '%.6f ', data.REH_sol);
+        fprintf(fid, '\n');
+    end
+end
+
+function write_ebinding_vs_cad_data(fid, data, P)
+    fprintf(fid, '%% E Binding Number vs CAD Analysis\n');
+    fprintf(fid, '%% \n');
+    write_base_parameters(fid, P);
+    fprintf(fid, '%% \n');
+    fprintf(fid, '%% EBindingNumber values (%d values):\n', length(data.EBindingNumber_values));
+    fprintf(fid, '%g ', data.EBindingNumber_values);
+    fprintf(fid, '\n');
+    fprintf(fid, '%% \n');
+    fprintf(fid, '%% CAD (50%% cutoff position in bp):\n');
+    fprintf(fid, '%.6f ', data.cutoff_positions);
+    fprintf(fid, '\n');
+end
+
+function write_cpa_assembly_data(fid, data, P)
+    fprintf(fid, '%% CPA Assembly vs Distance Analysis\n');
+    fprintf(fid, '%% EBindingNumber: %d\n', data.EBindingNumber);
+    fprintf(fid, '%% \n');
+    write_base_parameters(fid, P);
+    fprintf(fid, '%% \n');
+    fprintf(fid, '%% Separation distances (bp) (%d values):\n', length(data.separations_bp));
+    fprintf(fid, '%g ', data.separations_bp);
+    fprintf(fid, '\n');
+    fprintf(fid, '%% \n');
+    fprintf(fid, '%% Rescue fraction (0-1):\n');
+    fprintf(fid, '%.6f ', data.rescue_fraction);
+    fprintf(fid, '\n');
+end
+
+function write_sweep_2d_khd_ked_data(fid, data, P)
+    fprintf(fid, '%% 2D Sweep: kHd vs kEd -> CAD\n');
+    fprintf(fid, '%% EBindingNumber: %d\n', data.EBindingNumber);
+    fprintf(fid, '%% Percent cleavage threshold: %g\n', data.percent_cleavage);
+    fprintf(fid, '%% kHon_ref: %g,  kEon_ref: %g\n', data.kHon_ref, data.kEon_ref);
+    fprintf(fid, '%% CAD at base parameters: %.2f bp\n', data.CAD_base);
+    fprintf(fid, '%% \n');
+    write_base_parameters(fid, P);
+    fprintf(fid, '%% \n');
+    fprintf(fid, '%% kHd values (%d values):\n', length(data.kHd_values));
+    fprintf(fid, '%g ', data.kHd_values);
+    fprintf(fid, '\n');
+    fprintf(fid, '%% \n');
+    fprintf(fid, '%% kEd values (%d values):\n', length(data.kEd_values));
+    fprintf(fid, '%g ', data.kEd_values);
+    fprintf(fid, '\n');
+    fprintf(fid, '%% \n');
+    fprintf(fid, '%% CAD matrix (rows = kEd, columns = kHd):\n');
+    for i = 1:size(data.CAD_matrix, 1)
+        fprintf(fid, '%.6f ', data.CAD_matrix(i, :));
         fprintf(fid, '\n');
     end
 end
