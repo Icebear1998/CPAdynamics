@@ -174,10 +174,7 @@ results.data.success_flag = success_flag;
 fprintf('Saving results...\n');
 
 % Create output directory
-output_dir = 'SecondVersionResults/GeneLengthAnalysis/';
-if ~exist(output_dir, 'dir')
-    mkdir(output_dir);
-end
+output_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'SecondVersionResults');
 
 % Save MATLAB data file
 mat_filename = fullfile(output_dir, sprintf('gene_length_grid_data_%d.mat', P_base.EBindingNumber));
@@ -310,7 +307,6 @@ function E_occupied = calculate_E_occupied(R_sol, REH_sol, avg_E_bound, PAS)
     E_bound_REH = sum(REH_sol .* avg_E_bound_profile(PAS:end)');
     E_occupied = E_bound_R + E_bound_REH;
 end
-
 
 
 

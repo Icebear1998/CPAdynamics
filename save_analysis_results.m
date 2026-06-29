@@ -46,10 +46,7 @@ custom_name = p.Results.CustomName;
 extra_info = p.Results.ExtraInfo;
 
 % Create output directory
-output_dir = sprintf('Results/%s/', analysis_type);
-if ~exist(output_dir, 'dir')
-    mkdir(output_dir);
-end
+output_dir = cpad_analysis_output_dir(analysis_type, 'Results');
 
 % Generate filename
 if ~isempty(custom_name)

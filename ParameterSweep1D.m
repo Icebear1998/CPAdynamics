@@ -1,5 +1,5 @@
 % Parameter sweep setup
-save_result = false;
+save_result = strcmpi(getenv('CPAD_FORCE_SAVE'), 'true');
 
 % Model parameters (base values)
 P_default = default_parameters();
@@ -161,5 +161,4 @@ for param_idx = 1:length(param_list)
         save_analysis_results('parameter_sweep_1D', data, P_default);
     end
 end
-
 

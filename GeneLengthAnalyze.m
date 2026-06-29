@@ -14,7 +14,7 @@ fprintf('Analyzing Termination Commitment Distance across gene lengths...\n\n');
 fprintf('Loading interpolation functions...\n');
 
 % Find the most recent interpolation file
-interp_dir = 'SecondVersionResults/GeneLengthAnalysis/';
+interp_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'SecondVersionResults');
 if ~exist(interp_dir, 'dir')
     error('Interpolation directory not found. Please run build_gene_length_interpolation.m first.');
 end
@@ -546,5 +546,4 @@ function [R_sol, REH_sol, P_sim] = run_single_gene_simulation_TCD(P)
     REH_sol = X_final((N+1):(N+N_PAS));
     P_sim = P;
 end
-
 

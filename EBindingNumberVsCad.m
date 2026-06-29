@@ -1,7 +1,7 @@
 % SWEEP_EBINDINGNUMBER_CUTOFF.m
 % Plot position at which 50% cutoff vs. E Binding Number
 % Simple script to analyze how E binding number affects termination distance
-saveData = false;
+saveData = strcmpi(getenv('CPAD_FORCE_SAVE'), 'true');
 fprintf('=== E Binding Number Sweep Analysis ===\n\n');
 
 % --- BASE PARAMETERS ---

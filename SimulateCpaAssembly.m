@@ -7,8 +7,10 @@
 % within a given distance, analogous to "% Rescue of CAT Activity"
 % measured in the cis-antisense rescue assay.
 
-clear; clc;
-saveData = false;
+if ~strcmpi(getenv('CPAD_SKIP_SCRIPT_CLEAR'), 'true')
+    clear; clc;
+end
+saveData = strcmpi(getenv('CPAD_FORCE_SAVE'), 'true');
 fprintf('=== CPA Assembly vs Distance (Figure 8 Simulation) ===\n\n');
 
 % --- BASE PARAMETERS ---

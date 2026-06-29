@@ -14,7 +14,7 @@ fprintf('Building interpolation functions and gene length distribution...\n\n');
 fprintf('Loading grid data...\n');
 
 % Find the most recent grid data file
-grid_dir = 'SecondVersionResults/GeneLengthAnalysis/';
+grid_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'SecondVersionResults');
 if ~exist(grid_dir, 'dir')
     error('Grid data directory not found. Please run generate_gene_length_grid.m first.');
 end

@@ -3,13 +3,7 @@
 %   - Average E binding profile (solid line)
 %   - Ser2P profile (dashed line, same color)
 % on a single combined figure
-saveData = false;
-
-% Define output directory
-outputDir = 'Results/SupportFigures/';
-if saveData && ~exist(outputDir, 'dir')
-    mkdir(outputDir);
-end
+saveData = strcmpi(getenv('CPAD_FORCE_SAVE'), 'true');
 
 % --- BASE PARAMETERS ---
 P = default_parameters();
@@ -42,10 +36,7 @@ for idx = 1 : length(BindingNumbers)
     
     % --- Save raw data ---
     if saveData
-        dataOutDir = fullfile('Results', 'Ser2P_Eaverage_Profile');
-        if ~exist(dataOutDir, 'dir')
-            mkdir(dataOutDir);
-        end
+        dataOutDir = cpad_analysis_output_dir('Ser2P_Eaverage_Profile', 'Results');
         filename = fullfile(dataOutDir, sprintf('ProfileData_N%d.txt', nb));
         T = table(x_coords(:), avg_E_bound(:), avg_Ser2P(:), ...
             'VariableNames', {'PositionRelPAS_kb', 'Avg_E_bound', 'Avg_Ser2P'});
@@ -70,6 +61,7 @@ xline(0, 'k--', 'PAS', 'LineWidth', 1.5);
 grid on;
 
 if saveData
+    outputDir = cpad_analysis_output_dir('SupportFigures', 'Results');
     saveas(fig, fullfile(outputDir, 'Average_E_and_Ser2P_Comparison.png'));
 end
 
