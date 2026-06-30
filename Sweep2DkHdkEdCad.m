@@ -20,10 +20,10 @@ EBindingNumber = 1;       % n = 1 case
 nPoints = 4;              % Number of grid points per axis
 
 % --- Literature ranges for individual rates (UPDATE THESE) ---
-kHon_range  = [0.5,  5];       % PAS recognition on-rate   [1/s]
-kHoff_range = [0.5,  5];        % PAS recognition off-rate  [1/s]
-kEon_range  = [1e-6, 5e-6];     % E-factor on-rate          [1/(s·molecule)]
-kEoff_range = [0.1, 5];        % E-factor off-rate         [1/s]
+kHon_range  = [0.04,  2];       % PAS recognition on-rate   [1/s]
+kHoff_range = [0.05,  5];        % PAS recognition off-rate  [1/s]
+kEon_range  = [1e-7, 5e-6];     % E-factor on-rate          [1/(s·molecule)]
+kEoff_range = [0.2, 2];        % E-factor off-rate         [1/s]
 
 % --- Compute kHd and kEd ranges from individual rate ranges ---
 kHd_min = kHoff_range(1) / kHon_range(2);   % most favorable (tight binding)

@@ -9,7 +9,7 @@ L_a = P_default.L_a;
 % Available: 'k_e', 'k_e2', 'E_total', 'Pol_total', 'kc', 'kEon', 'kEoff', 
 %            'k_in', 'kHoff', 'kHon', 'kPon_slope'
 % Note: kEon and kEoff affect symbolic steady states and will be slower
-param_list = {'k_e', 'k_e2', 'E_total', 'Pol_total', 'kc', 'kEon', 'kEoff','k_in', 'kHoff', 'kHon', 'kPon_slope'};
+param_list = {'kPon_slope'};
 
 % % Ensure ode_dynamics_multipleE is available (assumed from context)
 % if ~exist('ode_dynamics_multipleE', 'file')
@@ -65,7 +65,7 @@ for param_idx = 1:length(param_list)
 
         case 'kEon'
             % Range: 6.6e-7–1.7e-6 molecule^-1 s^-1
-            base_range = logspace(log10(1e-7), log10(5e-6), 8);
+            base_range = logspace(log10(1.5e-7), log10(5e-6), 8);
             param_values = sort(unique([base_range, default_value]));
 
         case 'kEoff'
@@ -85,7 +85,7 @@ for param_idx = 1:length(param_list)
 
         case 'kPon_slope'
             % Range: 0.001–0.01 s^-1 per node
-            base_range = logspace(log10(0.001), log10(0.05), 10);
+            base_range = logspace(log10(0.001), log10(0.05), 8);
             param_values = sort(unique([base_range, default_value]));
 
         otherwise

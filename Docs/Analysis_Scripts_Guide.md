@@ -1,7 +1,7 @@
 # CPA Dynamics Analysis Scripts - User Guide
 
 **Version 2.0**  
-**Last Updated: December 2024**
+**Last Updated: June 2026**
 
 ## Table of Contents
 
@@ -17,302 +17,313 @@
 
 ## Overview
 
-This guide describes the complete suite of analysis scripts for the CPA (Cleavage and Polyadenylation) Dynamics model. The scripts are designed to investigate different aspects of transcription termination and alternative polyadenylation (APA) through various computational approaches.
+This guide describes the complete suite of analysis scripts for the CPA (Cleavage and Polyadenylation) Dynamics model. The scripts investigate transcription termination and alternative polyadenylation (APA) through various computational approaches.
 
-All scripts automatically save their results to organized folders within `SecondVersionResults/` using the unified `save_analysis_results.m` utility function.
+All scripts support an optional `saveData` (or `save_result`) flag at the top of the file. Set it to `true` to save results via the unified `save_analysis_results.m` utility. Results are written to `Results/<analysis_type>/`.
+
+The model uses a fully **numerical** approach — no Symbolic Math Toolbox is required.
 
 ---
 
 ## Core Analysis Scripts
 
-### 1. CPA_multipleE_main.m
+### 1. CpaMultipleEMain.m
 
-**Purpose**: Main simulation script that runs a single comprehensive CPA analysis
+**Purpose**: Single comprehensive CPA simulation run
 
 **What it does**:
 
 - Solves the full ODE system for polymerase dynamics
-- Computes steady-state concentrations of R (elongating) and REH (paused) polymerases
-- Calculates Ser2P phosphorylation levels and average E factor binding
-- Generates visualization plots of polymerase distributions
+- Computes steady-state concentrations of R (elongating) and REH (terminating) polymerases
+- Calculates Ser2P phosphorylation levels and average E factor binding profiles
+- Generates two plots: Ser2P/AverageE profiles, and R/REH concentration profiles
+- Reports polymerase distribution at steady state
 
 **Key Parameters**:
 
-- `EBindingNumber`: Number of E factors that can bind (default: 3)
-- `L_a`: Node size in base pairs (default: 100)
+- `EBindingNumber`: Max E factors per polymerase (default: 5)
 - `geneLength_bp`: Total gene length (default: 25,000 bp)
-- `PASposition`: Position of polyadenylation site (default: 20,000 bp)
+- `PASposition`: Position of poly(A) signal (default: 20,000 bp)
+- `saveData`: Set `true` to save results (default: `false`)
 
 **Expected Results**:
 
-- Two plots: Ser2P and AverageE vs position, and R/REH concentrations vs position
-- Console output showing total polymerase distribution
-- Saved data includes all concentration profiles and key metrics
+- Plot 1: Ser2P and AverageE vs position relative to PAS
+- Plot 2: R(l) and REH(l) concentrations with 50% TCD marker
+- Console output: free/bound Pol II distribution and free E concentration
 
 **When to use**:
 
-- Initial model validation
-- Understanding basic polymerase dynamics
-- Generating baseline results for comparison
+- Initial model validation and baseline results
+- Visualizing polymerase and E factor distributions
 
 ---
 
 ## Parameter Sweep Scripts
 
-### 2. parameter_sweep_1D.m
+### 2. ParameterSweep1D.m
 
-**Purpose**: Systematic exploration of how individual parameters affect termination cutoff positions
+**Purpose**: Systematic exploration of how individual parameters affect the Cleavage Arrest Distance (CAD)
 
 **What it does**:
 
-- Sweeps through ranges of single parameters (kHoff, E_total, kc, etc.)
-- Calculates the position where 25% of polymerases have terminated
-- Generates plots showing parameter sensitivity
-- Supports both linear and logarithmic parameter ranges
+- Iterates over a list of parameters, sweeping each across a biologically relevant range
+- Calculates the position where 50% of polymerases have terminated (CAD₅₀)
+- Generates a line plot per parameter showing CAD vs parameter value
+- Marks the default parameter value on each plot
 
 **Key Features**:
 
-- Configurable parameter selection via `param_list`
-- Automatic range determination based on parameter type
-- Robust error handling for failed simulations
-- High-resolution plot generation with timestamps
-
-**Parameters Available**:
-
-- `k_e`, `k_e2`: Elongation rates
-- `E_total`: Total E factor concentration
-- `kc`: Cleavage rate
-- `kHon`, `kHoff`: Hexamer binding/unbinding rates
-- `kEon`, `kEoff`: E factor binding rates
+- Covers 11 parameters: `k_e`, `k_e2`, `E_total`, `Pol_total`, `kc`, `kEon`, `kEoff`, `k_in`, `kHoff`, `kHon`, `kPon_slope`
+- Automatic linear/log range selection per parameter type
+- `save_result` flag (default: `false`) to enable saving via `save_analysis_results`
 
 **Expected Results**:
 
-- Line plots showing cutoff position vs parameter value
-- Clear identification of parameter sensitivity regions
-- Default parameter values highlighted on plots
+- One plot per parameter showing CAD₅₀ (bp) vs parameter value
+- Default parameter value highlighted
 
 **When to use**:
 
 - Parameter sensitivity analysis
-- Identifying critical parameter ranges
-- Model calibration and validation
+- Identifying which parameters most strongly control termination distance
 
-### 3. parameter_sweep_2D.m
+### 3. ParameterSweep2D.m
 
 **Purpose**: Explores interactions between pairs of parameters
 
 **What it does**:
 
-- Performs 2D parameter sweeps over parameter pairs
-- Uses intelligent initial guess extrapolation for numerical stability
-- Generates multi-line plots showing parameter interactions
-- Optimized for computational efficiency
+- Performs a 2D grid sweep over a configurable pair of parameters
+- Calculates CAD₅₀ at each (param1, param2) combination
+- Generates multi-line plots showing how one parameter modulates the other's effect
 
 **Key Features**:
 
-- Extrapolation-based initial guessing for faster convergence
 - Configurable parameter pairs via `param_pairs`
-- Automatic history tracking for solution continuation
-- Robust handling of numerical failures
+- `save_result` flag (default: `false`)
+- Robust NaN handling for failed simulations
 
 **Expected Results**:
 
-- Multi-line plots showing cutoff positions across 2D parameter space
-- Clear visualization of parameter interaction effects
-- Legend showing different parameter values
+- Multi-line plot: CAD₅₀ vs param1, with separate lines for each param2 value
 
 **When to use**:
 
 - Understanding parameter interactions
-- Identifying parameter combinations that produce specific behaviors
-- Advanced model exploration
+- Identifying combinations that produce specific termination behaviors
+
+### 4. Sweep2DkHdkEdCad.m
+
+**Purpose**: 2D contour map of CAD₅₀ as a function of PAS recognition and E factor binding dissociation constants
+
+**What it does**:
+
+- Sweeps `kHd = kHoff/kHon` and `kEd = kEoff/kEon` over literature-plausible ranges
+- Fixes on-rates at reference values; varies off-rates to achieve target dissociation constants
+- Generates a filled contour plot with experimental target band (400–800 bp) overlaid
+- Computes and marks the CAD at base parameters
+
+**Key Features**:
+
+- Configurable literature ranges for individual rates
+- `save_result` flag (default: `true`)
+- Version-safe colormap (falls back from `turbo` to `jet`)
+
+**Expected Results**:
+
+- Contour map of CAD₅₀ across (kHd, kEd) space
+- Red dashed contours at 400 bp and 800 bp (experimental window)
+- Star marker at base-parameter point
+
+**When to use**:
+
+- Parameter robustness analysis for kHon/kHoff and kEon/kEoff
+- Demonstrating that the model is consistent with experimental CAD ranges
 
 ---
 
 ## Specialized Analysis Scripts
 
-### 4. PASUsageAnalysis.m
+### 5. SweepParameterPasUsage.m
 
-**Purpose**: Comprehensive 2D analysis of PAS usage as a function of global and local factors
-
-**What it does**:
-
-- Performs 2D sweep over kHoff (PAS strength) and E_total (global factor)
-- Calculates cumulative polymerase exit at a fixed distance (300 bp)
-- Uses parallel processing for computational efficiency
-- Generates contour plots showing phase diagrams
-
-**Key Features**:
-
-- Parallel processing with `parfor` loops
-- Flux-based calculation of termination probabilities
-- Interpolation to specific distances for biological relevance
-- High-resolution contour visualization
-
-**Expected Results**:
-
-- Contour plot showing cumulative exit percentage
-- Clear phase boundaries between different termination regimes
-- Quantitative metrics at biologically relevant distances
-
-**When to use**:
-
-- Understanding global vs local factor balance
-- Predicting APA site usage under different conditions
-- Generating phase diagrams for publication
-
-### 5. PASUsagevsInterPASDistance.m
-
-**Purpose**: Predicts how proximal PAS usage depends on the distance to downstream PAS sites
+**Purpose**: Predicts proximal PAS usage as a function of inter-PAS distance, swept over a chosen global parameter
 
 **What it does**:
 
-- Simulates termination profile for a single parameter set
-- Calculates proximal site usage probability vs inter-PAS distance
-- Includes biological context (300 bp median distance marker)
-- Provides direct predictions for experimental comparison
+- Runs parallel simulations (`parfor`) over a grid of inter-PAS distances
+- For each simulation, computes the termination CDF; the CDF value at a given distance equals proximal site usage
+- Sweeps a configurable parameter (`kHoff`, `E_total`, `k_e`, or `kc`) with preset value sets
+- Plots proximal usage (%) vs inter-PAS distance on a log x-axis
 
 **Key Features**:
 
-- Biologically motivated distance ranges (0-2500 bp)
-- Direct calculation of site choice probabilities
-- Visualization with experimental context markers
-- Robust solver with error handling
+- Parallel processing via `parfor`
+- Switch-case parameter selection at the top of the script
+- `save_results` flag (default: `true`)
 
 **Expected Results**:
 
-- Plot showing proximal usage % vs inter-PAS distance
-- Exponential-like decay typical of competition models
-- Reference line at median biological distance (300 bp)
+- Multi-line semilog plot: proximal usage (%) vs inter-PAS distance
+- One line per sweep parameter value
 
 **When to use**:
 
-- Predicting experimental outcomes
-- Understanding distance-dependent competition
-- Validating model against APA-seq data
+- Predicting APA site choice under different conditions
+- Understanding how global factors modulate distance-dependent competition
 
-### 6. Sweep1DEbindingnumber.m
+### 6. EBindingNumberVsCad.m
 
-**Purpose**: Investigates how the maximum number of E factors affects average binding
+**Purpose**: Investigates how the maximum number of E factors per polymerase affects the CAD
 
 **What it does**:
 
-- Sweeps through different EBindingNumber values (1-3)
-- Calculates average E factor binding at the PAS
-- Generates plots showing saturation behavior
-- Focuses on E factor binding dynamics
+- Sweeps `EBindingNumber` from 1 to 6
+- Computes CAD₅₀ for each value
+- Plots CAD (bp) vs EBindingNumber with data labels
 
 **Key Features**:
 
-- Fixed parameter set for controlled comparison
-- Focus on E factor binding saturation
-- Clear visualization of binding vs capacity
-- Robust error handling for edge cases
+- `saveData` flag (default: `false`)
+- Robust error handling; failed runs recorded as NaN
 
 **Expected Results**:
 
-- Plot showing average E binding vs EBindingNumber
-- Saturation behavior at high EBindingNumber values
-- Quantitative binding coefficients
+- Scatter/line plot showing how CAD₅₀ changes with maximum E factor occupancy
 
 **When to use**:
 
-- Understanding E factor binding saturation
-- Calibrating EBindingNumber parameter
-- Investigating cooperative binding effects
+- Calibrating `EBindingNumber`
+- Assessing sensitivity of CAD to E factor cooperativity
 
-### 7. SweepParameterPASusage.m
+### 7. PlotEBindingProfile.m
 
-**Purpose**: Flexible parameter sweep tool for analyzing PAS usage across distances
+**Purpose**: Generates combined average E binding and Ser2P spatial profiles for multiple EBindingNumbers
 
 **What it does**:
 
-- Configurable parameter sweeps (E_total, k_e, kc, kHoff)
-- Calculates cumulative exit CDF across distance ranges
-- Uses parallel processing for efficiency
-- Generates multi-line plots showing parameter effects
+- Runs simulations for `EBindingNumber` = 1, 3, 5
+- Plots average E bound (solid) and Ser2P (dashed) profiles on a single figure, color-coded by EBindingNumber
+- Optionally saves per-profile data as tab-delimited `.txt` files and the figure as `.png`
 
 **Key Features**:
 
-- Switch-case parameter selection system
-- Parallel processing with `parfor`
-- Flux-based CDF calculations
-- Comprehensive distance range analysis (0-2500 bp)
+- `saveData` flag (default: `false`); when `true`, saves to `Results/Ser2P_Eaverage_Profile/` and `Results/SupportFigures/`
+- x-axis in kb relative to PAS
 
 **Expected Results**:
 
-- Multi-line plots showing CDF vs distance for different parameter values
-- Clear parameter-dependent differences in termination profiles
-- Quantitative comparison across parameter ranges
+- Combined profile plot comparing E binding and phosphorylation across binding numbers
 
 **When to use**:
 
-- Systematic parameter exploration
-- Understanding parameter effects on termination profiles
-- Generating data for meta-analysis
+- Visualizing how E factor occupancy and CTD phosphorylation vary along the gene
+- Generating support figures
+
+### 8. SimulateCpaAssembly.m
+
+**Purpose**: Simulates CPA complex assembly kinetics as a function of distance downstream of the PAS
+
+**What it does**:
+
+- Runs a single simulation and computes the termination CDF
+- Interpolates the CDF to a fine grid of distances (0–1000 bp, 10 bp steps)
+- Plots "% CPA Assembly Completion" vs poly(A)–anti-poly(A) separation distance
+- Analogous to Figure 8 from Chao et al. (1999)
+
+**Key Features**:
+
+- `saveData` flag (default: `false`)
+- Prints key values at 100, 200, …, 1000 bp
+
+**Expected Results**:
+
+- Sigmoidal CDF curve showing assembly completion vs distance
+- Quantitative rescue percentages at biologically relevant separations
+
+**When to use**:
+
+- Comparing model predictions to cis-antisense rescue assay data
+
+### 9. SanityCheckMultipleE.m
+
+**Purpose**: Verifies model correctness through conservation checks and edge case tests
+
+**What it does**:
+
+- Checks Pol II and E factor conservation at steady state
+- Verifies non-negativity of all state variables
+- Tests 6 edge cases (k_in = 0, k_e = 0, k_e2 = 0, kc = 0, E_total = 0, large kHon/kc)
+
+**Expected Results**:
+
+- Console output with PASS/FAIL for each check
+- Diagnostic plots generated only for FAIL cases
+
+**When to use**:
+
+- After any model change, to confirm physical consistency
+- Debugging unexpected simulation behavior
 
 ---
 
 ## Output and Results
 
-### Automatic Data Saving
+### Saving Results
 
-All scripts use the unified `save_analysis_results.m` function that provides:
+All scripts have a `saveData` (or `save_result` / `save_results`) flag at the top. Set it to `true` to save output via `save_analysis_results.m`.
 
 **File Organization**:
 
-- Results saved to `SecondVersionResults/[ScriptName]/`
-- Automatic folder creation
-- Timestamped filenames with parameter information
+- Results saved to `Results/<analysis_type>/`
+- Subfolders created automatically
 
 **File Types Generated**:
 
 1. **Plot Files** (`.png`): High-quality visualizations
-2. **Data Files** (`_data.txt`): Complete numerical results with metadata
+2. **Data Files** (`_data.txt`): Numerical results with parameter metadata
 
-**Data File Contents**:
-
-- Complete parameter sets used
-- Timestamp and analysis type
-- Numerical results in tab-delimited format
-- Detailed comments explaining data structure
-
-### Typical File Naming Convention
+**File Naming Convention** (no timestamp):
 
 ```
-CPA_main_EBinding3_20241220_143022.png
-CPA_main_EBinding3_20241220_143022_data.txt
-Sweep1D_kHoff_EBinding5_20241220_143022.png
-PASUsage_kHoff1e-03-1e-01_Etotal60000-140000_20241220_143022.png
+CPA_main_EBinding5.png
+CPA_main_EBinding5_data.txt
+Sweep1D_kHoff_EBinding5.png
+sweep2D_kHd_kEd_CAD_EBinding1_data.txt
+ProxPASUsage_kHoff_data.txt
+EBinding_vs_CAD_N1-6_data.txt
+CPA_assembly_EBinding5_data.txt
 ```
 
 ---
 
 ## Usage Guidelines
 
-### Getting Started
+### Prerequisites
 
-1. **Prerequisites**: MATLAB with Symbolic Math Toolbox
-2. **Dependencies**: Ensure `compute_steady_states.m` and `ode_dynamics_multipleE.m` are in path
-3. **Memory**: Some scripts use parallel processing - ensure adequate RAM
+- MATLAB (no Symbolic Math Toolbox required)
+- Parallel Computing Toolbox (optional, for `SweepParameterPasUsage.m` and `GeneLengthAnalyze.m`)
 
 ### Recommended Workflow
 
-1. **Start with `CPA_multipleE_main.m`** to understand basic model behavior
-2. **Use `parameter_sweep_1D.m`** to identify sensitive parameters
-3. **Apply `PASUsageAnalysis.m`** for comprehensive 2D analysis
-4. **Use specialized scripts** for specific research questions
+1. **Start with `CpaMultipleEMain.m`** to understand basic model behavior
+2. **Use `ParameterSweep1D.m`** to identify sensitive parameters
+3. **Use `Sweep2DkHdkEdCad.m`** for robustness analysis over kHon/kEon space
+4. **Use `SweepParameterPasUsage.m`** for APA site choice predictions
+5. **Run `SanityCheckMultipleE.m`** after any model modifications
 
-### Parameter Modification
+### Saving Output
 
-- Modify parameter values in the script headers
-- Key parameters: `EBindingNumber`, `kHoff`, `E_total`, `kc`
-- Biological ranges provided in comments
+Set the flag at the top of each script:
+
+```matlab
+saveData = true;   % or save_result / save_results depending on the script
+```
 
 ### Computational Considerations
 
-- **Parallel scripts**: Will automatically use available CPU cores
-- **Runtime**: Ranges from minutes (single runs) to hours (large sweeps)
+- **Parallel scripts** (`SweepParameterPasUsage.m`, `GeneLengthAnalyze.m`): Use `parfor`; a parallel pool starts automatically
+- **Runtime**: Single runs ~seconds; large 2D sweeps ~minutes to hours
 - **Memory**: 2D sweeps can require several GB of RAM
 
 ---
@@ -323,71 +334,39 @@ PASUsage_kHoff1e-03-1e-01_Etotal60000-140000_20241220_143022.png
 
 **1. "Solver failed" errors**:
 
-- Reduce parameter ranges or increase numerical tolerances
-- Check for unphysical parameter combinations
-- Verify all dependencies are in MATLAB path
+- Check for unphysical parameter combinations (e.g., rates near zero)
+- Verify all helper functions (`run_termination_simulation`, `calculate_pas_cleavage_profile`, etc.) are on the MATLAB path
 
-**2. "Negative E_f" warnings**:
+**2. Negative or very large concentrations**:
 
-- Indicates parameter combinations that deplete E factors
-- Reduce E_total or increase other parameters
-- These combinations are automatically flagged as unphysical
+- Indicates parameter combinations outside physically reasonable range
+- Start from default parameters and modify gradually
 
 **3. Slow performance**:
 
-- Reduce parameter sweep ranges
-- Close parallel pools between runs: `delete(gcp('nocreate'))`
-- Increase MATLAB memory allocation
+- Reduce the number of sweep points
+- Close unused parallel pools: `delete(gcp('nocreate'))`
 
-**4. Missing plots**:
+**4. Missing plots or save errors**:
 
-- Check that figures aren't being closed prematurely
-- Verify save directories have write permissions
-- Ensure sufficient disk space
+- Ensure write permissions for the `Results/` directory
+- Check that `save_analysis_results.m` is on the MATLAB path
 
 ### Parameter Guidelines
 
 **Biologically Reasonable Ranges**:
 
-- `kHoff`: 0.001 - 0.1 (PAS strength)
-- `E_total`: 10,000 - 200,000 (protein concentration)
-- `kc`: 0.01 - 1.0 (cleavage rate)
-- `EBindingNumber`: 1 - 8 (binding sites)
+- `kHoff`: 0.1 – 10 (PAS recognition off-rate)
+- `E_total`: 10,000 – 200,000 (CPA factor pool size)
+- `kc`: 0.01 – 1.0 (cleavage rate)
+- `EBindingNumber`: 1 – 8 (max E factors per Pol II)
 
 **Numerical Stability**:
 
-- Avoid extreme parameter ratios (>1000x differences)
-- Use logarithmic spacing for rate constants
-- Start with default parameters and modify gradually
-
-### Getting Help
-
-- Check MATLAB console for detailed error messages
-- Review saved data files for diagnostic information
-- Verify model assumptions match your biological system
+- Avoid extreme parameter ratios (>1000× differences)
+- Use logarithmic spacing for rate constants in sweeps
+- Start with default parameters (`default_parameters.m`) and modify one at a time
 
 ---
 
-## Advanced Usage
-
-### Customizing Analysis
-
-- Modify distance ranges in PAS usage scripts
-- Add new parameters to sweep lists
-- Customize plot aesthetics and output formats
-
-### Integration with Experiments
-
-- Use `PASUsagevsInterPASDistance.m` results to predict APA-seq outcomes
-- Compare `PASUsageAnalysis.m` phase diagrams with condition-dependent data
-- Validate parameter ranges using experimental measurements
-
-### Extending the Model
-
-- Add new analysis types to `save_analysis_results.m`
-- Create custom parameter sweep combinations
-- Implement new metrics for termination analysis
-
----
-
-_This guide covers the core functionality of the CPA Dynamics analysis suite. For specific biological interpretations or advanced customizations, consult the accompanying research papers and model documentation._
+_This guide covers the core functionality of the CPA Dynamics analysis suite. For specific biological interpretations or advanced customizations, consult the accompanying research documentation._
