@@ -47,6 +47,14 @@ function [avg_E_bound, avg_Ser2P] = compute_avg_E_bound_numerical(Ef_val, kPon_v
         if sum(ss_dist) < 0
             ss_dist = -ss_dist;
         end
+
+        % At Ef=0, no free E exists so E>0 states are unreachable.
+        % SVD may assign them small non-zero weight due to numerical noise;
+        % zero those entries before normalising to enforce the physical limit.
+        if Ef_val == 0
+            ss_dist(E_count > 0) = 0;
+        end
+
         ss_dist = ss_dist / sum(ss_dist);
 
         avg_E_bound(pos) = sum(E_count .* ss_dist);

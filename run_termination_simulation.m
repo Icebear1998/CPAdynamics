@@ -39,32 +39,45 @@ function [R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P,
 
     P.RE_val_bind_E = @(Ef_val) interpolate_E_bound(Ef_val, Ef_grid, avg_E_bound_grid, avg_Ser2P_grid);
 
-    % Solve system - Step 1
-    X_guess = 1e-6 * ones(P.N + P.N_PAS, 1);
+    % Two-step solution strategy (matches the original approach):
+    %
+    % Step 1: Solve ODE with base kHon. This gives the Pol II distribution
+    %         and the free E concentration Ef_ss_1.  The average E bound at
+    %         the PAS at that free-E level determines the effective kHon.
+    %
+    % Step 2: Update kHon = kHon_base * avg_E_bound(PAS, Ef_ss_1), then
+    %         re-solve the ODE from the Step 1 solution.  Update Ef_ss once
+    %         more from the final distribution.
+    %
+    % This is NOT a full fixed-point iteration but faithfully reproduces the
+    % original two-step logic without global variables or a nested solver.
+
     options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
 
-    P.FirstRun = true;
-    P.is_unphysical = false;
+    % --- Step 1: solve with base kHon ---
+    P.kHon = kHon_base;
+    X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), ...
+                    1e-6 * ones(P.N + P.N_PAS, 1), options);
+    R_base  = max(0, X_base(1:P.N));
+    REH_base = max(0, X_base(P.N+1:P.N+P.N_PAS));
 
-    X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
-
-    % Solve for Ef_ss at the end of Step 1
-    R_base = X_base(1:P.N);
-    REH_base = X_base(P.N+1:P.N+P.N_PAS);
+    % Compute Ef_ss from the Step 1 distribution
     P.Ef_ss = solve_Efree_steady_state(R_base, REH_base, P);
 
-    % Solve system - Step 2 with adjusted kHon
-    avg_E_bound = P.RE_val_bind_E(P.Ef_ss);
-    P.FirstRun = false;
-    P.kHon = kHon_base * avg_E_bound(end);
+    % Update kHon using avg E bound at PAS evaluated at Ef_ss_1
+    avg_E_bound_1 = P.RE_val_bind_E(P.Ef_ss);
+    P.kHon = kHon_base * avg_E_bound_1(P.PAS);
 
-    X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_base, options);
+    % --- Step 2: re-solve with updated kHon, warm-started ---
+    X_iter = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_base, options);
+    R_iter  = max(0, X_iter(1:P.N));
+    REH_iter = max(0, X_iter(P.N+1:P.N+P.N_PAS));
 
-    R_sol = X_final(1:P.N);
-    REH_sol = X_final(P.N+1:P.N+P.N_PAS);
+    % Final Ef_ss from the Step 2 distribution
+    P.Ef_ss = solve_Efree_steady_state(R_iter, REH_iter, P);
 
-    % Update P.Ef_ss to be consistent with final steady-state
-    P.Ef_ss = solve_Efree_steady_state(R_sol, REH_sol, P);
+    R_sol = R_iter;
+    REH_sol = REH_iter;
 end
 
 function [avg_E, avg_S] = interpolate_E_bound(Ef_val, Ef_grid, E_grid, S_grid)
