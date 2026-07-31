@@ -31,6 +31,8 @@ function [r_E_num, r_P_num] = compute_steady_states_numerical(kPon_val, kPoff_va
         ss_dist = -ss_dist;
     end
 
+    ss_dist = validate_stationary_distribution(ss_dist);
+
     % Normalize
     ss_dist = ss_dist / sum(ss_dist);
 
@@ -72,4 +74,19 @@ function [r_E_num, r_P_num] = compute_steady_states_numerical(kPon_val, kPoff_va
 
     % Normalize r_P
     r_P_num = r_P_num / sum(r_P_num);
+end
+
+function ss_dist = validate_stationary_distribution(ss_dist)
+    tol = 1e-10;
+    if any(ss_dist < -tol)
+        error('compute_steady_states_numerical:MixedSignNullVector', ...
+              'Stationary distribution has negative probabilities (min %.3g).', ...
+              min(ss_dist));
+    end
+
+    ss_dist(ss_dist < 0) = 0;
+    if sum(ss_dist) <= 0
+        error('compute_steady_states_numerical:InvalidStationaryDistribution', ...
+              'Stationary distribution has non-positive total probability.');
+    end
 end

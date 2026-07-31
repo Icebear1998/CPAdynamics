@@ -37,47 +37,21 @@ function [R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P,
         [avg_E_bound_grid(i, :), avg_Ser2P_grid(i, :)] = compute_avg_E_bound_numerical(Ef_grid(i), kPon_vals, P.kPoff, P.kEon, P.kEoff, n_states);
     end
 
-    P.RE_val_bind_E = @(Ef_val) interpolate_E_bound(Ef_val, Ef_grid, avg_E_bound_grid, avg_Ser2P_grid);
-
-    % Two-step solution strategy (matches the original approach):
-    %
-    % Step 1: Solve ODE with base kHon. This gives the Pol II distribution
-    %         and the free E concentration Ef_ss_1.  The average E bound at
-    %         the PAS at that free-E level determines the effective kHon.
-    %
-    % Step 2: Update kHon = kHon_base * avg_E_bound(PAS, Ef_ss_1), then
-    %         re-solve the ODE from the Step 1 solution.  Update Ef_ss once
-    %         more from the final distribution.
-    %
-    % This is NOT a full fixed-point iteration but faithfully reproduces the
-    % original two-step logic without global variables or a nested solver.
+    if P.E_total <= 0
+        P.RE_val_bind_E = @(Ef_val) constant_E_bound(Ef_val, avg_E_bound_grid, avg_Ser2P_grid);
+    else
+        P.RE_val_bind_E = @(Ef_val) interpolate_E_bound(Ef_val, Ef_grid, avg_E_bound_grid, avg_Ser2P_grid);
+    end
 
     options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
 
-    % --- Step 1: solve with base kHon ---
+    % Warm-start with base kHon, then solve the free-E fixed point.
     P.kHon = kHon_base;
-    X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), ...
-                    1e-6 * ones(P.N + P.N_PAS, 1), options);
-    R_base  = max(0, X_base(1:P.N));
-    REH_base = max(0, X_base(P.N+1:P.N+P.N_PAS));
+    [~, ~, X_base] = solve_ode_checked(P, 1e-6 * ones(P.N + P.N_PAS, 1), options, 'base kHon warm start');
 
-    % Compute Ef_ss from the Step 1 distribution
-    P.Ef_ss = solve_Efree_steady_state(R_base, REH_base, P);
-
-    % Update kHon using avg E bound at PAS evaluated at Ef_ss_1
-    avg_E_bound_1 = P.RE_val_bind_E(P.Ef_ss);
-    P.kHon = kHon_base * avg_E_bound_1(P.PAS);
-
-    % --- Step 2: re-solve with updated kHon, warm-started ---
-    X_iter = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_base, options);
-    R_iter  = max(0, X_iter(1:P.N));
-    REH_iter = max(0, X_iter(P.N+1:P.N+P.N_PAS));
-
-    % Final Ef_ss from the Step 2 distribution
-    P.Ef_ss = solve_Efree_steady_state(R_iter, REH_iter, P);
-
-    R_sol = R_iter;
-    REH_sol = REH_iter;
+    % Find Ef such that the free E implied by conservation is the same Ef
+    % that sets avg E at the PAS and the effective kHon used by the ODE.
+    [R_sol, REH_sol, P] = solve_selfconsistent_Efree(P, kHon_base, X_base, options);
 end
 
 function [avg_E, avg_S] = interpolate_E_bound(Ef_val, Ef_grid, E_grid, S_grid)
@@ -88,18 +62,70 @@ function [avg_E, avg_S] = interpolate_E_bound(Ef_val, Ef_grid, E_grid, S_grid)
     end
 end
 
-function Ef_ss = solve_Efree_steady_state(R, REH, P)
-    constraint_Ef = @(Ef_cand) efree_constraint(Ef_cand, R, REH, P);
-    options = optimset('Display', 'off', 'TolX', 1e-8);
-    try
-        Ef_ss = fzero(constraint_Ef, [0, P.E_total], options);
-    catch
-        % Fallback if bounds are inconsistent
-        Ef_ss = fzero(constraint_Ef, P.E_total * 0.5, options);
+function [avg_E, avg_S] = constant_E_bound(~, E_grid, S_grid)
+    % Degenerate E_total <= 0 case: avoid interp1 on a repeated zero grid.
+    avg_E = E_grid(1, :);
+    if nargout > 1
+        avg_S = S_grid(1, :);
     end
 end
 
-function val = efree_constraint(Ef_cand, R, REH, P)
-    re_all = P.RE_val_bind_E(Ef_cand);
-    val = Ef_cand - (P.E_total - (sum(R(:)' .* re_all) + sum(REH(:)' .* re_all(P.PAS:P.N))));
+function [R_sol, REH_sol, P] = solve_selfconsistent_Efree(P, kHon_base, X0, options)
+    if P.E_total <= 0
+        P.Ef_ss = 0;
+        avg_E_bound = P.RE_val_bind_E(P.Ef_ss);
+        P.kHon = kHon_base * avg_E_bound(P.PAS);
+        [R_sol, REH_sol] = solve_ode_checked(P, X0, options, 'self-consistent E_total <= 0');
+        return;
+    end
+
+    X_warm = X0;
+    constraint_Ef = @(Ef_cand) selfconsistent_efree_constraint(Ef_cand);
+    fzero_options = optimset('Display', 'off', 'TolX', 1e-8);
+
+    try
+        P.Ef_ss = fzero(constraint_Ef, [0, P.E_total], fzero_options);
+    catch
+        P.Ef_ss = fzero(constraint_Ef, P.E_total * 0.5, fzero_options);
+    end
+
+    % Final solve at the converged Ef. This makes the returned R/REH, kHon,
+    % avg-E-at-PAS, and E conservation mutually consistent.
+    [R_sol, REH_sol, P] = solve_ode_at_Ef(P.Ef_ss, X_warm);
+
+    function val = selfconsistent_efree_constraint(Ef_cand)
+        [R_tmp, REH_tmp, ~] = solve_ode_at_Ef(Ef_cand, X_warm);
+        X_warm = [R_tmp; REH_tmp];
+        re_all = P.RE_val_bind_E(Ef_cand);
+        E_bound = sum(R_tmp(:)' .* re_all) + sum(REH_tmp(:)' .* re_all(P.PAS:P.N));
+        val = Ef_cand - (P.E_total - E_bound);
+    end
+
+    function [R_tmp, REH_tmp, P_tmp] = solve_ode_at_Ef(Ef_cand, x0)
+        P_tmp = P;
+        avg_E_bound = P_tmp.RE_val_bind_E(Ef_cand);
+        P_tmp.Ef_ss = Ef_cand;
+        P_tmp.kHon = kHon_base * avg_E_bound(P_tmp.PAS);
+        [R_tmp, REH_tmp] = solve_ode_checked(P_tmp, x0, options, 'self-consistent Ef candidate');
+    end
+end
+
+function [R, REH, X] = solve_ode_checked(P, x0, options, context)
+    [X, ~, exitflag] = fsolve(@(xx) ode_dynamics_multipleE(xx, P), x0, options);
+    if exitflag <= 0
+        error('run_termination_simulation:FsolveFailed', ...
+              'fsolve failed during %s (exitflag %d).', context, exitflag);
+    end
+
+    tol = 1e-8;
+    min_raw = min(X(:));
+    if min_raw < -tol
+        error('run_termination_simulation:NegativeConcentration', ...
+              'Raw fsolve solution during %s has negative concentration %.3g.', ...
+              context, min_raw);
+    end
+
+    X = max(0, X);
+    R = X(1:P.N);
+    REH = X(P.N+1:P.N+P.N_PAS);
 end

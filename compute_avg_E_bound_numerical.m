@@ -55,9 +55,26 @@ function [avg_E_bound, avg_Ser2P] = compute_avg_E_bound_numerical(Ef_val, kPon_v
             ss_dist(E_count > 0) = 0;
         end
 
+        ss_dist = validate_stationary_distribution(ss_dist, ...
+            sprintf('Ef=%g, position=%d', Ef_val, pos));
         ss_dist = ss_dist / sum(ss_dist);
 
         avg_E_bound(pos) = sum(E_count .* ss_dist);
         avg_Ser2P(pos)   = sum(P_count .* ss_dist);
+    end
+end
+
+function ss_dist = validate_stationary_distribution(ss_dist, context)
+    tol = 1e-10;
+    if any(ss_dist < -tol)
+        error('compute_avg_E_bound_numerical:MixedSignNullVector', ...
+              'Stationary distribution has negative probabilities for %s (min %.3g).', ...
+              context, min(ss_dist));
+    end
+
+    ss_dist(ss_dist < 0) = 0;
+    if sum(ss_dist) <= 0
+        error('compute_avg_E_bound_numerical:InvalidStationaryDistribution', ...
+              'Stationary distribution has non-positive total probability for %s.', context);
     end
 end
