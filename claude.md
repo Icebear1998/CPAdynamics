@@ -1,8 +1,8 @@
-# CPAdynamics — Project Context for AI Assistants
+# CPAdynamics
 
 ## What This Project Is
 
-A MATLAB research codebase modeling **RNA Polymerase II (Pol II) transcription termination** in mammalian cells. The model simulates the kinetics of **Cleavage and Polyadenylation (CPA)** to predict:
+A research codebase modeling **RNA Polymerase II (Pol II) transcription termination** in mammalian cells. The model simulates the kinetics of **Cleavage and Polyadenylation (CPA)** to predict:
 
 - **Alternative Polyadenylation (APA)** site choice
 - **Termination Commitment Distance (TCD)**: how far downstream of a poly(A) signal (PAS) polymerases travel before terminating
@@ -42,36 +42,36 @@ States are indexed in a 2D (P-level, E-level) block structure. The rate matrix i
 
 ### Core simulation
 
-| File                                | Role                                                                                    |
-| ----------------------------------- | --------------------------------------------------------------------------------------- |
-| `run_termination_simulation.m`      | Top-level function: sets up geometry (`P.N/PAS/N_PAS`), pre-computes E-binding grid, solves ODE in two steps, stores `P.Ef_ss` |
-| `ode_dynamics_multipleE.m`          | ODE RHS; reads geometry and rates from `P`; no globals, no nested solver               |
-| `build_rate_matrix_numerical.m`     | **Shared** numerical rate matrix builder used by both steady-state functions            |
-| `compute_steady_states_numerical.m` | Numerical null-space (SVD) steady-state distributions for E-binding and Ser2P           |
-| `compute_avg_E_bound_numerical.m`   | Computes average E bound at each gene position numerically                              |
-| `calculate_pas_cleavage_profile.m`  | Flux-based CDF of termination events downstream of PAS                                  |
+| File                                | Role                                                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run_termination_simulation.m`      | Top-level function: sets up geometry (`P.N/PAS/N_PAS`), pre-computes E-binding grid, solves free E self-consistently by default, stores `P.Ef_ss` |
+| `ode_dynamics_multipleE.m`          | ODE RHS; reads geometry and rates from `P`; no globals, no nested solver                                                                          |
+| `build_rate_matrix_numerical.m`     | **Shared** numerical rate matrix builder used by both steady-state functions                                                                      |
+| `compute_steady_states_numerical.m` | Numerical null-space (SVD) steady-state distributions for E-binding and Ser2P                                                                     |
+| `compute_avg_E_bound_numerical.m`   | Computes average E bound at each gene position numerically                                                                                        |
+| `calculate_pas_cleavage_profile.m`  | Flux-based CDF of termination events downstream of PAS                                                                                            |
 
 ### Analysis scripts
 
-| File                        | Role                                                                |
-| --------------------------- | ------------------------------------------------------------------- |
-| `CpaMultipleEMain.m`        | Single comprehensive run; plots R/REH profiles and Ser2P/AvgE       |
-| `ParameterSweep1D.m`        | Sweep one parameter, plot TCD (50% cutoff position)                 |
-| `ParameterSweep2D.m`        | Sweep two parameters simultaneously                                 |
-| `SweepParameterPasUsage.m`  | Proximal PAS usage vs inter-PAS distance (parallel, `parfor`)       |
-| `EBindingNumberVsCad.m`     | TCD vs EBindingNumber sweep                                         |
-| `Sweep2DkHdkEdCad.m`        | 2D sweep of kHoff/kHon × kEoff/kEon ratios, plots CAD              |
-| `PlotEBindingProfile.m`     | Avg E binding + Ser2P profiles for multiple EBindingNumbers         |
-| `SimulateCpaAssembly.m`     | CPA assembly CDF vs distance (analogous to Chao et al. 1999 Fig. 8) |
-| `SanityCheckMultipleE.m`    | Physical edge-case assertions; E and Pol II conservation checks     |
+| File                       | Role                                                                |
+| -------------------------- | ------------------------------------------------------------------- |
+| `CpaMultipleEMain.m`       | Single comprehensive run; plots R/REH profiles and Ser2P/AvgE       |
+| `ParameterSweep1D.m`       | Sweep one parameter, plot TCD (50% cutoff position)                 |
+| `ParameterSweep2D.m`       | Sweep two parameters simultaneously                                 |
+| `SweepParameterPasUsage.m` | Proximal PAS usage vs inter-PAS distance (parallel, `parfor`)       |
+| `EBindingNumberVsCad.m`    | TCD vs EBindingNumber sweep                                         |
+| `Sweep2DkHdkEdCad.m`       | 2D sweep of kHoff/kHon × kEoff/kEon ratios, plots CAD               |
+| `PlotEBindingProfile.m`    | Avg E binding + Ser2P profiles for multiple EBindingNumbers         |
+| `SimulateCpaAssembly.m`    | CPA assembly CDF vs distance (analogous to Chao et al. 1999 Fig. 8) |
+| `SanityCheckMultipleE.m`   | Physical edge-case assertions; E and Pol II conservation checks     |
 
 ### Gene length analysis pipeline (run in order)
 
-| File                            | Role                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------ |
-| `GeneLengthGenerateGrid.m`      | Step 1: Create 3D grid of (R_free, E_free, L) → R_occupied, E_occupied               |
-| `GeneLengthBuildInterpolation.m`| Step 2: Fit interpolation functions; define log-normal gene length PDF               |
-| `GeneLengthAnalyze.m`           | Step 3–5: Solve conservation equations self-consistently; compute TCD vs gene length |
+| File                             | Role                                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------ |
+| `GeneLengthGenerateGrid.m`       | Step 1: Create 3D grid of (R_free, E_free, L) → R_occupied, E_occupied               |
+| `GeneLengthBuildInterpolation.m` | Step 2: Fit interpolation functions; define log-normal gene length PDF               |
+| `GeneLengthAnalyze.m`            | Step 3–5: Solve conservation equations self-consistently; compute TCD vs gene length |
 
 ### Utilities
 
@@ -104,14 +104,15 @@ P.PASposition   = 20000;   % PAS position from TSS
 EBindingNumber  = 5;       % Max E factors per polymerase
 ```
 
-## Two-Step Solution Strategy in `run_termination_simulation.m`
+## Self-Consistent Solution Strategy in `run_termination_simulation.m`
 
 0. **Pre-computation**: `P.RE_val_bind_E` is built as a fast interpolant over a pre-computed grid of 100 `Ef_val` points (avoids repeated SVD calls inside the solver):
    ```matlab
    P.RE_val_bind_E = @(Ef_val) interpolate_E_bound(Ef_val, Ef_grid, avg_E_bound_grid, avg_Ser2P_grid);
    ```
-1. **Step 1**: Solve the ODE with initial `kHon`. After convergence, compute `P.Ef_ss` once using the internal helper `solve_Efree_steady_state(R, REH, P)` which calls `fzero` on the E-conservation constraint.
-2. **Step 2**: Update `P.kHon = kHon_base * avg_E_bound(P.PAS)` (scale by average E bound at PAS), then re-solve ODE from the Step 1 solution. Update `P.Ef_ss` again from the final solution.
+1. **Warm start**: Solve the ODE once with initial `kHon` to get a stable initial Pol II distribution.
+2. **Self-consistent free E**: Use `fzero` to find `P.Ef_ss` such that `Ef = E_total - E_bound(R(Ef), REH(Ef), Ef)`. For each candidate `Ef`, update `P.kHon = kHon_base * avg_E_bound(P.PAS)`, re-solve the ODE, and evaluate E conservation.
+3. **Final solve**: Re-solve the ODE at the converged `P.Ef_ss`, so returned `R_sol`, `REH_sol`, `P.kHon`, and `P.Ef_ss` are mutually consistent.
 
 Geometry (`P.N`, `P.PAS`, `P.N_PAS`) and `P.Ef_ss` are stored in the returned struct `P`. The returned `r_E_BeforePas` and `r_P` outputs are always `[]` — they exist only for call-site compatibility.
 
@@ -141,10 +142,11 @@ where $f(L)$ is a log-normal gene length distribution fit to human genomic data.
 ## Common Gotchas
 
 - **No global variables**: geometry (`P.N`, `P.PAS`, `P.N_PAS`) and free E concentration (`P.Ef_ss`) are stored in the parameter struct `P` and passed explicitly. Do not reintroduce `global` declarations.
-- **`P.Ef_ss` is set by `run_termination_simulation`** after each ODE solve via `fzero`; it is available on the returned `P` struct. Scripts that need `Ef_ss` should read `P_out.Ef_ss`.
+- **`P.Ef_ss` is set by `run_termination_simulation`** via the self-consistent free-E solve; it is available on the returned `P` struct. Scripts that need `Ef_ss` should read `P_out.Ef_ss`.
 - **No symbolic cache**: the old `SymbolicCache/` folder and `compute_steady_states.m` are no longer part of the active pipeline. Do not reintroduce them.
 - **Parallel workers** (`parfor`): `SweepParameterPasUsage.m` and `GeneLengthAnalyze.m` use `parfor`; each worker calls `run_termination_simulation` independently and receives its own `P` struct with `P.Ef_ss` — no shared state needed.
 - **`P.RE_val_bind_E`** is a function handle `@(Ef_val) ...` returning a `1×N` vector of average E bound at each node. It is set inside `run_termination_simulation.m` and must be present in `P` before calling `ode_dynamics_multipleE`.
+- **CAD is not extrapolated by default**: `calculate_pas_cleavage_profile` returns `NaN` and warns when the requested cleavage percentage is not reached within the simulated post-PAS window. Use the returned `diagnostics.max_exit_cdf` to report the within-window commitment fraction.
 - **Rate matrix**: all active code builds the rate matrix numerically via `build_rate_matrix_numerical.m`. `construct_rate_matrix.m` is kept in `SparedCodes/` for reference only.
 - **File naming**: main analysis scripts use PascalCase (e.g., `CpaMultipleEMain.m`); helper functions use snake_case (e.g., `run_termination_simulation.m`, `build_rate_matrix_numerical.m`).
 - The `FirstVersion/` folder contains legacy code (single E binding). Do not modify; use for reference only.
