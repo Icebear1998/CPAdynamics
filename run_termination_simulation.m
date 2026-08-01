@@ -45,13 +45,41 @@ function [R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P,
 
     options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
 
-    % Warm-start with base kHon, then solve the free-E fixed point.
+    % Warm-start the Pol II solution with the base kHon.
     P.kHon = kHon_base;
-    [~, ~, X_base] = solve_ode_checked(P, 1e-6 * ones(P.N + P.N_PAS, 1), options, 'base kHon warm start');
+    X_iter = fsolve(@(xx) ode_dynamics_multipleE(xx, P), ...
+                    1e-6 * ones(P.N + P.N_PAS, 1), options);
 
-    % Find Ef such that the free E implied by conservation is the same Ef
-    % that sets avg E at the PAS and the effective kHon used by the ODE.
-    [R_sol, REH_sol, P] = solve_selfconsistent_Efree(P, kHon_base, X_base, options);
+    % Iterate until the free E used to set kHon matches the free E implied
+    % by E conservation for the resulting Pol II distribution.
+    Ef_current = max(0, P.E_total);
+    max_iterations = 100;
+    tolerance = 1e-7;
+    damping = 0.5;
+
+    for iteration = 1:max_iterations
+        avg_E_bound = P.RE_val_bind_E(Ef_current);
+        P.kHon = kHon_base * avg_E_bound(P.PAS);
+
+        X_iter = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_iter, options);
+        R_sol = max(0, X_iter(1:P.N));
+        REH_sol = max(0, X_iter(P.N+1:P.N+P.N_PAS));
+
+        E_bound = sum(R_sol(:)' .* avg_E_bound) + ...
+                  sum(REH_sol(:)' .* avg_E_bound(P.PAS:P.N));
+        Ef_implied = P.E_total - E_bound;
+
+        if abs(Ef_implied - Ef_current) <= tolerance
+            P.Ef_ss = Ef_current;
+            return;
+        end
+
+        Ef_current = Ef_current + damping * (Ef_implied - Ef_current);
+        Ef_current = min(P.E_total, max(0, Ef_current));
+    end
+
+    error('run_termination_simulation:EfreeNotConverged', ...
+          'Self-consistent free E did not converge after %d iterations.', max_iterations);
 end
 
 function [avg_E, avg_S] = interpolate_E_bound(Ef_val, Ef_grid, E_grid, S_grid)
@@ -68,64 +96,4 @@ function [avg_E, avg_S] = constant_E_bound(~, E_grid, S_grid)
     if nargout > 1
         avg_S = S_grid(1, :);
     end
-end
-
-function [R_sol, REH_sol, P] = solve_selfconsistent_Efree(P, kHon_base, X0, options)
-    if P.E_total <= 0
-        P.Ef_ss = 0;
-        avg_E_bound = P.RE_val_bind_E(P.Ef_ss);
-        P.kHon = kHon_base * avg_E_bound(P.PAS);
-        [R_sol, REH_sol] = solve_ode_checked(P, X0, options, 'self-consistent E_total <= 0');
-        return;
-    end
-
-    X_warm = X0;
-    constraint_Ef = @(Ef_cand) selfconsistent_efree_constraint(Ef_cand);
-    fzero_options = optimset('Display', 'off', 'TolX', 1e-8);
-
-    try
-        P.Ef_ss = fzero(constraint_Ef, [0, P.E_total], fzero_options);
-    catch
-        P.Ef_ss = fzero(constraint_Ef, P.E_total * 0.5, fzero_options);
-    end
-
-    % Final solve at the converged Ef. This makes the returned R/REH, kHon,
-    % avg-E-at-PAS, and E conservation mutually consistent.
-    [R_sol, REH_sol, P] = solve_ode_at_Ef(P.Ef_ss, X_warm);
-
-    function val = selfconsistent_efree_constraint(Ef_cand)
-        [R_tmp, REH_tmp, ~] = solve_ode_at_Ef(Ef_cand, X_warm);
-        X_warm = [R_tmp; REH_tmp];
-        re_all = P.RE_val_bind_E(Ef_cand);
-        E_bound = sum(R_tmp(:)' .* re_all) + sum(REH_tmp(:)' .* re_all(P.PAS:P.N));
-        val = Ef_cand - (P.E_total - E_bound);
-    end
-
-    function [R_tmp, REH_tmp, P_tmp] = solve_ode_at_Ef(Ef_cand, x0)
-        P_tmp = P;
-        avg_E_bound = P_tmp.RE_val_bind_E(Ef_cand);
-        P_tmp.Ef_ss = Ef_cand;
-        P_tmp.kHon = kHon_base * avg_E_bound(P_tmp.PAS);
-        [R_tmp, REH_tmp] = solve_ode_checked(P_tmp, x0, options, 'self-consistent Ef candidate');
-    end
-end
-
-function [R, REH, X] = solve_ode_checked(P, x0, options, context)
-    [X, ~, exitflag] = fsolve(@(xx) ode_dynamics_multipleE(xx, P), x0, options);
-    if exitflag <= 0
-        error('run_termination_simulation:FsolveFailed', ...
-              'fsolve failed during %s (exitflag %d).', context, exitflag);
-    end
-
-    tol = 1e-8;
-    min_raw = min(X(:));
-    if min_raw < -tol
-        error('run_termination_simulation:NegativeConcentration', ...
-              'Raw fsolve solution during %s has negative concentration %.3g.', ...
-              context, min_raw);
-    end
-
-    X = max(0, X);
-    R = X(1:P.N);
-    REH = X(P.N+1:P.N+P.N_PAS);
 end
