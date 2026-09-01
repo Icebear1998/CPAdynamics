@@ -9,8 +9,7 @@ function P = default_parameters()
 % Usage:
 %   P = default_parameters();          % get standard set
 %   P.kc = 0.2;                        % override one parameter
-%
-% Standard parameter set (see also Docs/claude.md):
+
 
     % --- Geometry ---
     P.L_a            = 100;        % bp per node
@@ -27,13 +26,13 @@ function P = default_parameters()
     P.Pol_total = 70000;           % Total Pol II pool
 
     % --- E factor binding ---
-    P.kEon   = 0.000001;          % E factor on-rate
-    P.kEoff  = 0.2;                % E factor off-rate
-
+    P.kEon   = 0.0000025;          % E factor on-rate
+    P.kEoff  = 0.5;                % E factor off-rate
+ 
     % --- PAS recognition (hexamer) ---
-    P.kHon   = 1;                  % Hexamer on-rate
-    P.kHoff  = 0.5;                  % Hexamer off-rate
-
+    P.kHon   = 4;                  % Hexamer on-rate
+    P.kHoff  = 0.05;                  % Hexamer off-rate, 0.1 for canonical
+ 
     % --- Cleavage ---
     P.kc     = 0.13;                % Cleavage rate
 

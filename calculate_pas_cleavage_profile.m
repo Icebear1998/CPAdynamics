@@ -52,16 +52,26 @@ end
 nodes_post_pas = 1:length(REH_sol);
 distances_bp = nodes_post_pas * P_sim.L_a;
 
-% Interpolate CDF to find distance at requested cleavage percentage
-if ~isempty(percent_cleavage)
-    cdf_threshold = percent_cleavage / 100;
-    CAD = interp1([0; exit_cdf(:)], [0; distances_bp(:)], cdf_threshold, 'linear', 'extrap');
-else
-    CAD = [];
-end
-
 % Ensure column vectors
 exit_cdf = exit_cdf(:);
 distances_bp = distances_bp(:);
+
+% Interpolate CDF to find distance at requested cleavage percentage
+if ~isempty(percent_cleavage)
+    cdf_threshold = percent_cleavage / 100;
+    if any(diff(exit_cdf) == 0)
+        first_node = find(exit_cdf >= cdf_threshold, 1, 'first');
+        if isempty(first_node)
+            CAD = NaN;
+        else
+            CAD = distances_bp(first_node);
+        end
+    else
+        CAD = interp1([0; exit_cdf(2:end)], [0; distances_bp(2:end)], ...
+                      cdf_threshold, 'linear', 'extrap');
+    end
+else
+    CAD = [];
+end
 
 end
