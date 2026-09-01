@@ -31,7 +31,7 @@ function P = default_parameters()
  
     % --- PAS recognition (hexamer) ---
     P.kHon   = 4;                  % Hexamer on-rate
-    P.kHoff  = 0.05;                  % Hexamer off-rate, 0.1 for canonical
+    P.kHoff  = 2;                  % Hexamer off-rate, 0.1 for canonical
  
     % --- Cleavage ---
     P.kc     = 0.13;                % Cleavage rate

@@ -33,9 +33,9 @@ end
 fprintf('Calculating termination profile (CDF)...\n');
 [exit_cdf, distances_bp] = calculate_pas_cleavage_profile(R_sol, REH_sol, P_sim);
 
-% Prepend zero for interpolation at distance = 0
-distances_for_interp = [0; distances_bp(:)];
-cdf_for_interp = [0; exit_cdf(:)];
+% REH(1) is already represented at distance = 0.
+distances_for_interp = distances_bp(:);
+cdf_for_interp = exit_cdf(:);
 
 % --- EVALUATE AT DESIRED SEPARATIONS ---
 separations_bp = 0:10:1000;

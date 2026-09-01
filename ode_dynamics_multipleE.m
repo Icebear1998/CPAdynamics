@@ -44,7 +44,7 @@ end
 n = PAS;
 j = n - PAS + 1;
 dxdt(n) = k_e*R(n-1) - k_e*R(n) - kHon_t*R(n) + kHoff_t*REH(j);
-dxdt(N+j) = -k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j);
+dxdt(N+j) = -k_e2*REH(j) + kHon_t*R(n) - kHoff_t*REH(j) - kc_t*REH(j);
 
 % Nodes PAS+1 to N (Post-PAS elongation and termination)
 for n = (PAS+1):N

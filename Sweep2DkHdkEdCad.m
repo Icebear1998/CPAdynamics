@@ -22,7 +22,7 @@ nPoints = 4;              % Number of grid points per axis
 % --- Literature ranges for individual rates (UPDATE THESE) ---
 kHon_range  = [0.4,  15];       % PAS recognition on-rate   [1/s]
 kHoff_range = [0.01,  5];        % PAS recognition off-rate  [1/s]
-kEon_range  = [5e-7, 1e-6];     % E-factor on-rate          [1/(s·molecule)]
+kEon_range  = [5e-7, 2.5e-5];   % E-factor on-rate; includes baseline [1/(s·molecule)]
 kEoff_range = [0.5, 5];        % E-factor off-rate         [1/s]
 
 % --- Compute kHd and kEd ranges from individual rate ranges ---

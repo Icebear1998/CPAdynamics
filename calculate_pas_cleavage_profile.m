@@ -32,10 +32,8 @@ if any(isnan(R_sol)) || any(isnan(REH_sol))
 end
 
 % Calculate fluxes
-% The ODE removes cleavage strictly downstream of the PAS node. Keep the flux
-% bookkeeping consistent with ode_dynamics_multipleE.m by excluding REH(1).
+% Cleavage-competent REH forms at the PAS node, so every REH state contributes.
 flux_cleavage_per_node = P_sim.kc * REH_sol;
-flux_cleavage_per_node(1) = 0;
 flux_R_exit = P_sim.k_e * R_sol(end);
 flux_REH_exit = P_sim.k_e2 * REH_sol(end);
 total_outflux = sum(flux_cleavage_per_node) + flux_R_exit + flux_REH_exit;
@@ -48,8 +46,8 @@ else
     exit_cdf = zeros(size(REH_sol));
 end
 
-% Calculate distances
-nodes_post_pas = 1:length(REH_sol);
+% REH(1) is the PAS node itself (0 bp downstream).
+nodes_post_pas = 0:(length(REH_sol)-1);
 distances_bp = nodes_post_pas * P_sim.L_a;
 
 % Ensure column vectors
@@ -67,7 +65,7 @@ if ~isempty(percent_cleavage)
             CAD = distances_bp(first_node);
         end
     else
-        CAD = interp1([0; exit_cdf(2:end)], [0; distances_bp(2:end)], ...
+        CAD = interp1([0; exit_cdf], [0; distances_bp], ...
                       cdf_threshold, 'linear', 'extrap');
     end
 else
