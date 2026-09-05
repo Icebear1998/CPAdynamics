@@ -46,8 +46,10 @@ else
     exit_cdf = zeros(size(REH_sol));
 end
 
-% REH(1) is the PAS node itself (0 bp downstream).
-nodes_post_pas = 0:(length(REH_sol)-1);
+% REH(1) collects cleavage over the first post-PAS spatial bin (0, L_a].
+% Report that cumulative flux at the bin's right edge, L_a, while callers
+% that evaluate the CDF continuously prepend the physical origin (0 bp, 0).
+nodes_post_pas = 1:length(REH_sol);
 distances_bp = nodes_post_pas * P_sim.L_a;
 
 % Ensure column vectors

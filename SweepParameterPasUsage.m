@@ -50,7 +50,8 @@ parfor p_idx = 1:length(sweep_param_values)
     [exit_cdf, distances_bp] = calculate_pas_cleavage_profile(R_sol, REH_sol, P_sim);
     
     % Interpolate to get proximal usage at specific inter-PAS distances
-    proximal_usage_results(:, p_idx) = interp1(distances_bp, exit_cdf, inter_pas_distances_bp, 'linear', 'extrap');
+    proximal_usage_results(:, p_idx) = interp1([0; distances_bp(:)], ...
+        [0; exit_cdf(:)], inter_pas_distances_bp, 'linear', 'extrap');
 end
 disp('All parallel simulations complete.');
 
