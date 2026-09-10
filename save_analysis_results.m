@@ -369,6 +369,12 @@ end
 
 function write_sweep_2d_khd_ked_data(fid, data, P)
     fprintf(fid, '%% 2D Sweep: kHd vs kEd -> CAD\n');
+    if isfield(data, 'model_variant')
+        fprintf(fid, '%% Model: %s\n', data.model_variant);
+    end
+    if isfield(P, 'kEoff_engaged')
+        fprintf(fid, '%% Fixed kEoff_engaged: %g s^-1\n', P.kEoff_engaged);
+    end
     fprintf(fid, '%% EBindingNumber: %d\n', data.EBindingNumber);
     fprintf(fid, '%% Percent cleavage threshold: %g\n', data.percent_cleavage);
     fprintf(fid, '%% kHon_ref: %g,  kEon_ref: %g\n', data.kHon_ref, data.kEon_ref);
@@ -403,5 +409,20 @@ function write_sweep_2d_khd_ked_data(fid, data, P)
     for i = 1:size(data.CAD_matrix, 1)
         fprintf(fid, '%.6f ', data.CAD_matrix(i, :));
         fprintf(fid, '\n');
+    end
+    if isfield(data, 'max_exit_cdf_matrix')
+        fprintf(fid, '%% Base within-window cleavage fraction: %.8g\n', data.max_exit_cdf_base);
+        fprintf(fid, '%% Within-window cleavage fractions (rows = kEd, columns = kHd):\n');
+        for i = 1:size(data.max_exit_cdf_matrix, 1)
+            fprintf(fid, '%.8g ', data.max_exit_cdf_matrix(i, :));
+            fprintf(fid, '\n');
+        end
+    end
+    if isfield(data, 'rhs_residual_matrix')
+        fprintf(fid, '%% Maximum absolute ODE residual (rows = kEd, columns = kHd):\n');
+        for i = 1:size(data.rhs_residual_matrix, 1)
+            fprintf(fid, '%.8g ', data.rhs_residual_matrix(i, :));
+            fprintf(fid, '\n');
+        end
     end
 end
