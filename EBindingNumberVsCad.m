@@ -1,105 +1,136 @@
-% Full finite-rate R/RHE model: maximum E capacity versus CAD50.
-% Includes engaged-E detachment followed by rapid EH disassembly.
+% Compare equilibrium and full finite-rate R/RHE models across E capacity.
 saveData = strcmpi(getenv('CPAD_FORCE_SAVE'), 'true');
-fprintf('=== Full R/RHE E Binding Number Sweep ===\n\n');
+fprintf('=== E Binding Number: Equilibrium and Full-Model Comparison ===\n\n');
 
-% --- BASE PARAMETERS ---
+% --- PARAMETERS AND SWEEP CONFIGURATION ---
 P = default_parameters();
-P.kEoff_engaged = 0.05; % s^-1; trial value, 0 recovers the protected-E limit
-fprintf('Engaged-E off-rate: %.3g s^-1; ordinary E off-rate: %.3g s^-1\n', ...
-    P.kEoff_engaged, P.kEoff);
+EBindingNumber_values = 1:6; % Use 1:7 or [1,5]; both maximum p and e change.
+engaged_E_off_rates = [0, 0.05, 0.5]; % s^-1; 0 is the protected-E limit
+cutoff_threshold = 0.5;
+percent_cleavage = 100*cutoff_threshold;
 
-% --- SWEEP CONFIGURATION ---
-EBindingNumber_values = [1, 2, 3, 4, 5, 6];
-% Use 1:7 to include M=7; both maximum p and maximum e change with M.
-cutoff_threshold = 0.5;  % 50% termination threshold
+% Column 1 is the equilibrium reference; subsequent columns are full models.
+num_capacities = numel(EBindingNumber_values);
+num_series = 1+numel(engaged_E_off_rates);
+series_labels = cell(1, num_series);
+series_labels{1} = 'Original equilibrium reference';
+for j = 1:numel(engaged_E_off_rates)
+    series_labels{j+1} = sprintf('Full: engaged E off = %.3g s^{-1}', engaged_E_off_rates(j));
+    if engaged_E_off_rates(j) == 0
+        series_labels{j+1} = [series_labels{j+1} ' (previous model)'];
+    end
+end
+cutoff_positions = NaN(num_capacities, num_series);
+max_exit_cdf = NaN(num_capacities, num_series);
+Ef_ss_values = NaN(num_capacities, num_series);
+Pol_free_values = NaN(num_capacities, num_series);
+rhs_residuals = NaN(num_capacities, num_series);
+error_messages = repmat({''}, num_capacities, num_series);
 
-% Pre-allocate results
-cutoff_positions = NaN(size(EBindingNumber_values));
-max_exit_cdf = NaN(size(EBindingNumber_values));
-Ef_ss_values = NaN(size(EBindingNumber_values));
-Pol_free_values = NaN(size(EBindingNumber_values));
-rhs_residuals = NaN(size(EBindingNumber_values));
-
-% --- SWEEP LOOP ---
+fprintf('Ordinary E off-rate: %.3g s^-1\n', P.kEoff);
+fprintf('Full-model engaged-E off-rates: %s s^-1\n', mat2str(engaged_E_off_rates));
 fprintf('Sweeping E Binding Number: %s\n', mat2str(EBindingNumber_values));
 
-for i = 1:length(EBindingNumber_values)
+% --- COMPUTE EVERY CURVE WITH THE CURRENT PARAMETERS ---
+for i = 1:num_capacities
     EBindingNumber = EBindingNumber_values(i);
-    fprintf('Running EBindingNumber = %d... ', EBindingNumber);
-    
-    try
-        % Solve all finite-rate microstates with self-consistent free pools.
-        [R_sol, RHE_sol, P_sim, full_details] = run_full_termination_simulation(P, EBindingNumber);
-        
-        % Find distance where the requested fraction of polymerases has cleaved
-        [~, ~, CAD, cleavage_diagnostics] = calculate_full_pas_cleavage_profile( ...
-            R_sol, RHE_sol, P_sim, 'PercentCleavage', cutoff_threshold * 100);
-        cutoff_positions(i) = CAD;
-        max_exit_cdf(i) = cleavage_diagnostics.max_exit_cdf;
-        Ef_ss_values(i) = P_sim.Ef_ss;
-        Pol_free_values(i) = P_sim.Pol_free_ss;
-        rhs_residuals(i) = full_details.rhs_max_abs;
-        
-        fprintf('CAD50 = %.0f bp; within-window cleavage = %.2f%%\n', ...
-            cutoff_positions(i), 100*max_exit_cdf(i));
-        
-    catch ME
-        fprintf('ERROR: %s\n', ME.message);
-        cutoff_positions(i) = NaN;
+    for j = 1:num_series
+        fprintf('M = %d, %s... ', EBindingNumber, series_labels{j});
+        try
+            if j == 1
+                [R_sol, RHE_sol, P_sim] = run_termination_simulation(P, EBindingNumber);
+                Pol_free = P.Pol_total-sum(R_sol)-sum(RHE_sol);
+                rhs_max_abs = norm(ode_dynamics_multipleE([R_sol; RHE_sol], P_sim), inf);
+            else
+                P_case = P; % Each run starts with the unchanged base kHon.
+                P_case.kEoff_engaged = engaged_E_off_rates(j-1);
+                [R_sol, RHE_sol, P_sim, full_details] = ...
+                    run_full_termination_simulation(P_case, EBindingNumber);
+                Pol_free = P_sim.Pol_free_ss;
+                rhs_max_abs = full_details.rhs_max_abs;
+            end
+            % Same flux observable for all curves: include the first cleavage
+            % bin and return NaN if the requested threshold is not reached.
+            [~, ~, CAD, cleavage_diagnostics] = calculate_full_pas_cleavage_profile( ...
+                R_sol, RHE_sol, P_sim, 'PercentCleavage', percent_cleavage);
+            cutoff_positions(i, j) = CAD;
+            max_exit_cdf(i, j) = cleavage_diagnostics.max_exit_cdf;
+            Ef_ss_values(i, j) = P_sim.Ef_ss;
+            Pol_free_values(i, j) = Pol_free;
+            rhs_residuals(i, j) = rhs_max_abs;
+            fprintf('CAD%.0f = %.0f bp; within-window cleavage = %.2f%%\n', ...
+                percent_cleavage, CAD, 100*max_exit_cdf(i, j));
+        catch ME
+            error_messages{i, j} = ME.message;
+            fprintf('ERROR: %s\n', ME.message);
+        end
     end
 end
 
-% --- PLOT RESULTS ---
-figure('Position', [100, 100, 800, 600]);
-plot(EBindingNumber_values, cutoff_positions, 'o', 'LineWidth', 2.5, 'MarkerSize', 10, ...
-     'Color', [0, 0.4470, 0.7410], 'MarkerFaceColor', [0, 0.4470, 0.7410]);
-
-% Add data labels
-for i = 1:length(EBindingNumber_values)
-    if ~isnan(cutoff_positions(i))
-        text(EBindingNumber_values(i), cutoff_positions(i) + 50, ...
-             sprintf('%.0f', cutoff_positions(i)), ...
-             'FontSize', 11, 'HorizontalAlignment', 'center');
-    end
+% --- PLOT COMPARISON ---
+fig = figure('Color', 'w', 'Position', [100, 100, 1200, 780]);
+ax = axes('Parent', fig);
+hold(ax, 'on');
+reference_color = [107, 114, 128]/255;
+full_colors = [21, 111, 138; 207, 110, 23; 143, 67, 139]/255;
+if numel(engaged_E_off_rates) > size(full_colors, 1)
+    full_colors = [full_colors; lines(numel(engaged_E_off_rates)-size(full_colors, 1))];
 end
-
-xlabel('Maximum E binding and phosphorylation capacity (M)', 'FontSize', 12, 'FontWeight', 'bold');
-ylabel('CAD_{50} (bp)', 'FontSize', 12, 'FontWeight', 'bold');
-title(sprintf('Full R/RHE model: engaged E off-rate = %.3g s^{-1}', P.kEoff_engaged));
-%xlim([0.5 7.5]);
-% Set x-axis ticks to only integer values
-ax = gca;
-ax.XTick = unique(round(ax.XTick));
-% Format x-axis tick labels to display as integers
-xtickformat('%d');
-set(gca, 'FontSize', 11);
-grid on;
-box on;
-
-fprintf('\n=== Analysis Complete ===\n');
-fprintf('Results:\n');
-for i = 1:length(EBindingNumber_values)
-    fprintf('  EBindingNumber = %d: %.0f bp\n', EBindingNumber_values(i), cutoff_positions(i));
+plot(ax, EBindingNumber_values, cutoff_positions(:, 1), '--o', ...
+    'Color', reference_color, 'MarkerFaceColor', reference_color, ...
+    'LineWidth', 2.5, 'MarkerSize', 8, 'DisplayName', series_labels{1});
+for j = 2:num_series
+    plot(ax, EBindingNumber_values, cutoff_positions(:, j), '-o', ...
+        'Color', full_colors(j-1, :), 'MarkerFaceColor', full_colors(j-1, :), ...
+        'LineWidth', 2.5, 'MarkerSize', 8, 'DisplayName', series_labels{j});
 end
+hold(ax, 'off');
+xlabel(ax, 'Maximum E binding and phosphorylation capacity (M)', 'FontSize', 15);
+ylabel(ax, sprintf('CAD_{%.0f} (bp)', percent_cleavage), 'FontSize', 15);
+title(ax, 'Rapid disassembly after engaged E detachment', 'FontSize', 20, 'FontWeight', 'normal');
+legend(ax, 'Location', 'northeast', 'Box', 'off', 'FontSize', 12, 'Interpreter', 'tex');
+set(ax, 'FontSize', 13, 'XTick', EBindingNumber_values, 'Box', 'off', ...
+    'TickDir', 'out', 'LineWidth', 1, 'GridAlpha', 0.12);
+xlim(ax, [min(EBindingNumber_values)-0.25, max(EBindingNumber_values)+0.25]);
+finite_cad = cutoff_positions(isfinite(cutoff_positions));
+if isempty(finite_cad)
+    ylim(ax, [0, 1]);
+else
+    ylim(ax, [0, max(1, 1.08*max(finite_cad))]);
+end
+grid(ax, 'on');
+
+% One row per (model, M); the reference has no engaged-E off-rate parameter.
+model_names = repmat({'full'}, num_capacities, num_series);
+model_names(:, 1) = repmat({'equilibrium'}, num_capacities, 1);
+capacity_grid = repmat(EBindingNumber_values(:), 1, num_series);
+rate_grid = repmat([NaN, engaged_E_off_rates], num_capacities, 1);
+summary_table = table(model_names(:), capacity_grid(:), rate_grid(:), ...
+    cutoff_positions(:), max_exit_cdf(:), Ef_ss_values(:), Pol_free_values(:), ...
+    rhs_residuals(:), error_messages(:), 'VariableNames', ...
+    {'Model', 'M', 'kEoff_engaged', 'CAD_bp', 'max_exit_cdf', 'E_free', ...
+     'Pol_free', 'rhs_max_abs', 'Error'});
+fprintf('\n=== CAD%.0f Comparison (bp) ===\n', percent_cleavage);
+disp(summary_table(:, {'Model', 'M', 'kEoff_engaged', 'CAD_bp'}));
 
 if saveData
+    data = struct();
     data.EBindingNumber_values = EBindingNumber_values;
+    data.engaged_E_off_rates = engaged_E_off_rates;
+    data.percent_cleavage = percent_cleavage;
+    data.series_labels = series_labels;
     data.cutoff_positions = cutoff_positions;
     data.max_exit_cdf = max_exit_cdf;
     data.Ef_ss_values = Ef_ss_values;
     data.Pol_free_values = Pol_free_values;
     data.rhs_residuals = rhs_residuals;
-    data.model_variant = 'full_kinetics_rapid_EH_disassembly';
+    data.error_messages = error_messages;
+    data.model_variant = 'equilibrium_and_full_rapid_EH_disassembly';
     output_dir = cpad_analysis_output_dir('Full_EBindingNumber_vs_CAD', ...
         fullfile(fileparts(mfilename('fullpath')), 'SecondVersionResults'));
-    stem = sprintf('Full_EBinding_vs_CAD_engagedOff%.3g_%s', ...
-        P.kEoff_engaged, datestr(now, 'yyyymmdd_HHMMSSFFF'));
-    save(fullfile(output_dir, [stem '.mat']), 'data', 'P');
-    summary_table = table(EBindingNumber_values(:), cutoff_positions(:), max_exit_cdf(:), ...
-        Ef_ss_values(:), Pol_free_values(:), rhs_residuals(:), ...
-        'VariableNames', {'M', 'CAD50_bp', 'max_exit_cdf', 'E_free', 'Pol_free', 'rhs_max_abs'});
+    stem = sprintf('Engaged_E_off_comparison_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'));
+    save(fullfile(output_dir, [stem '.mat']), 'data', 'P', 'summary_table');
     writetable(summary_table, fullfile(output_dir, [stem '.csv']));
-    saveas(gcf, fullfile(output_dir, [stem '.png']));
-    fprintf('Full-model results saved to: %s\n', output_dir);
+    exportgraphics(fig, fullfile(output_dir, [stem '.png']), 'Resolution', 200);
+    fprintf('Comparison results saved to: %s\n', output_dir);
 end
