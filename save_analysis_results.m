@@ -373,6 +373,21 @@ function write_sweep_2d_khd_ked_data(fid, data, P)
     fprintf(fid, '%% Percent cleavage threshold: %g\n', data.percent_cleavage);
     fprintf(fid, '%% kHon_ref: %g,  kEon_ref: %g\n', data.kHon_ref, data.kEon_ref);
     fprintf(fid, '%% CAD at base parameters: %.2f bp\n', data.CAD_base);
+    fprintf(fid, '%% Ratio envelope swept at fixed reference on-rates.\n');
+    fprintf(fid, '%% Reconstructed off-rates can extend beyond individual source intervals.\n');
+    range_fields = {'kHon', 'kHoff', 'kEon', 'kEoff'};
+    for k = 1:numel(range_fields)
+        name = range_fields{k};
+        data_field = [name '_range'];
+        if isfield(data, data_field)
+            bounds = data.(data_field);
+            fprintf(fid, '%% Source %s range: [%g, %g]\n', name, bounds(1), bounds(2));
+        end
+    end
+    fprintf(fid, '%% Realized kHoff range: [%g, %g]\n', ...
+        min(data.kHd_values)*data.kHon_ref, max(data.kHd_values)*data.kHon_ref);
+    fprintf(fid, '%% Realized kEoff range: [%g, %g]\n', ...
+        min(data.kEd_values)*data.kEon_ref, max(data.kEd_values)*data.kEon_ref);
     fprintf(fid, '%% \n');
     write_base_parameters(fid, P);
     fprintf(fid, '%% \n');
