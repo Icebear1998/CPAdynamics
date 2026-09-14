@@ -77,8 +77,9 @@ else
                 min(data.EBindingNumber_values), max(data.EBindingNumber_values));
         case 'CPA_assembly'
             base_filename = sprintf('CPA_assembly_EBinding%d', data.EBindingNumber);
-        case 'sweep_2D_kHd_kEd_CAD'
-            base_filename = sprintf('sweep2D_kHd_kEd_CAD_EBinding%d', data.EBindingNumber);
+        case {'sweep_2D_kHd_kEd_CAD', 'sweep_2D_kHd_kc_CAD', 'sweep_2D_kEd_kc_CAD'}
+            base_filename = sprintf('sweep2D_%s_%s_CAD_EBinding%d', ...
+                data.x_name, data.y_name, data.EBindingNumber);
         case 'ProximalPASUsage_ParameterSweep'
             base_filename = sprintf('ProxPASUsage_%s', data.sweep_param);
         otherwise
@@ -133,8 +134,8 @@ switch analysis_type
         write_ebinding_vs_cad_data(fid, data, parameters);
     case 'CPA_assembly'
         write_cpa_assembly_data(fid, data, parameters);
-    case 'sweep_2D_kHd_kEd_CAD'
-        write_sweep_2d_khd_ked_data(fid, data, parameters);
+    case {'sweep_2D_kHd_kEd_CAD', 'sweep_2D_kHd_kc_CAD', 'sweep_2D_kEd_kc_CAD'}
+        write_cad_parameter_sweep_data(fid, data, parameters);
     case 'ProximalPASUsage_ParameterSweep'
         write_parameter_sweep_data(fid, data, parameters);
     otherwise
@@ -367,62 +368,66 @@ function write_cpa_assembly_data(fid, data, P)
     fprintf(fid, '\n');
 end
 
-function write_sweep_2d_khd_ked_data(fid, data, P)
-    fprintf(fid, '%% 2D Sweep: kHd vs kEd -> CAD\n');
-    if isfield(data, 'model_variant')
-        fprintf(fid, '%% Model: %s\n', data.model_variant);
-    end
-    if isfield(P, 'kEoff_engaged')
-        fprintf(fid, '%% Fixed kEoff_engaged: %g s^-1\n', P.kEoff_engaged);
-    end
+function write_cad_parameter_sweep_data(fid, data, P)
+    fprintf(fid, '%% 2D Sweep: %s vs %s -> CAD\n', data.x_name, data.y_name);
+    fprintf(fid, '%% Model: %s\n', data.model_variant);
+    fprintf(fid, '%% Fixed kEoff_engaged: %g s^-1\n', data.kEoff_engaged);
     fprintf(fid, '%% EBindingNumber: %d\n', data.EBindingNumber);
     fprintf(fid, '%% Percent cleavage threshold: %g\n', data.percent_cleavage);
-    fprintf(fid, '%% kHon_ref: %g,  kEon_ref: %g\n', data.kHon_ref, data.kEon_ref);
-    fprintf(fid, '%% CAD at base parameters: %.2f bp\n', data.CAD_base);
-    fprintf(fid, '%% Ratio envelope swept at fixed reference on-rates.\n');
-    fprintf(fid, '%% Reconstructed off-rates can extend beyond individual source intervals.\n');
-    range_fields = {'kHon', 'kHoff', 'kEon', 'kEoff'};
-    for k = 1:numel(range_fields)
-        name = range_fields{k};
-        data_field = [name '_range'];
-        if isfield(data, data_field)
-            bounds = data.(data_field);
+    fprintf(fid, '%% kHon_ref: %g, kEon_ref: %g\n', data.kHon_ref, data.kEon_ref);
+    fprintf(fid, '%% Base coordinates: %s = %g, %s = %g\n', ...
+        data.x_name, data.x_base, data.y_name, data.y_base);
+    fprintf(fid, '%% CAD at base parameters: %.8g bp\n', data.CAD_base);
+    fprintf(fid, '%% Base within-window cleavage fraction: %.8g\n', data.max_exit_cdf_base);
+    fprintf(fid, '%% Base maximum absolute ODE residual: %.8g\n', data.rhs_residual_base);
+    fprintf(fid, '%% Base error: %s\n', regexprep(data.base_error, '[\r\n]+', ' '));
+    fprintf(fid, '%% Sweep elapsed time: %.3f s\n', data.elapsed_seconds);
+    fprintf(fid, '%% Ratio envelopes use fixed on-rates; reconstructed off-rates\n');
+    fprintf(fid, '%% can extend beyond individual source intervals. Unswept rates stay at baseline.\n');
+    fprintf(fid, '%% NaN CAD with finite cleavage fraction means threshold not reached.\n');
+    fprintf(fid, '%% NaN diagnostics with an error means simulation failed.\n');
+    range_names = {'kHon', 'kHoff', 'kEon', 'kEoff', 'kHd', 'kEd', 'kc'};
+    for k = 1:numel(range_names)
+        name = range_names{k};
+        if isfield(data.source_ranges, name)
+            bounds = data.source_ranges.(name);
             fprintf(fid, '%% Source %s range: [%g, %g]\n', name, bounds(1), bounds(2));
         end
     end
-    fprintf(fid, '%% Realized kHoff range: [%g, %g]\n', ...
-        min(data.kHd_values)*data.kHon_ref, max(data.kHd_values)*data.kHon_ref);
-    fprintf(fid, '%% Realized kEoff range: [%g, %g]\n', ...
-        min(data.kEd_values)*data.kEon_ref, max(data.kEd_values)*data.kEon_ref);
-    fprintf(fid, '%% \n');
+    axis_names = {data.x_name, data.y_name};
+    axis_values = {data.x_values, data.y_values};
+    for k = 1:2
+        name = axis_names{k};
+        values = axis_values{k};
+        switch name
+            case 'kHd'
+                fprintf(fid, '%% Realized kHoff range: [%g, %g] s^-1\n', ...
+                    min(values)*data.kHon_ref, max(values)*data.kHon_ref);
+            case 'kEd'
+                fprintf(fid, '%% Realized kEoff range: [%g, %g] s^-1\n', ...
+                    min(values)*data.kEon_ref, max(values)*data.kEon_ref);
+        end
+    end
     write_base_parameters(fid, P);
-    fprintf(fid, '%% \n');
-    fprintf(fid, '%% kHd values (%d values):\n', length(data.kHd_values));
-    fprintf(fid, '%g ', data.kHd_values);
-    fprintf(fid, '\n');
-    fprintf(fid, '%% \n');
-    fprintf(fid, '%% kEd values (%d values):\n', length(data.kEd_values));
-    fprintf(fid, '%g ', data.kEd_values);
-    fprintf(fid, '\n');
-    fprintf(fid, '%% \n');
-    fprintf(fid, '%% CAD matrix (rows = kEd, columns = kHd):\n');
-    for i = 1:size(data.CAD_matrix, 1)
-        fprintf(fid, '%.6f ', data.CAD_matrix(i, :));
+    for k = 1:2
+        fprintf(fid, '%% %s values (%d values):\n', axis_names{k}, numel(axis_values{k}));
+        fprintf(fid, '%.12g ', axis_values{k});
         fprintf(fid, '\n');
     end
-    if isfield(data, 'max_exit_cdf_matrix')
-        fprintf(fid, '%% Base within-window cleavage fraction: %.8g\n', data.max_exit_cdf_base);
-        fprintf(fid, '%% Within-window cleavage fractions (rows = kEd, columns = kHd):\n');
-        for i = 1:size(data.max_exit_cdf_matrix, 1)
-            fprintf(fid, '%.8g ', data.max_exit_cdf_matrix(i, :));
+    matrix_fields = {'CAD_matrix', 'max_exit_cdf_matrix', 'rhs_residual_matrix'};
+    for k = 1:numel(matrix_fields)
+        name = matrix_fields{k};
+        fprintf(fid, '%% %s (rows = %s, columns = %s):\n', name, data.y_name, data.x_name);
+        values = data.(name);
+        for row = 1:size(values, 1)
+            fprintf(fid, '%.12g ', values(row, :));
             fprintf(fid, '\n');
         end
     end
-    if isfield(data, 'rhs_residual_matrix')
-        fprintf(fid, '%% Maximum absolute ODE residual (rows = kEd, columns = kHd):\n');
-        for i = 1:size(data.rhs_residual_matrix, 1)
-            fprintf(fid, '%.8g ', data.rhs_residual_matrix(i, :));
-            fprintf(fid, '\n');
-        end
+    fprintf(fid, '%% Failed cells (1-based row, column, error):\n');
+    [rows, cols] = find(~cellfun(@isempty, data.error_matrix));
+    for k = 1:numel(rows)
+        message = regexprep(data.error_matrix{rows(k), cols(k)}, '[\r\n]+', ' ');
+        fprintf(fid, '%% %d %d %s\n', rows(k), cols(k), message);
     end
 end

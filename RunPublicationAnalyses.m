@@ -62,7 +62,7 @@ main_scripts = { ...
 };
 
 supplemental_scripts = { ...
-    'Sweep2DkHdkEdCad.m', ...
+    'Sweep2DCad.m', ...
     'ParameterSweep1D.m' ...
 };
 
@@ -128,7 +128,7 @@ fprintf(fid, '6. SimulateCpaAssembly.m\n');
 fprintf(fid, '7. SweepParameterPasUsage.m\n\n');
 
 fprintf(fid, 'Supplemental results scripts, in order:\n');
-fprintf(fid, '1. Sweep2DkHdkEdCad.m\n');
+fprintf(fid, '1. Sweep2DCad.m\n');
 fprintf(fid, '2. ParameterSweep1D.m\n\n');
 
 fprintf(fid, 'Windows command:\n');

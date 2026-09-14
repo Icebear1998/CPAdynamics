@@ -60,7 +60,7 @@ States are indexed in a 2D (P-level, E-level) block structure. The rate matrix i
 | `ParameterSweep2D.m`       | Sweep two parameters simultaneously                                 |
 | `SweepParameterPasUsage.m` | Proximal PAS usage vs inter-PAS distance (parallel, `parfor`)       |
 | `EBindingNumberVsCad.m`    | TCD vs EBindingNumber sweep                                         |
-| `Sweep2DkHdkEdCad.m`       | 2D sweep of kHoff/kHon × kEoff/kEon ratios, plots CAD               |
+| `Sweep2DCad.m`       | Pairwise CAD maps: kHd-kEd, kHd-kc and kEd-kc               |
 | `PlotEBindingProfile.m`    | Avg E binding + Ser2P profiles for multiple EBindingNumbers         |
 | `SimulateCpaAssembly.m`    | CPA assembly CDF vs distance (analogous to Chao et al. 1999 Fig. 8) |
 | `SanityCheckMultipleE.m`   | Physical edge-case assertions; E and Pol II conservation checks     |
