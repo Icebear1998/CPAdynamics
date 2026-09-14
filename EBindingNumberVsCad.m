@@ -1,6 +1,6 @@
-% Compare equilibrium and full finite-rate R/RHE models across E capacity.
+% Compare engaged-E off-rates in the full finite-rate R/RHE model across E capacity.
 saveData = strcmpi(getenv('CPAD_FORCE_SAVE'), 'true');
-fprintf('=== E Binding Number: Equilibrium and Full-Model Comparison ===\n\n');
+fprintf('=== E Binding Number: Full Finite-Rate Model ===\n\n');
 
 % --- PARAMETERS AND SWEEP CONFIGURATION ---
 P = default_parameters();
@@ -9,15 +9,14 @@ engaged_E_off_rates = [0, 0.05, 0.5]; % s^-1; 0 is the protected-E limit
 cutoff_threshold = 0.5;
 percent_cleavage = 100*cutoff_threshold;
 
-% Column 1 is the equilibrium reference; subsequent columns are full models.
+% Each column corresponds to one full-model engaged-E off-rate.
 num_capacities = numel(EBindingNumber_values);
-num_series = 1+numel(engaged_E_off_rates);
+num_series = numel(engaged_E_off_rates);
 series_labels = cell(1, num_series);
-series_labels{1} = 'Original equilibrium reference';
-for j = 1:numel(engaged_E_off_rates)
-    series_labels{j+1} = sprintf('Full: engaged E off = %.3g s^{-1}', engaged_E_off_rates(j));
+for j = 1:num_series
+    series_labels{j} = sprintf('Full: engaged E off = %.3g s^{-1}', engaged_E_off_rates(j));
     if engaged_E_off_rates(j) == 0
-        series_labels{j+1} = [series_labels{j+1} ' (previous model)'];
+        series_labels{j} = [series_labels{j} ' (protected-E limit)'];
     end
 end
 cutoff_positions = NaN(num_capacities, num_series);
@@ -37,18 +36,12 @@ for i = 1:num_capacities
     for j = 1:num_series
         fprintf('M = %d, %s... ', EBindingNumber, series_labels{j});
         try
-            if j == 1
-                [R_sol, RHE_sol, P_sim] = run_termination_simulation(P, EBindingNumber);
-                Pol_free = P.Pol_total-sum(R_sol)-sum(RHE_sol);
-                rhs_max_abs = norm(ode_dynamics_multipleE([R_sol; RHE_sol], P_sim), inf);
-            else
-                P_case = P; % Each run starts with the unchanged base kHon.
-                P_case.kEoff_engaged = engaged_E_off_rates(j-1);
-                [R_sol, RHE_sol, P_sim, full_details] = ...
-                    run_full_termination_simulation(P_case, EBindingNumber);
-                Pol_free = P_sim.Pol_free_ss;
-                rhs_max_abs = full_details.rhs_max_abs;
-            end
+            P_case = P; % Each run starts with the unchanged base kHon.
+            P_case.kEoff_engaged = engaged_E_off_rates(j);
+            [R_sol, RHE_sol, P_sim, full_details] = ...
+                run_full_termination_simulation(P_case, EBindingNumber);
+            Pol_free = P_sim.Pol_free_ss;
+            rhs_max_abs = full_details.rhs_max_abs;
             % Same flux observable for all curves: include the first cleavage
             % bin and return NaN if the requested threshold is not reached.
             [~, ~, CAD, cleavage_diagnostics] = calculate_full_pas_cleavage_profile( ...
@@ -71,17 +64,13 @@ end
 fig = figure('Color', 'w', 'Position', [100, 100, 1200, 780]);
 ax = axes('Parent', fig);
 hold(ax, 'on');
-reference_color = [107, 114, 128]/255;
 full_colors = [21, 111, 138; 207, 110, 23; 143, 67, 139]/255;
 if numel(engaged_E_off_rates) > size(full_colors, 1)
     full_colors = [full_colors; lines(numel(engaged_E_off_rates)-size(full_colors, 1))];
 end
-plot(ax, EBindingNumber_values, cutoff_positions(:, 1), '--o', ...
-    'Color', reference_color, 'MarkerFaceColor', reference_color, ...
-    'LineWidth', 2.5, 'MarkerSize', 8, 'DisplayName', series_labels{1});
-for j = 2:num_series
+for j = 1:num_series
     plot(ax, EBindingNumber_values, cutoff_positions(:, j), '-o', ...
-        'Color', full_colors(j-1, :), 'MarkerFaceColor', full_colors(j-1, :), ...
+        'Color', full_colors(j, :), 'MarkerFaceColor', full_colors(j, :), ...
         'LineWidth', 2.5, 'MarkerSize', 8, 'DisplayName', series_labels{j});
 end
 hold(ax, 'off');
@@ -100,11 +89,10 @@ else
 end
 grid(ax, 'on');
 
-% One row per (model, M); the reference has no engaged-E off-rate parameter.
+% One row per (engaged-E off-rate, M), all using the full finite-rate model.
 model_names = repmat({'full'}, num_capacities, num_series);
-model_names(:, 1) = repmat({'equilibrium'}, num_capacities, 1);
 capacity_grid = repmat(EBindingNumber_values(:), 1, num_series);
-rate_grid = repmat([NaN, engaged_E_off_rates], num_capacities, 1);
+rate_grid = repmat(engaged_E_off_rates, num_capacities, 1);
 summary_table = table(model_names(:), capacity_grid(:), rate_grid(:), ...
     cutoff_positions(:), max_exit_cdf(:), Ef_ss_values(:), Pol_free_values(:), ...
     rhs_residuals(:), error_messages(:), 'VariableNames', ...
@@ -125,7 +113,7 @@ if saveData
     data.Pol_free_values = Pol_free_values;
     data.rhs_residuals = rhs_residuals;
     data.error_messages = error_messages;
-    data.model_variant = 'equilibrium_and_full_rapid_EH_disassembly';
+    data.model_variant = 'full_kinetics_rapid_EH_disassembly';
     output_dir = cpad_analysis_output_dir('Full_EBindingNumber_vs_CAD', ...
         fullfile(fileparts(mfilename('fullpath')), 'SecondVersionResults'));
     stem = sprintf('Engaged_E_off_comparison_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'));
