@@ -1,5 +1,5 @@
 %% Sweep2DCad.m
-% Full finite-rate CAD maps: kHd-kEd, kHd-kc and kEd-kc.
+% Full finite-rate CAD maps (x-y): kHd-kEd, kc-kHd and kc-kEd.
 % kHd = kHoff/kHon; kEd = kEoff/kEon. On-rates stay at their
 % reference values; each unswept parameter stays at its baseline.
 % Ranges come from default_parameters(). Ratio envelopes can produce
@@ -33,7 +33,7 @@ fprintf('All CAD sweeps completed.\n');
 function sweeps = run_cad_parameter_sweeps(P, EBindingNumber, nPoints, percent_cleavage)
 % RUN_CAD_PARAMETER_SWEEPS Compute all three pairwise kHd/kEd/kc CAD maps.
 % sweeps = run_cad_parameter_sweeps(P, M, nPoints, percent_cleavage)
-% returns a struct array ordered kHd-kEd, kHd-kc, kEd-kc. Matrices have
+% returns a struct array ordered kHd-kEd, kc-kHd, kc-kEd. Matrices have
 % rows = y_values, columns = x_values. No plotting or file I/O occurs here.
 % P.ranges supplies positive increasing bounds for kHd, kEd and kc.
 % On-rates and unswept parameters remain at P's reference values. Engaged
@@ -88,7 +88,7 @@ common.max_exit_cdf_base = baseline.max_exit_cdf;
 common.rhs_residual_base = baseline.rhs_residual;
 common.base_error = baseline.error;
 
-pairs = [1 2; 1 3; 2 3];
+pairs = [1 2; 3 1; 3 2];
 results = cell(1, size(pairs, 1));
 for pair_index = 1:size(pairs, 1)
     x_index = pairs(pair_index, 1);
@@ -205,19 +205,21 @@ if any(failed(:))
     legend_handles(end+1) = plot(ax, X(failed), Y(failed), 'kx', ...
         'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Simulation failed');
 end
-legend_handles(end+1) = plot(ax, data.x_base, data.y_base, 'p', ...
+plot(ax, data.x_base, data.y_base, 'p', ...
     'MarkerSize', 18, 'MarkerFaceColor', 'w', 'MarkerEdgeColor', 'k', ...
-    'LineWidth', 1.5, 'DisplayName', 'Base parameters');
+    'LineWidth', 1.5, 'HandleVisibility', 'off');
 if isfinite(data.CAD_base)
-    base_label = sprintf('  CAD_{%g} = %.0f bp', data.percent_cleavage, data.CAD_base);
+    base_label = sprintf('Base parameters CAD_{%g} = %.0f bp', ...
+        data.percent_cleavage, data.CAD_base);
 elseif isempty(data.base_error)
-    base_label = '  Base threshold not reached';
+    base_label = sprintf('Base parameters CAD_{%g} = not reached', data.percent_cleavage);
 else
-    base_label = '  Base simulation failed';
+    base_label = sprintf('Base parameters CAD_{%g} = simulation failed', data.percent_cleavage);
 end
-text(ax, data.x_base, data.y_base, base_label, 'Color', 'k', ...
-    'BackgroundColor', 'w', 'FontSize', 10, 'VerticalAlignment', 'bottom');
-legend(ax, legend_handles, 'Location', 'best');
+% A text-only legend entry reports baseline CAD without repeating the star.
+base_legend = plot(ax, NaN, NaN, 'LineStyle', 'none', 'Marker', 'none', ...
+    'DisplayName', base_label);
+legend(ax, [base_legend legend_handles], 'Location', 'northwest', 'Interpreter', 'tex');
 xlabel(ax, parameter_label(data.x_name), 'FontSize', 14);
 ylabel(ax, parameter_label(data.y_name), 'FontSize', 14);
 title(ax, sprintf('Full model CAD_{%g} (M = %d, engaged E off = %.3g s^{-1})', ...

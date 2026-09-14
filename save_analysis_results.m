@@ -77,7 +77,7 @@ else
                 min(data.EBindingNumber_values), max(data.EBindingNumber_values));
         case 'CPA_assembly'
             base_filename = sprintf('CPA_assembly_EBinding%d', data.EBindingNumber);
-        case {'sweep_2D_kHd_kEd_CAD', 'sweep_2D_kHd_kc_CAD', 'sweep_2D_kEd_kc_CAD'}
+        case {'sweep_2D_kHd_kEd_CAD', 'sweep_2D_kc_kHd_CAD', 'sweep_2D_kc_kEd_CAD'}
             base_filename = sprintf('sweep2D_%s_%s_CAD_EBinding%d', ...
                 data.x_name, data.y_name, data.EBindingNumber);
         case 'ProximalPASUsage_ParameterSweep'
@@ -134,7 +134,7 @@ switch analysis_type
         write_ebinding_vs_cad_data(fid, data, parameters);
     case 'CPA_assembly'
         write_cpa_assembly_data(fid, data, parameters);
-    case {'sweep_2D_kHd_kEd_CAD', 'sweep_2D_kHd_kc_CAD', 'sweep_2D_kEd_kc_CAD'}
+    case {'sweep_2D_kHd_kEd_CAD', 'sweep_2D_kc_kHd_CAD', 'sweep_2D_kc_kEd_CAD'}
         write_cad_parameter_sweep_data(fid, data, parameters);
     case 'ProximalPASUsage_ParameterSweep'
         write_parameter_sweep_data(fid, data, parameters);
