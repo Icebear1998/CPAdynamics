@@ -1,61 +1,47 @@
-saveData = false;
-% ------------ MODEL PARAMETERS ------------
+% Main full finite-rate CPA simulation and microstate-derived profiles.
+saveData = strcmpi(getenv('CPAD_FORCE_SAVE'), 'true');
 P = default_parameters();
+EBindingNumber = 5;
 
-EBindingNumber = 5; 
+[R_sol, REH_sol, P, full_details] = run_full_termination_simulation(P, EBindingNumber);
+avg_E_bound = full_details.avg_E_bound;
+Ser2P = full_details.avg_Ser2P;
+[exit_cdf, distances_bp, CAD, diagnostics] = calculate_full_pas_cleavage_profile( ...
+    R_sol, REH_sol, P, 'PercentCleavage', 50);
+positions_bp = ((1:P.N)-P.PAS)*P.L_a;
 
-% Run termination simulation using the new function
-[R_sol, REH_sol, P, r_E_BeforePas, r_P] = run_termination_simulation(P, EBindingNumber);
-disp('done compute simulation');
-
-% Get average E bound and Ser2P profiles in a single pass
-fprintf('E free %.2f\n', P.Ef_ss);
-[avg_E_bound, Ser2P] = P.RE_val_bind_E(P.Ef_ss);
-
-[exit_cdf, distances_bp, CAD] = calculate_pas_cleavage_profile(R_sol, REH_sol, P, 'PercentCleavage', 50);
-
-% ------------ PLOT RESULTS ------------
 figure;
 hold on;
-plot((1-P.PAS):P.N_PAS-1, Ser2P, 'g-','LineWidth',2.5, 'DisplayName','Ser2P');
-plot((1-P.PAS):P.N_PAS-1, avg_E_bound, 'b-','LineWidth',2.5, 'DisplayName','AverageE');
-legend({'Ser2P', 'AverageE'}, 'Location', 'best');
-xlabel('position'); ylabel('AverageE');
+plot(positions_bp, Ser2P, 'g-', 'LineWidth', 2.5, 'DisplayName', 'Ser2P');
+plot(positions_bp, avg_E_bound, 'b-', 'LineWidth', 2.5, 'DisplayName', 'Average E');
+legend('Location', 'best');
+xlabel('Position relative to PAS (bp)');
+ylabel('Average count per polymerase');
+title('Full finite-rate E binding and phosphorylation');
 hold off;
 
-% 1. Time evolution plot
-l_values =  (1-P.PAS):(P.N-P.PAS);
-
-figure; hold on;
-% for e = 1:EBindingNumber+1
-%     plot((1-P.PAS):P.N_PAS-1, RE_vals(e,:), 'LineWidth',2);
-% end
-
-plot(l_values, R_sol, 'b-','LineWidth',2.5, 'DisplayName','R(l)');
-plot(l_values, [zeros(P.PAS-1,1);REH_sol], 'r-','LineWidth',2.5, 'DisplayName','REH(l)');
-fprintf('CAD %.2f\n', CAD);
-CAD = CAD/100;
-line([CAD CAD], ylim, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5, 'DisplayName', 'Median Tandem Distance');
-text(CAD, 8, num2str(int32(CAD)));
-xlabel('Position relative to PAS (x100 basepair)'); ylabel('Concentration');
-legend({'Total R', 'Total REH', '50% TCD'}, 'Location', 'best');
-title('CPA model dynamic simulation');
+figure;
+hold on;
+plot(positions_bp, R_sol, 'b-', 'LineWidth', 2.5, 'DisplayName', 'R');
+plot(positions_bp, [zeros(P.PAS-1, 1); REH_sol], 'r-', ...
+    'LineWidth', 2.5, 'DisplayName', 'RHE');
+if isfinite(CAD)
+    xline(CAD, 'r--', 'LineWidth', 1.5, 'DisplayName', 'CAD_{50}');
+end
+xlabel('Position relative to PAS (bp)');
+ylabel('Polymerase count');
+legend('Location', 'best');
+title('Full finite-rate CPA steady state');
 hold off;
 
-% 1. Calculate the final, steady-state concentration of free Pol II
-% This is the total Pol II minus all polymerases bound to the gene (R and REH).
-bound_pol_II = sum(R_sol) + sum(REH_sol);
-Pol_f_final = P.Pol_total - bound_pol_II;
-
-% 2. Display the values in the command window for clarity
-fprintf('\n--- Polymerase Distribution at Steady State ---\n');
-fprintf('Total Pol II in system: %d\n', P.Pol_total);
-fprintf('Total Bound Pol II (on gene): %.2f\n', bound_pol_II);
-fprintf('Total Free Pol II (Pol_f):    %.2f\n', Pol_f_final);
+Pol_f_final = P.Pol_free_ss;
+fprintf('CAD_50 = %.2f bp; within-window cleavage = %.2f%%\n', CAD, 100*diagnostics.max_exit_cdf);
+fprintf('Free E = %.2f; bound E = %.2f\n', P.Ef_ss, full_details.E_bound);
+fprintf('Free Pol II = %.2f; bound Pol II = %.2f\n', Pol_f_final, full_details.Pol_bound);
 
 if saveData
-    % --- SAVE RESULTS ---
-    % Prepare data structure for saving
+    data = struct();
+    data.model_variant = P.model_variant;
     data.EBindingNumber = EBindingNumber;
     data.R_sol = R_sol;
     data.REH_sol = REH_sol;
@@ -63,9 +49,7 @@ if saveData
     data.avg_E_bound = avg_E_bound;
     data.Ef_ss = P.Ef_ss;
     data.Pol_f_final = Pol_f_final;
-
-    % Save results using the utility function
+    data.max_exit_cdf = diagnostics.max_exit_cdf;
+    data.rhs_residuals = full_details.rhs_max_abs;
     save_analysis_results('CPA_multipleE_main', data, P);
 end
-
-

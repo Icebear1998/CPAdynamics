@@ -32,6 +32,8 @@ function P = default_parameters()
     % --- E factor binding ---
     P.kEon   = 2.22e-6;            % molecule^-1 s^-1; 374 um^3 nucleus (C)
     P.kEoff  = 0.5;                % E factor off-rate
+    P.kEoff_engaged = 0.05;        % s^-1; full-model engaged-E detachment reference
+    % Working value used by the full-model analyses; no appendix range is supplied.
  
     % --- PAS recognition (hexamer) ---
     P.kHon   = 7.04;               % s^-1; effective PAS encounter rate (B.2)

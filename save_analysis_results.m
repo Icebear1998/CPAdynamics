@@ -115,6 +115,9 @@ fid = fopen(data_filename, 'w');
 % Write header with metadata
 fprintf(fid, '%% %s Analysis Results\n', analysis_type);
 fprintf(fid, '%% Generated on: %s\n', datestr(now));
+if isfield(data, 'model_variant')
+    fprintf(fid, '%% Model: %s\n', data.model_variant);
+end
 
 % Write analysis-specific information
 switch analysis_type
@@ -142,6 +145,7 @@ switch analysis_type
         write_generic_data(fid, data, parameters);
 end
 
+write_full_model_diagnostics(fid, data);
 fclose(fid);
 fprintf('Data saved to: %s\n', data_filename);
 
@@ -227,6 +231,7 @@ function write_base_parameters(fid, P)
     if isfield(P, 'k_in'), fprintf(fid, '%% k_in = %g\n', P.k_in); end
     if isfield(P, 'kEon'), fprintf(fid, '%% kEon = %g\n', P.kEon); end
     if isfield(P, 'kEoff'), fprintf(fid, '%% kEoff = %g\n', P.kEoff); end
+    if isfield(P, 'kEoff_engaged'), fprintf(fid, '%% kEoff_engaged = %g\n', P.kEoff_engaged); end
     if isfield(P, 'k_e'), fprintf(fid, '%% k_e = %g\n', P.k_e); end
     if isfield(P, 'k_e2'), fprintf(fid, '%% k_e2 = %g\n', P.k_e2); end
     if isfield(P, 'E_total'), fprintf(fid, '%% E_total = %g\n', P.E_total); end
@@ -429,5 +434,28 @@ function write_cad_parameter_sweep_data(fid, data, P)
     for k = 1:numel(rows)
         message = regexprep(data.error_matrix{rows(k), cols(k)}, '[\r\n]+', ' ');
         fprintf(fid, '%% %d %d %s\n', rows(k), cols(k), message);
+    end
+end
+
+function write_full_model_diagnostics(fid, data)
+    % Preserve censored-threshold and solver diagnostics for migrated analyses.
+    names = {'max_exit_cdf', 'rhs_residuals'};
+    for k = 1:numel(names)
+        name = names{k};
+        if isfield(data, name)
+            fprintf(fid, '%% %s (same ordering as results):\n', name);
+            values = data.(name);
+            for row = 1:size(values, 1)
+                fprintf(fid, '%.12g ', values(row, :));
+                fprintf(fid, '\n');
+            end
+        end
+    end
+    if isfield(data, 'error_messages')
+        [rows, cols] = find(~cellfun(@isempty, data.error_messages));
+        for k = 1:numel(rows)
+            message = regexprep(data.error_messages{rows(k), cols(k)}, '[\r\n]+', ' ');
+            fprintf(fid, '%% Failed row %d, column %d: %s\n', rows(k), cols(k), message);
+        end
     end
 end

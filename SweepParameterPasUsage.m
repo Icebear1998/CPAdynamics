@@ -29,7 +29,10 @@ EBindingNumber = 5;
 
 % --- SIMULATION SETUP ---
 inter_pas_distances_bp = 0:1000:30000;
-proximal_usage_results = zeros(length(inter_pas_distances_bp), length(sweep_param_values));
+proximal_usage_results = NaN(length(inter_pas_distances_bp), length(sweep_param_values));
+
+max_exit_cdf = NaN(1, numel(sweep_param_values));
+rhs_residuals = NaN(1, numel(sweep_param_values));
 
 % --- PARAMETER SWEEP LOOP ---
 fprintf('Starting parallel sweep over parameter: %s\n', sweep_param_name);
@@ -40,18 +43,20 @@ parfor p_idx = 1:length(sweep_param_values)
     P_run = P;
     P_run.(sweep_param_name) = sweep_param_values(p_idx);
 
-    % Run simulation using the shared function (uses numerical null-space,
-    % robust for any EBindingNumber including >= 5)
-    [R_sol, REH_sol, P_sim] = run_termination_simulation(P_run, EBindingNumber);
+    % Full finite-rate simulation with self-consistent free pools.
+    [R_sol, REH_sol, P_sim, full_details] = run_full_termination_simulation(P_run, EBindingNumber);
 
     % Calculate termination profile (CDF)
     % The CDF at distance X represents the fraction of polymerases that 
     % terminated by distance X, which IS the proximal site usage
-    [exit_cdf, distances_bp] = calculate_pas_cleavage_profile(R_sol, REH_sol, P_sim);
+    [exit_cdf, distances_bp, ~, diagnostics] = calculate_full_pas_cleavage_profile( ...
+        R_sol, REH_sol, P_sim, 'PercentCleavage', 0);
+    max_exit_cdf(p_idx) = diagnostics.max_exit_cdf;
+    rhs_residuals(p_idx) = full_details.rhs_max_abs;
     
     % Interpolate to get proximal usage at specific inter-PAS distances
     proximal_usage_results(:, p_idx) = interp1([0; distances_bp(:)], ...
-        [0; exit_cdf(:)], inter_pas_distances_bp, 'linear', 'extrap');
+        [0; exit_cdf(:)], inter_pas_distances_bp(:), 'linear', NaN);
 end
 disp('All parallel simulations complete.');
 
@@ -79,6 +84,10 @@ ylim([0 100]);
 if save_results
     % --- SAVE RESULTS ---
     % Prepare data structure for saving
+    data = struct();
+    data.model_variant = 'full_kinetics_rapid_EH_disassembly';
+    data.max_exit_cdf = max_exit_cdf;
+    data.rhs_residuals = rhs_residuals;
     data.results_matrix = proximal_usage_results;
     data.x_values = inter_pas_distances_bp;
     data.sweep_values = sweep_param_values;

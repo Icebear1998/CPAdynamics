@@ -8,16 +8,8 @@ L_a = P_default.L_a;
 % --- PARAMETERS TO SWEEP ---
 % Available: 'k_e', 'k_e2', 'E_total', 'Pol_total', 'kc', 'kEon', 'kEoff', 
 %            'k_in', 'kHoff', 'kHon', 'kPon_slope'
-% Note: kEon and kEoff affect symbolic steady states and will be slower
+% All parameters use the full finite-rate solver.
 param_list = {'kPon_slope'};
-
-% % Ensure ode_dynamics_multipleE is available (assumed from context)
-% if ~exist('ode_dynamics_multipleE', 'file')
-%     error('ode_dynamics_multipleE function not found. Please ensure it is defined.');
-% end
-% if ~exist('compute_steady_states', 'file')
-%     error('compute_steady_states function not found. Please ensure it is defined.');
-% end
 
 EBindingNumber = 5;
 
@@ -28,7 +20,6 @@ for param_idx = 1:length(param_list)
         
     param_to_sweep = param_list{param_idx};
     default_value = P.(param_to_sweep);
-    kHon_default = P.kHon;
         
     % Define sweep range (linear for k_e, k_e2, E_total, kc; log for others)
     switch param_to_sweep
@@ -93,7 +84,10 @@ for param_idx = 1:length(param_list)
     end
 
     % Initialize arrays
-    cutoff_values = zeros(1, length(param_values));
+    cutoff_values = NaN(1, length(param_values));
+    max_exit_cdf = NaN(size(cutoff_values));
+    rhs_residuals = NaN(size(cutoff_values));
+    error_messages = repmat({''}, size(cutoff_values));
 
     % --- PARAMETER SWEEP ---
     fprintf('Starting sweep for %s...\n', param_to_sweep);
@@ -102,23 +96,26 @@ for param_idx = 1:length(param_list)
         
         % Create local copy of parameters and update for this iteration
         P_run = P_default;
-        P_run.kHon = kHon_default;
         P_run.(param_to_sweep) = param_values(k);
 
         try
-            [R_sol, REH_sol, P_sim] = run_termination_simulation(P_run, EBindingNumber);
+            [R_sol, REH_sol, P_sim, full_details] = run_full_termination_simulation(P_run, EBindingNumber);
         catch ME
-            fprintf('    Error in run_termination_simulation: %s\n', ME.message);
-            cutoff_values(k) = NaN;
+            fprintf('    Error in run_full_termination_simulation: %s\n', ME.message);
+            error_messages{k} = ME.message;
             continue;
         end
         
         % --- CALCULATE TERMINATION PROFILE ---
         try
-            [exit_cdf, distances_bp, cutoff_values(k)] = calculate_pas_cleavage_profile(R_sol, REH_sol, P_sim, 'PercentCleavage', 50);
+            [~, ~, cutoff_values(k), diagnostics] = calculate_full_pas_cleavage_profile( ...
+                R_sol, REH_sol, P_sim, 'PercentCleavage', 50);
+            max_exit_cdf(k) = diagnostics.max_exit_cdf;
+            rhs_residuals(k) = full_details.rhs_max_abs;
             cutoff_values(k) = round(cutoff_values(k));
-        catch
-            cutoff_values(k) = -1;
+        catch ME
+            cutoff_values(k) = NaN;
+            error_messages{k} = ME.message;
         end
     end
     fprintf('Sweep for %s complete.\n\n', param_to_sweep);
@@ -138,7 +135,7 @@ for param_idx = 1:length(param_list)
          'Color', [0, 0.4470, 0.7410], 'DisplayName', '50% Termination');
     
     % Highlight default parameter value
-    default_cutoff = interp1(param_values, cutoff_values, default_value, 'linear', 'extrap');
+    default_cutoff = cutoff_values(param_values == default_value);
     plot(default_value, default_cutoff, 'ro', 'MarkerSize', 10, 'LineWidth', 2, ...
          'DisplayName', 'Default Value');
     
@@ -154,6 +151,11 @@ for param_idx = 1:length(param_list)
     
     % --- SAVE RESULTS ---
     if save_result
+        data = struct();
+        data.model_variant = 'full_kinetics_rapid_EH_disassembly';
+        data.max_exit_cdf = max_exit_cdf;
+        data.rhs_residuals = rhs_residuals;
+        data.error_messages = error_messages;
         data.EBindingNumber = EBindingNumber;
         data.sweep_param = param_to_sweep;
         data.param_values = param_values;

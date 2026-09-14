@@ -1,4 +1,4 @@
-% GENERATE_GENE_LENGTH_GRID.m
+% GeneLengthGenerateGrid.m — full finite-rate model, fixed shared free pools
 % Generates lookup data for R_occupied and E_occupied as functions of
 % (R_free, E_free, L) for the gene length analysis
 %
@@ -16,19 +16,18 @@ fprintf('Generating lookup data for R_occupied and E_occupied...\n\n');
 %% --- PARAMETER RANGES ---
 
 % Base totals from typical simulations
-R_total_base = 70000;
-E_total_base = 100000;
+P_base = default_parameters();
+R_total_base = P_base.Pol_total;
+E_total_base = P_base.E_total;
 
-% R_free range: should be much larger than 1/70000 of total
-% Using range from ~10% to ~90% of total (well above the 1/70000 threshold)
-R_free_min = 1;   % 7,000
-R_free_max = 1000;   % 63,000
-R_free_points = 5;                % Resolution for R_free
-
-% E_free range: similar logic to R_free
-E_free_min = 0.1* E_total_base;   % 7,000  
-E_free_max = 0.9 * E_total_base;   % 63,000
-E_free_points = 5;                % Resolution for E_free
+% Cover all physically possible free pools, including zero. At fixed E,
+% occupancy is exactly linear in R_free, so a coarse R grid is sufficient.
+R_free_min = 0;
+R_free_max = R_total_base;
+R_free_points = 5;
+E_free_min = 0;
+E_free_max = E_total_base;
+E_free_points = 5;
 
 % TSS-to-PAS length range: based on human gene distribution (including introns)
 % From the histogram: spans ~10^2 to ~10^6 bp, with most genes 10^3 to 10^5
@@ -41,11 +40,10 @@ L_points = 10;     % Resolution for TSS-to-PAS length
 after_PAS_length = 5000;  % 5 kb constant after-PAS region
 
 %% --- BASE PARAMETERS ---
-P_base = default_parameters();
 % k_in must be rescaled for the local model. The original value (e.g., 2)
 % was for a global model where one gene represented the whole system.
 % Here, we scale it to represent a single gene's promoter strength.
-k_in_global = 2;
+k_in_global = P_base.k_in;
 num_active_genes = 10000; % Estimated number of active genes in the system
 P_base.k_in = k_in_global / num_active_genes;
 P_base.EBindingNumber = 5;  % Use standard value
@@ -54,6 +52,7 @@ P_base.EBindingNumber = 5;  % Use standard value
 R_free_values = linspace(R_free_min, R_free_max, R_free_points);
 E_free_values = linspace(E_free_min, E_free_max, E_free_points);
 L_values = logspace(log10(L_min), log10(L_max), L_points); % Log spacing for gene lengths
+L_values([1 end]) = [L_min L_max];
 
 fprintf('Parameter Ranges:\n');
 fprintf('  R_free: %.0f to %.0f (%d points)\n', R_free_min, R_free_max, R_free_points);
@@ -67,7 +66,7 @@ fprintf('  Total grid points: %d\n\n', R_free_points * E_free_points * L_points)
 fprintf('Generating parameter grid...\n');
 
 % Create all combinations of parameters
-[R_grid, E_grid, L_grid] = meshgrid(R_free_values, E_free_values, L_values);
+[R_grid, E_grid, L_grid] = ndgrid(R_free_values, E_free_values, L_values);
 
 % Flatten to vectors for parallel processing
 R_free_vec = R_grid(:);
@@ -76,8 +75,10 @@ L_vec = L_grid(:);
 n_points = length(R_free_vec);
 
 % Pre-allocate results
-R_occupied_vec = zeros(n_points, 1);
-E_occupied_vec = zeros(n_points, 1);
+R_occupied_vec = NaN(n_points, 1);
+E_occupied_vec = NaN(n_points, 1);
+rhs_residual_vec = NaN(n_points, 1);
+error_messages = repmat({''}, n_points, 1);
 success_flag = zeros(n_points, 1);  % Track successful simulations
 
 fprintf('Grid generated: %d total points\n', n_points);
@@ -95,27 +96,25 @@ parfor i = 1:n_points
         
         % Set up parameters for this simulation
         P_i = P_base;
-        P_i.Pol_free = R_free_i;  % Use R_free for local analysis
-        P_i.E_free = E_free_i;    % Use E_free for local analysis
         
         % NEW: L_i now represents TSS-to-PAS distance
         P_i.PASposition = L_i;     % PAS position = TSS-to-PAS distance
         P_i.geneLength_bp = L_i + after_PAS_length;  % Total gene length = TSS-to-PAS + after-PAS
         
-        % Run single-gene simulation
-        [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P_i);
-        % Calculate occupied amounts
-        R_occupied_i = sum(R_sol) + sum(REH_sol);  % Total bound polymerase
-        
-        % Calculate E occupied (need to run binding calculation)
-        E_occupied_i = calculate_E_occupied(R_sol, REH_sol, avg_E_bound, floor(P_i.PASposition / P_i.L_a));
-        
+        % Shared pools are prescribed here; do not solve per-gene totals.
+        [~, ~, ~, details] = run_full_termination_simulation(P_i, P_i.EBindingNumber, ...
+            'FreePools', [R_free_i, E_free_i]);
+        R_occupied_i = details.Pol_bound;
+        E_occupied_i = details.E_bound; % Exact sum of E over all R/RHE microstates
+        rhs_residual_vec(i) = details.rhs_max_abs;
+
         % Store results
         R_occupied_vec(i) = R_occupied_i;
         E_occupied_vec(i) = E_occupied_i;
         success_flag(i) = 1;
-    catch
+    catch ME
         success_flag(i) = 0;
+        error_messages{i} = ME.message;
     end
     
     % Progress indication (every 100 points)
@@ -138,6 +137,9 @@ fprintf('\nOrganizing results...\n');
 % Create results structure
 results = struct();
 results.metadata.creation_date = datestr(now);
+results.metadata.model_variant = 'full_kinetics_rapid_EH_disassembly';
+results.metadata.pool_mode = 'fixed_free_pools';
+results.metadata.grid_layout = 'ndgrid';
 results.metadata.computation_time_minutes = computation_time/60;
 results.metadata.success_rate = success_rate;
 results.metadata.description = 'Lookup data for gene length analysis: R_occupied and E_occupied as functions of (R_free, E_free, L) where L = TSS-to-PAS distance';
@@ -169,6 +171,8 @@ results.data.L_vec = L_vec;
 results.data.R_occupied_vec = R_occupied_vec;
 results.data.E_occupied_vec = E_occupied_vec;
 results.data.success_flag = success_flag;
+results.data.rhs_residual_vec = rhs_residual_vec;
+results.data.error_messages = error_messages;
 
 %% --- SAVE RESULTS ---
 fprintf('Saving results...\n');
@@ -177,15 +181,16 @@ fprintf('Saving results...\n');
 output_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'SecondVersionResults');
 
 % Save MATLAB data file
-mat_filename = fullfile(output_dir, sprintf('gene_length_grid_data_%d.mat', P_base.EBindingNumber));
+mat_filename = fullfile(output_dir, sprintf('full_gene_length_grid_data_%d.mat', P_base.EBindingNumber));
 save(mat_filename, 'results', '-v7.3');  % Use v7.3 for large files
 
 % Save text file with summary and data
-txt_filename = fullfile(output_dir, sprintf('gene_length_grid_data_%d.txt', P_base.EBindingNumber));
+txt_filename = fullfile(output_dir, sprintf('full_gene_length_grid_data_%d.txt', P_base.EBindingNumber));
 fid = fopen(txt_filename, 'w');
 
 % Header
-fprintf(fid, '%% Gene Length Analysis - Grid Data\n');
+fprintf(fid, '%% Gene Length Analysis - Full finite-rate grid data, fixed free pools\n');
+fprintf(fid, '%% kEoff_engaged = %g s^-1\n', P_base.kEoff_engaged);
 fprintf(fid, '%% Generated on: %s\n', results.metadata.creation_date);
 fprintf(fid, '%% Computation time: %.1f minutes\n', results.metadata.computation_time_minutes);
 fprintf(fid, '%% Success rate: %.1f%%\n', results.metadata.success_rate);
@@ -250,63 +255,3 @@ fprintf('1. Use this data to build interpolation functions\n');
 fprintf('2. Implement conservation equations with gene length distribution\n');
 fprintf('3. Solve for self-consistent (R_free, E_free)\n');
 fprintf('4. Calculate TCD(L) relationships\n');
-
-%% --- HELPER FUNCTIONS ---
-
-function [R_sol, REH_sol, avg_E_bound] = run_single_gene_simulation(P)
-    % Run single gene simulation similar to existing scripts
-    
-    % Set up geometry
-    L_a = P.L_a;
-    N = floor(P.geneLength_bp / L_a);
-    PAS = floor(P.PASposition / L_a);
-    N_PAS = N - PAS + 1;
-    P.N = N; P.PAS = PAS; P.N_PAS = N_PAS;
-    
-    % Set up kPon values with linear increase
-    kPon_vals = P.kPon_min + P.kPon_slope * (0:N-1);
-    
-    % Create E binding function using numerical computation
-    % For high EBindingNumber (>=5), symbolic expressions become too complex
-    n_states = P.EBindingNumber + 1;
-    P.RE_val_bind_E = @(Ef_val) compute_avg_E_bound_numerical(Ef_val, kPon_vals, P.kPoff, P.kEon, P.kEoff, n_states);
-    
-    % Solve system
-    X_guess = 1e-6 * ones(N + N_PAS, 1);
-    options = optimoptions('fsolve', 'Display', 'off', 'FunctionTolerance', 1e-8);
-    
-%     % Two-step solution
-%     P.FirstRun = true;
-%     P.is_unphysical = false;
-%     Ef_ss = 0;
-%     
-%     X_base = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
-%     if P.is_unphysical
-%         error('Unphysical result in step 1');
-%     end
-%     
-%     % Update kHon and resolve
-     avg_E_bound = P.RE_val_bind_E(P.E_free);
-%     P.FirstRun = false;
-    P.kHon = P.kHon * avg_E_bound(end);
-    X_final = fsolve(@(xx) ode_dynamics_multipleE(xx, P), X_guess, options);
-    
-    R_sol = X_final(1:N);
-    REH_sol = X_final((N+1):(N+N_PAS));
-end
-
-function E_occupied = calculate_E_occupied(R_sol, REH_sol, avg_E_bound, PAS)
-    % Calculate total E factors bound to this gene
-    
-    % Get binding function values
-    avg_E_bound_profile = avg_E_bound;
-    % Calculate E bound to R states (before and after PAS)
-    E_bound_R = sum(R_sol .* avg_E_bound_profile');
-    
-    % Calculate E bound to REH states (after PAS)
-    E_bound_REH = sum(REH_sol .* avg_E_bound_profile(PAS:end)');
-    E_occupied = E_bound_R + E_bound_REH;
-end
-
-
-

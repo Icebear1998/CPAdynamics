@@ -1,5 +1,5 @@
 % --- Model parameters (base values) ---
-save_result = false;
+save_result = strcmpi(getenv('CPAD_FORCE_SAVE'), 'true');
 P = default_parameters();
 EBindingNumber = 1;
 
@@ -13,7 +13,10 @@ for pair_idx = 1:length(param_pairs)
     param1_values = 30000:10000:100000;
     param2_values = logspace(-2,1,10);
 
-    cutoff_matrix = zeros(length(param2_values), length(param1_values));
+    cutoff_matrix = NaN(length(param2_values), length(param1_values));
+    max_exit_cdf = NaN(size(cutoff_matrix));
+    rhs_residuals = NaN(size(cutoff_matrix));
+    error_messages = repmat({''}, size(cutoff_matrix));
 
     % --- 2D Parameter Sweep Loop ---
     fprintf('Starting 2D sweep for %s vs %s...\n', param1, param2);
@@ -26,10 +29,13 @@ for pair_idx = 1:length(param_pairs)
             P_run.(param2) = param2_values(i);
 
             try
-                [R_sol, REH_sol, P_sim] = run_termination_simulation(P_run, EBindingNumber);
-                [~, ~, cutoff_matrix(i,j)] = calculate_pas_cleavage_profile(R_sol, REH_sol, P_sim, 'PercentCleavage', 50);
-            catch
-                cutoff_matrix(i,j) = NaN;
+                [R_sol, REH_sol, P_sim, full_details] = run_full_termination_simulation(P_run, EBindingNumber);
+                [~, ~, cutoff_matrix(i,j), diagnostics] = calculate_full_pas_cleavage_profile( ...
+                    R_sol, REH_sol, P_sim, 'PercentCleavage', 50);
+                max_exit_cdf(i,j) = diagnostics.max_exit_cdf;
+                rhs_residuals(i,j) = full_details.rhs_max_abs;
+            catch ME
+                error_messages{i,j} = ME.message;
             end
         end
         fprintf('Completed row %d/%d for %s = %.2g\n', i, length(param2_values), param2, param2_values(i));
@@ -53,6 +59,11 @@ for pair_idx = 1:length(param_pairs)
     % --- SAVE RESULTS ---
     % Prepare data structure for saving
     if save_result
+        data = struct();
+        data.model_variant = 'full_kinetics_rapid_EH_disassembly';
+        data.max_exit_cdf = max_exit_cdf;
+        data.rhs_residuals = rhs_residuals;
+        data.error_messages = error_messages;
         data.EBindingNumber = EBindingNumber;
         data.param1 = param1;
         data.param2 = param2;

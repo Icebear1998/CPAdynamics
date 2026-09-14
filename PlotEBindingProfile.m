@@ -23,13 +23,12 @@ for idx = 1 : length(BindingNumbers)
     nb = BindingNumbers(idx);
     fprintf('Simulating EBindingNumber = %d...\n', nb);
 
-    P.EBindingNumber = nb;
-
-    % --- Run simulation (uses file cache for symbolic step) ---
-    [R_sol, REH_sol, P_out, r_E_BeforePas, r_P] = run_termination_simulation(P, nb);
+    % --- Full finite-rate microstate distributions ---
+    [~, ~, P_out, full_details] = run_full_termination_simulation(P, nb);
 
     % --- Average E binding and Ser2P profiles in a single pass ---
-    [avg_E_bound, avg_Ser2P] = P_out.RE_val_bind_E(P_out.Ef_ss);
+    avg_E_bound = full_details.avg_E_bound;
+    avg_Ser2P = full_details.avg_Ser2P;
 
     % --- Plot coordinates ---
     x_coords = ((1 - P_out.PAS):(P_out.N - P_out.PAS)) * P.L_a / 1000;  % Position relative to PAS in kb
@@ -55,7 +54,7 @@ end
 % Finalize plot
 xlabel('Position relative to PAS (kb)', 'FontSize', 12);
 ylabel('Average Bound Factors', 'FontSize', 12);
-title('Average E-Factor Binding (solid) and Ser2P (dashed) Profiles', 'FontSize', 14);
+title('Full finite-rate E binding (solid) and Ser2P (dashed)', 'FontSize', 14);
 legend('Location', 'northwest', 'FontSize', 10);
 xline(0, 'k--', 'PAS', 'LineWidth', 1.5);
 grid on;

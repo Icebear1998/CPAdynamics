@@ -1,8 +1,8 @@
-% BUILD_GENE_LENGTH_INTERPOLATION.m
+% GeneLengthBuildInterpolation.m — full finite-rate occupancy grid
 % Builds interpolation functions for gene length analysis
 %
 % This script implements Step 2 of the gene length analysis:
-% - Load and validate grid data from generate_gene_length_grid.m
+% - Load and validate grid data from GeneLengthGenerateGrid.m
 % - Build smooth interpolation functions R_occupied(R_free, E_free, L) and E_occupied(R_free, E_free, L)
 % - Define realistic gene length distribution f(L) based on human genomic data
 % - Validate interpolation quality and save functions for analysis
@@ -16,13 +16,13 @@ fprintf('Loading grid data...\n');
 % Find the most recent grid data file
 grid_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'SecondVersionResults');
 if ~exist(grid_dir, 'dir')
-    error('Grid data directory not found. Please run generate_gene_length_grid.m first.');
+    error('Grid data directory not found. Please run GeneLengthGenerateGrid.m first.');
 end
 
 % Look for .mat files
-mat_files = dir(fullfile(grid_dir, 'gene_length_grid_data_*.mat'));
+mat_files = dir(fullfile(grid_dir, 'full_gene_length_grid_data_*.mat'));
 if isempty(mat_files)
-    error('No grid data files found. Please run generate_gene_length_grid.m first.');
+    error('No grid data files found. Please run GeneLengthGenerateGrid.m first.');
 end
 
 % Use the most recent file
@@ -35,36 +35,14 @@ fprintf('Grid data loaded successfully!\n');
 fprintf('  Grid points: %d\n', length(results.data.R_free_vec));
 fprintf('  Success rate: %.1f%%\n', results.metadata.success_rate);
 
-% Ensure backward compatibility: clean up old parameters and ensure new ones exist
-if isfield(results, 'parameters') && isfield(results.parameters, 'base_parameters')
-    base_params = results.parameters.base_parameters;
-    
-    % Remove old/deprecated fields if they exist
-    if isfield(base_params, 'SD_bp')
-        base_params = rmfield(base_params, 'SD_bp');
-    end
-    if isfield(base_params, 'kPon_max')
-        base_params = rmfield(base_params, 'kPon_max');
-    end
-    if isfield(base_params, 'kPoff_const')
-        base_params = rmfield(base_params, 'kPoff_const');
-    end
-    if isfield(base_params, 'kPon_option')
-        base_params = rmfield(base_params, 'kPon_option');
-    end
-    
-    % Ensure new parameters exist
-    if ~isfield(base_params, 'kPon_slope')
-        base_params.kPon_slope = 0.005;  % Default slope
-        fprintf('  Note: kPon_slope not found, using default value of 0.005\n');
-    end
-    if ~isfield(base_params, 'kPoff')
-        base_params.kPoff = 1;  % Default value
-        fprintf('  Note: kPoff not found, using default value of 1\n');
-    end
-    
-    % Update the stored parameters
-    results.parameters.base_parameters = base_params;
+% Never mix old equilibrium grids with full finite-rate profiles.
+if ~isfield(results.metadata, 'model_variant') || ...
+        ~strcmp(results.metadata.model_variant, 'full_kinetics_rapid_EH_disassembly') || ...
+        ~isfield(results.metadata, 'pool_mode') || ...
+        ~strcmp(results.metadata.pool_mode, 'fixed_free_pools') || ...
+        ~isfield(results.metadata, 'grid_layout') || ~strcmp(results.metadata.grid_layout, 'ndgrid')
+    error('GeneLengthBuildInterpolation:IncompatibleGrid', ...
+        'Regenerate full-model grid data with GeneLengthGenerateGrid.m.');
 end
 
 %% --- DATA VALIDATION AND CLEANING ---
@@ -79,14 +57,16 @@ E_occupied_data = results.data.E_occupied_vec;
 success_flags = results.data.success_flag;
 
 % Remove failed simulations
-valid_indices = (success_flags == 1) & ~isnan(R_occupied_data) & ~isnan(E_occupied_data);
+valid_indices = (success_flags == 1) & isfinite(R_occupied_data) & isfinite(E_occupied_data) ...
+    & R_occupied_data >= 0 & E_occupied_data >= 0;
 n_valid = sum(valid_indices);
 n_total = length(success_flags);
 
 fprintf('Valid data points: %d/%d (%.1f%%)\n', n_valid, n_total, n_valid/n_total*100);
 
-if n_valid < 0.5 * n_total
-    warning('Less than 50%% of simulations succeeded. Consider adjusting parameter ranges.');
+if n_valid ~= n_total
+    error('GeneLengthBuildInterpolation:IncompleteGrid', ...
+        'Full-model interpolation requires a complete grid; inspect results.data.error_messages and regenerate.');
 end
 
 % Clean data
@@ -107,15 +87,16 @@ fprintf('  E_occupied: %.2f to %.2f (mean: %.2f)\n', min(E_occupied_clean), max(
 %% --- BUILD INTERPOLATION FUNCTIONS ---
 fprintf('\nBuilding interpolation functions...\n');
 
-% Create interpolation functions using scatteredInterpolant
-% This handles irregular 3D grids better than griddata
-fprintf('  Creating R_occupied interpolant...\n');
-R_occupied_interp = scatteredInterpolant(R_free_clean, E_free_clean, L_clean, R_occupied_clean, ...
-    'linear', 'nearest');  % Linear interpolation with nearest neighbor extrapolation
-
-fprintf('  Creating E_occupied interpolant...\n');
-E_occupied_interp = scatteredInterpolant(R_free_clean, E_free_clean, L_clean, E_occupied_clean, ...
-    'linear', 'nearest');  % Linear interpolation with nearest neighbor extrapolation
+% Preserve the Cartesian grid and exact linear dependence on R_free.
+% Extrapolation is disabled; downstream pool and length queries stay in range.
+R_axis = results.grid.R_free_values;
+E_axis = results.grid.E_free_values;
+L_axis = results.grid.L_values;
+grid_size = [numel(R_axis), numel(E_axis), numel(L_axis)];
+R_occupied_interp = griddedInterpolant({R_axis, E_axis, L_axis}, ...
+    reshape(R_occupied_data, grid_size), 'linear', 'none');
+E_occupied_interp = griddedInterpolant({R_axis, E_axis, L_axis}, ...
+    reshape(E_occupied_data, grid_size), 'linear', 'none');
 
 fprintf('Interpolation functions created successfully!\n');
 
@@ -123,7 +104,7 @@ fprintf('Interpolation functions created successfully!\n');
 fprintf('\nValidating interpolation quality...\n');
 
 % Test interpolation on a subset of original data
-n_test = min(1000, floor(n_valid * 0.1));  % Test on 10% of data or 1000 points, whichever is smaller
+n_test = min(1000, max(1, floor(n_valid * 0.1)));  % Test on 10% of data or 1000 points, whichever is smaller
 test_indices = randperm(n_valid, n_test);
 
 R_free_test = R_free_clean(test_indices);
@@ -137,10 +118,10 @@ R_occupied_interp_test = R_occupied_interp(R_free_test, E_free_test, L_test);
 E_occupied_interp_test = E_occupied_interp(R_free_test, E_free_test, L_test);
 
 % Calculate errors
-R_error = abs(R_occupied_interp_test - R_occupied_true) ./ R_occupied_true * 100;
-E_error = abs(E_occupied_interp_test - E_occupied_true) ./ E_occupied_true * 100;
+R_error = abs(R_occupied_interp_test - R_occupied_true) ./ max(abs(R_occupied_true), eps) * 100;
+E_error = abs(E_occupied_interp_test - E_occupied_true) ./ max(abs(E_occupied_true), eps) * 100;
 
-fprintf('Interpolation validation results:\n');
+fprintf('Interpolation reconstruction check at grid nodes (not an accuracy estimate):\n');
 fprintf('  R_occupied - Mean error: %.2f%%, Max error: %.2f%%\n', mean(R_error), max(R_error));
 fprintf('  E_occupied - Mean error: %.2f%%, Max error: %.2f%%\n', mean(E_error), max(E_error));
 
@@ -173,18 +154,15 @@ fprintf('  Natural log mu: %.3f\n', mu_ln);
 fprintf('  Natural log sigma: %.3f\n', sigma_ln);
 
 % Create gene length distribution function
-gene_length_pdf = @(L) lognpdf(L, mu_ln, sigma_ln);
+gene_length_pdf = @(L) exp(-0.5*((log(L)-mu_ln)/sigma_ln).^2)./(L*sigma_ln*sqrt(2*pi));
 
 % Validate distribution by computing percentiles
 L_test_range = logspace(3, 6, 10000);  % 1 kb to 1 Mb
 pdf_values = gene_length_pdf(L_test_range);
-cdf_values = cumsum(pdf_values) * (L_test_range(2) - L_test_range(1));
-cdf_values = cdf_values / cdf_values(end);  % Normalize
-
-% Find percentiles
-percentile_25 = interp1(cdf_values, L_test_range, 0.25);
-percentile_50 = interp1(cdf_values, L_test_range, 0.50);
-percentile_75 = interp1(cdf_values, L_test_range, 0.75);
+% Analytic log-normal percentiles; no uniform-bin approximation on a log grid.
+percentile_25 = exp(mu_ln + sigma_ln*sqrt(2)*erfinv(2*0.25-1));
+percentile_50 = median_length;
+percentile_75 = exp(mu_ln + sigma_ln*sqrt(2)*erfinv(2*0.75-1));
 
 fprintf('Distribution validation:\n');
 fprintf('  25th percentile: %.1f kb (expected: ~7-8 kb)\n', percentile_25/1000);
@@ -208,9 +186,11 @@ fprintf('\nSaving interpolation results...\n');
 % Create output structure
 interpolation_results = struct();
 interpolation_results.metadata.creation_date = datestr(now);
+interpolation_results.metadata.model_variant = results.metadata.model_variant;
+interpolation_results.metadata.pool_mode = results.metadata.pool_mode;
 interpolation_results.metadata.source_grid_file = grid_filename;
 interpolation_results.metadata.n_valid_points = n_valid;
-interpolation_results.metadata.interpolation_method = 'scatteredInterpolant with linear interpolation';
+interpolation_results.metadata.interpolation_method = 'griddedInterpolant, linear, no extrapolation';
 interpolation_results.metadata.description = 'Interpolation functions and gene length distribution for gene length analysis';
 
 % Validation results
@@ -241,7 +221,7 @@ interpolation_results.original_grid = results.parameters;
 
 % Save results
 timestamp = datestr(now, 'yyyymmdd_HHMMSS');
-output_filename = fullfile(grid_dir, sprintf('gene_length_interpolation_%s.mat', timestamp));
+output_filename = fullfile(grid_dir, sprintf('full_gene_length_interpolation_%s.mat', timestamp));
 save(output_filename, 'interpolation_results', '-v7.3');
 
 fprintf('Interpolation results saved to: %s\n', output_filename);
@@ -362,7 +342,7 @@ fprintf('  Output file: %s\n', output_filename);
 fprintf('  Generated plots: gene length vs occupied resources (multi-line), interpolation surfaces\n');
 
 fprintf('\nNext steps:\n');
-fprintf('1. Run analyze_gene_length_TCD.m to perform the full analysis\n');
+fprintf('1. Run GeneLengthAnalyze.m to perform the full analysis\n');
 fprintf('2. Use the interpolation functions to solve conservation equations\n');
 fprintf('3. Calculate TCD relationships across gene lengths\n');
 
