@@ -8,10 +8,8 @@
 % - Validate interpolation quality and save functions for analysis
 
 fprintf('=== Gene Length Interpolation Builder ===\n');
-fprintf('Building interpolation functions and gene length distribution...\n\n');
 
 %% --- LOAD GRID DATA ---
-fprintf('Loading grid data...\n');
 
 % Find the most recent grid data file
 grid_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'SecondVersionResults');
@@ -31,9 +29,6 @@ grid_filename = fullfile(grid_dir, mat_files(newest_idx).name);
 fprintf('Loading: %s\n', grid_filename);
 
 load(grid_filename, 'results');
-fprintf('Grid data loaded successfully!\n');
-fprintf('  Grid points: %d\n', length(results.data.R_free_vec));
-fprintf('  Success rate: %.1f%%\n', results.metadata.success_rate);
 
 % Never mix old equilibrium grids with full finite-rate profiles.
 if ~isfield(results.metadata, 'model_variant') || ...
@@ -46,7 +41,6 @@ if ~isfield(results.metadata, 'model_variant') || ...
 end
 
 %% --- DATA VALIDATION AND CLEANING ---
-fprintf('\nValidating and cleaning data...\n');
 
 % Extract data
 R_free_data = results.data.R_free_vec(:);
@@ -66,9 +60,6 @@ fprintf('Valid data points: %d/%d (%.1f%%)\n', n_valid, n_total, n_valid/n_total
 if grid_validation.corrected_rows > 0
     fprintf('Corrected numerical roundoff to zero in %d rows (Pol: %d, E: %d values).\n', ...
         grid_validation.corrected_rows, grid_validation.corrected_R_values, grid_validation.corrected_E_values);
-    fprintf('  Raw minima: Pol = %.3g, E = %.3g; maximum tolerances: Pol = %.3g, E = %.3g.\n', ...
-        grid_validation.minimum_raw_R_occupied, grid_validation.minimum_raw_E_occupied, ...
-        grid_validation.max_R_tolerance, grid_validation.max_E_tolerance);
 end
 
 % Clean data
@@ -78,16 +69,7 @@ L_clean = L_data(valid_indices);
 R_occupied_clean = R_occupied_data(valid_indices);
 E_occupied_clean = E_occupied_data(valid_indices);
 
-% Data statistics
-fprintf('\nData statistics (valid points):\n');
-fprintf('  R_free: %.0f to %.0f\n', min(R_free_clean), max(R_free_clean));
-fprintf('  E_free: %.0f to %.0f\n', min(E_free_clean), max(E_free_clean));
-fprintf('  L (TSS-to-PAS): %.0f to %.0f bp\n', min(L_clean), max(L_clean));
-fprintf('  R_occupied: %.2f to %.2f (mean: %.2f)\n', min(R_occupied_clean), max(R_occupied_clean), mean(R_occupied_clean));
-fprintf('  E_occupied: %.2f to %.2f (mean: %.2f)\n', min(E_occupied_clean), max(E_occupied_clean), mean(E_occupied_clean));
-
 %% --- BUILD INTERPOLATION FUNCTIONS ---
-fprintf('\nBuilding interpolation functions...\n');
 
 % Preserve the Cartesian grid and exact linear dependence on R_free.
 % Extrapolation is disabled; downstream pool and length queries stay in range.
@@ -100,10 +82,7 @@ R_occupied_interp = griddedInterpolant({R_axis, E_axis, L_axis}, ...
 E_occupied_interp = griddedInterpolant({R_axis, E_axis, L_axis}, ...
     reshape(E_occupied_data, grid_size), 'linear', 'none');
 
-fprintf('Interpolation functions created successfully!\n');
-
 %% --- INTERPOLATION VALIDATION ---
-fprintf('\nValidating interpolation quality...\n');
 
 % Test interpolation on a subset of original data
 n_test = min(1000, max(1, floor(n_valid * 0.1)));  % Test on 10% of data or 1000 points, whichever is smaller
@@ -132,7 +111,6 @@ if mean(R_error) > 10 || mean(E_error) > 10
 end
 
 %% --- DEFINE GENE LENGTH DISTRIBUTION ---
-fprintf('\nDefining gene length distribution f(L)...\n');
 
 % Based on the histogram provided:
 % - Log-normal distribution with median ~22 kb
@@ -148,42 +126,16 @@ log_sigma = 0.68;       % Standard deviation in log10 space
 mu_ln = log(median_length);  % Mean of underlying normal distribution
 sigma_ln = log_sigma * log(10);  % Standard deviation of underlying normal distribution
 
-fprintf('Gene length distribution parameters:\n');
-fprintf('  Distribution: Log-normal\n');
-fprintf('  Median: %.1f kb\n', median_length/1000);
-fprintf('  Log10 sigma: %.2f\n', log_sigma);
-fprintf('  Natural log mu: %.3f\n', mu_ln);
-fprintf('  Natural log sigma: %.3f\n', sigma_ln);
-
 % Create gene length distribution function
 gene_length_pdf = @(L) exp(-0.5*((log(L)-mu_ln)/sigma_ln).^2)./(L*sigma_ln*sqrt(2*pi));
 
 % Validate distribution by computing percentiles
-L_test_range = logspace(3, 6, 10000);  % 1 kb to 1 Mb
-pdf_values = gene_length_pdf(L_test_range);
 % Analytic log-normal percentiles; no uniform-bin approximation on a log grid.
 percentile_25 = exp(mu_ln + sigma_ln*sqrt(2)*erfinv(2*0.25-1));
 percentile_50 = median_length;
 percentile_75 = exp(mu_ln + sigma_ln*sqrt(2)*erfinv(2*0.75-1));
 
-fprintf('Distribution validation:\n');
-fprintf('  25th percentile: %.1f kb (expected: ~7-8 kb)\n', percentile_25/1000);
-fprintf('  50th percentile: %.1f kb (expected: ~22 kb)\n', percentile_50/1000);
-fprintf('  75th percentile: %.1f kb (expected: ~64-65 kb)\n', percentile_75/1000);
-
-%% --- CREATE VISUALIZATION FUNCTIONS ---
-fprintf('\nCreating visualization functions...\n');
-
-% Function to plot interpolation surfaces
-plot_interpolation_surfaces = @() create_interpolation_plots(R_occupied_interp, E_occupied_interp, results);
-
-% Function to plot gene length distribution
-plot_gene_length_distribution = @() create_distribution_plot(gene_length_pdf, L_test_range);
-
-fprintf('Visualization functions created.\n');
-
 %% --- SAVE INTERPOLATION RESULTS ---
-fprintf('\nSaving interpolation results...\n');
 
 % Create output structure
 interpolation_results = struct();
@@ -216,8 +168,6 @@ interpolation_results.gene_length_distribution.percentile_75 = percentile_75;
 interpolation_results.functions.R_occupied_interp = R_occupied_interp;
 interpolation_results.functions.E_occupied_interp = E_occupied_interp;
 interpolation_results.functions.gene_length_pdf = gene_length_pdf;
-interpolation_results.functions.plot_interpolation_surfaces = plot_interpolation_surfaces;
-interpolation_results.functions.plot_gene_length_distribution = plot_gene_length_distribution;
 
 % Original grid information for reference
 interpolation_results.original_grid = results.parameters;
@@ -230,7 +180,6 @@ save(output_filename, 'interpolation_results', '-v7.3');
 fprintf('Interpolation results saved to: %s\n', output_filename);
 
 %% --- GENERATE SUMMARY PLOTS ---
-fprintf('\nGenerating summary plots...\n');
 
 % Plot 1: Gene length vs R_occupied and E_occupied (line plots with multiple R_free, E_free combinations)
 figure('Position', [100, 100, 1000, 400]);
@@ -335,51 +284,75 @@ surface_plot_filename = fullfile(grid_dir, sprintf('interpolation_surfaces_%s.pn
 saveas(gcf, surface_plot_filename);
 fprintf('Interpolation surfaces plot saved to: %s\n', surface_plot_filename);
 
-%% --- SUMMARY ---
-fprintf('\n=== INTERPOLATION BUILDING COMPLETE ===\n');
-fprintf('Results summary:\n');
-fprintf('  Valid data points used: %d\n', n_valid);
-fprintf('  Interpolation mean errors: R=%.2f%%, E=%.2f%%\n', mean(R_error), mean(E_error));
-fprintf('  Gene length distribution: Log-normal (median=%.1f kb)\n', median_length/1000);
-fprintf('  Output file: %s\n', output_filename);
-fprintf('  Generated plots: gene length vs occupied resources (multi-line), interpolation surfaces\n');
-
-fprintf('\nNext steps:\n');
-fprintf('1. Run GeneLengthAnalyze.m to perform the full analysis\n');
-fprintf('2. Use the interpolation functions to solve conservation equations\n');
-fprintf('3. Calculate TCD relationships across gene lengths\n');
-
-fprintf('\nInterpolation building completed successfully!\n');
-
 %% --- HELPER FUNCTIONS ---
 
-function create_interpolation_plots(R_interp, E_interp, grid_results)
-    % Create comprehensive interpolation validation plots
-    figure('Position', [100, 100, 1200, 800]);
-    
-    % Plot original data distribution
-    subplot(2, 3, 1);
-    valid_idx = grid_results.data.success_flag == 1;
-    scatter3(grid_results.data.R_free_vec(valid_idx)/1000, ...
-             grid_results.data.E_free_vec(valid_idx)/1000, ...
-             grid_results.data.L_vec(valid_idx)/1000, 10, ...
-             grid_results.data.R_occupied_vec(valid_idx), 'filled');
-    xlabel('R_{free} (thousands)'); ylabel('E_{free} (thousands)'); zlabel('L (kb)');
-    title('Original Data: R_{occupied}');
-    colorbar;
-    
-    % Additional validation plots can be added here
-    % This is a placeholder for more comprehensive validation
+function [R_occupied, E_occupied, diagnostics] = validate_full_gene_length_grid(data, EBindingNumber)
+% VALIDATE_FULL_GENE_LENGTH_GRID Accept solver roundoff, reject invalid rows.
+% Sparse steady solves can leave tiny signed populations at exact-zero
+% boundaries. The solver accepts roundoff down to -1e-9; an exact >= 0
+% occupancy check must not subsequently discard those successful rows.
+% Only roundoff is corrected. Failed/nonfinite/materially negative rows
+% still prevent construction of a complete Cartesian interpolant.
+
+validateattributes(EBindingNumber, {'numeric'}, ...
+    {'scalar', 'real', 'finite', 'integer', 'positive'});
+fields = {'R_free_vec', 'E_free_vec', 'L_vec', ...
+          'R_occupied_vec', 'E_occupied_vec', 'success_flag'};
+n = numel(data.success_flag);
+for k = 1:numel(fields)
+    validateattributes(data.(fields{k}), {'numeric'}, ...
+        {'vector', 'real', 'nonempty', 'numel', n}, mfilename, fields{k});
+    data.(fields{k}) = data.(fields{k})(:);
+end
+R_occupied = data.R_occupied_vec;
+E_occupied = data.E_occupied_vec;
+
+% Absolute solver tolerance plus a small floating-point allowance for sums
+% of large populations. E sums are bounded in scale by M times Pol occupancy.
+R_scale = max(ones(n, 1), abs(R_occupied));
+E_scale = max([ones(n, 1), EBindingNumber*abs(R_occupied), abs(E_occupied)], [], 2);
+R_tolerance = 1e-9 + 64*eps(R_scale);
+E_tolerance = 1e-9 + 64*eps(E_scale);
+failed = data.success_flag ~= 1;
+nonfinite = ~isfinite(R_occupied) | ~isfinite(E_occupied);
+negative = R_occupied < -R_tolerance | E_occupied < -E_tolerance;
+bad_coordinates = ~isfinite(data.R_free_vec) | data.R_free_vec < 0 ...
+    | ~isfinite(data.E_free_vec) | data.E_free_vec < 0 ...
+    | ~isfinite(data.L_vec) | data.L_vec <= 0;
+zero_pol = data.R_free_vec == 0;
+zero_e = zero_pol | data.E_free_vec == 0;
+bad_boundary = (zero_pol & abs(R_occupied) > R_tolerance) ...
+    | (zero_e & abs(E_occupied) > E_tolerance);
+invalid = failed | nonfinite | negative | bad_coordinates | bad_boundary;
+if any(invalid)
+    first = find(invalid, 1);
+    solver_message = '';
+    if isfield(data, 'error_messages') && numel(data.error_messages) >= first
+        solver_message = data.error_messages{first};
+    end
+    error('GeneLengthBuildInterpolation:IncompleteGrid', ...
+        ['Full-model interpolation requires a complete grid. Invalid rows: %d/%d ' ...
+         '(failed=%d, nonfinite=%d, materially negative=%d, bad coordinates=%d, ' ...
+         'inconsistent zero-pool boundary=%d; categories may overlap).\n' ...
+         'First invalid row %d: R_free=%.16g, E_free=%.16g, L=%.16g, ' ...
+         'R_occupied=%.16g, E_occupied=%.16g; tolerances R=%.3g, E=%.3g.\n' ...
+         'Solver message: %s\nInspect these rows in results.data and regenerate if needed.'], ...
+        nnz(invalid), n, nnz(failed), nnz(nonfinite), nnz(negative), ...
+        nnz(bad_coordinates), nnz(bad_boundary), first, ...
+        data.R_free_vec(first), data.E_free_vec(first), data.L_vec(first), ...
+        R_occupied(first), E_occupied(first), R_tolerance(first), E_tolerance(first), solver_message);
 end
 
-function create_distribution_plot(pdf_func, L_range)
-    % Create detailed gene length distribution plot
-    figure('Position', [300, 300, 800, 600]);
-    
-    pdf_vals = pdf_func(L_range);
-    semilogx(L_range/1000, pdf_vals*1000, 'b-', 'LineWidth', 2);
-    xlabel('Gene Length (kb)');
-    ylabel('Probability Density (per kb)');
-    title('Gene Length Distribution');
-    grid on;
+correct_R = R_occupied < 0 | (zero_pol & R_occupied ~= 0);
+correct_E = E_occupied < 0 | (zero_e & E_occupied ~= 0);
+diagnostics.corrected_rows = nnz(correct_R | correct_E);
+diagnostics.corrected_R_values = nnz(correct_R);
+diagnostics.corrected_E_values = nnz(correct_E);
+diagnostics.minimum_raw_R_occupied = min(R_occupied);
+diagnostics.minimum_raw_E_occupied = min(E_occupied);
+diagnostics.max_R_tolerance = max(R_tolerance);
+diagnostics.max_E_tolerance = max(E_tolerance);
+diagnostics.tolerance_rule = '1e-9 + 64*eps(population scale); E scale includes M*Pol';
+R_occupied(correct_R) = 0;
+E_occupied(correct_E) = 0;
 end

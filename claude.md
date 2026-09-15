@@ -43,13 +43,10 @@ All active analyses and tests use the full finite-rate helpers in the project ro
 | File | Role |
 | --- | --- |
 | `run_full_termination_simulation.m` | Full finite-rate steady state; closed or fixed free pools; microstate-derived averages and resource demand |
-| `build_full_rate_matrices.m` | Shared sparse transport/reaction operator |
-| `build_full_internal_rate_matrices.m` | Local phosphorylation and E-binding generators |
-| `build_full_state_map.m` | R/RHE (p,e) state indexing |
+| `build_full_rate_matrices.m` | Sparse transport/reaction operator with local state-map and internal-generator helpers |
 | `ode_dynamics_full_multipleE.m` | Full ODE RHS with explicit E and Pol II pools |
 | `full_model_jacobian.m` | Sparse full ODE Jacobian |
 | `calculate_full_pas_cleavage_profile.m` | Flux-based cleavage CDF and within-window CAD |
-| `solve_full_genome_pools.m` | Bounded genome-wide conservation solve using full-model occupancy interpolation |
 
 ### Analysis scripts
 
@@ -87,16 +84,16 @@ These are defined in `default_parameters.m`. All scripts call `default_parameter
 ```matlab
 P.L_a        = 100;        % bp per node
 P.k_in       = 2;          % Pol II initiation rate
-P.k_e        = (4000/60)/100;     % Elongation rate (before PAS)
+P.k_e        = 65/100;     % Elongation rate (before PAS)
 P.k_e2       = 30/100;     % Elongation rate (after PAS, in REH)
 P.E_total    = 100000;     % Total E factor pool
 P.Pol_total  = 70000;      % Total Pol II pool
-P.kEon       = 2.22e-6;  % E factor on-rate
+P.kEon       = 2.5e-6;  % E factor on-rate
 P.kEoff      = 0.5;        % E factor off-rate
 P.kEoff_engaged = 0.05;    % Independent engaged-E off-rate
-P.kHon       = 7.04;          % PAS recognition (hexamer) on-rate
-P.kHoff      = 0.5;          % Hexamer off-rate
-P.kc         = 0.439;        % Cleavage rate
+P.kHon       = 7;          % PAS recognition (hexamer) on-rate
+P.kHoff      = 1;          % Hexamer off-rate
+P.kc         = 0.15;        % Cleavage rate
 P.kPon_min   = 0.01;       % Min Ser2P phosphorylation rate (at TSS)
 P.kPon_slope = 0.005;      % Linear slope of kPon along gene
 P.kPoff      = 1;          % Ser2P dephosphorylation rate
@@ -147,7 +144,7 @@ The genome-wide self-consistency condition:
 $$R_{\text{total}} = R_{\text{free}} + N_{\text{genes}} \int R_{\text{occupied}}(R_f, E_f, L)\, f(L)\, dL$$
 $$E_{\text{total}} = E_{\text{free}} + N_{\text{genes}} \int E_{\text{occupied}}(R_f, E_f, L)\, f(L)\, dL$$
 
-where $f(L)$ is a log-normal gene length distribution fit to human genomic data. Solved by `solve_full_genome_pools`: analytically eliminate R_free using linear occupancy scaling and use bracketed `fzero` for E_free.
+where $f(L)$ is a log-normal gene length distribution fit to human genomic data. Solved by the local `solve_full_genome_pools` function in `GeneLengthAnalyze.m`: analytically eliminate R_free using linear occupancy scaling and use bracketed `fzero` for E_free.
 
 ## Common Gotchas
 

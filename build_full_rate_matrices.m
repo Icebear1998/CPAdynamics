@@ -18,7 +18,7 @@ validateattributes(P.L_a, {'numeric'}, {'scalar', 'real', 'finite', 'positive'})
 validateattributes(P.geneLength_bp, {'numeric'}, {'scalar', 'real', 'finite', 'positive'});
 validateattributes(P.PASposition, {'numeric'}, {'scalar', 'real', 'finite', 'positive'});
 P.N = floor(P.geneLength_bp/P.L_a);
-P.PAS = floor(P.PASposition/P.L_a); % MATLAB 1-based, same as original model
+P.PAS = floor(P.PASposition/P.L_a); % MATLAB 1-based PAS node
 P.N_PAS = P.N-P.PAS+1;
 if P.N < 1 || P.PAS < 1 || P.PAS > P.N
     error('build_full_rate_matrices:InvalidGeometry', 'PAS must be a node inside the simulated gene.');
@@ -85,4 +85,80 @@ T = -rate*speye(nodes);
 if nodes > 1
     T = T+sparse(2:nodes, 1:nodes-1, rate*ones(1, nodes-1), nodes, nodes);
 end
+end
+
+function S = build_full_state_map(M)
+% BUILD_FULL_STATE_MAP Fixed (p,e) maps for the finite-rate R/RHE model.
+% R: 0 <= e <= p <= M. RHE: 1 <= e <= p <= M (one E engaged with H).
+% The state order matches Python: increasing p, then increasing e.
+% Lookup arrays use (p+1,e+1), since biochemical counts start at zero.
+validateattributes(M, {'numeric'}, {'scalar', 'real', 'finite', 'integer', 'positive'});
+S.M = M;
+S.sr = (M+1)*(M+2)/2;
+S.sh = M*(M+1)/2;
+S.R = zeros(S.sr, 2);
+S.RHE = zeros(S.sh, 2);
+S.R_index = zeros(M+1);
+S.RHE_index = zeros(M+1);
+r = 0;
+h = 0;
+for p = 0:M
+    for e = 0:p
+        r = r+1;
+        S.R(r, :) = [p, e];
+        S.R_index(p+1, e+1) = r;
+        if e >= 1
+            h = h+1;
+            S.RHE(h, :) = [p, e];
+            S.RHE_index(p+1, e+1) = h;
+        end
+    end
+end
+end
+
+function [A_const, A_Pon, A_Ef] = build_full_internal_rate_matrices(P, S, recognized)
+% BUILD_FULL_INTERNAL_RATE_MATRICES Local column-oriented reaction generators.
+% A = A_const + kPon*A_Pon + E_free*A_Ef. Columns sum to zero.
+% Phosphorylation has no site multiplicity.
+% An RHE state's e-1 unengaged E factors use kEoff. Its engaged-E detachment
+% changes RHE to R and is added separately by build_full_rate_matrices.
+if recognized
+    states = S.RHE;
+    lookup = S.RHE_index;
+else
+    states = S.R;
+    lookup = S.R_index;
+end
+count = size(states, 1);
+A_const = zeros(count);
+A_Pon = zeros(count);
+A_Ef = zeros(count);
+for j = 1:count
+    p = states(j, 1);
+    e = states(j, 2);
+    if p < S.M
+        i = lookup(p+2, e+1);
+        A_Pon(i, j) = A_Pon(i, j)+1;
+        A_Pon(j, j) = A_Pon(j, j)-1;
+    end
+    if p > e
+        i = lookup(p, e+1);
+        A_const(i, j) = A_const(i, j)+P.kPoff;
+        A_const(j, j) = A_const(j, j)-P.kPoff;
+        i = lookup(p+1, e+2);
+        rate = (p-e)*P.kEon;
+        A_Ef(i, j) = A_Ef(i, j)+rate;
+        A_Ef(j, j) = A_Ef(j, j)-rate;
+    end
+    exchangeable = e-double(recognized);
+    if exchangeable > 0
+        i = lookup(p+1, e);
+        rate = exchangeable*P.kEoff;
+        A_const(i, j) = A_const(i, j)+rate;
+        A_const(j, j) = A_const(j, j)-rate;
+    end
+end
+A_const = sparse(A_const);
+A_Pon = sparse(A_Pon);
+A_Ef = sparse(A_Ef);
 end

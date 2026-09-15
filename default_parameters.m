@@ -10,10 +10,8 @@ function P = default_parameters()
 %   P = default_parameters();          % get standard set
 %   P.kc = 0.2;                        % override one parameter
 %   P.ranges.kHon                     % appendix sensitivity interval [min max]
-% Source: Appendix_Parameter_Estimation_revised.docx, sections B-G.
-% Rates use the rounded working values reported in the appendix. Geometry
-% and initiation are retained where that document supplies no new baseline.
-
+% Baseline: the MATLAB/Python comparison parameter set supplied 2026-09-15.
+% Sensitivity intervals below retain the revised appendix ranges.
 
     % --- Geometry ---
     P.L_a            = 100;        % bp per node
@@ -22,7 +20,7 @@ function P = default_parameters()
 
     % --- Pol II kinetics ---
     P.k_in   = 2;                  % Pol II initiation rate
-    P.k_e    = (4000 / 60) / P.L_a; % 4 kb/min before PAS (section E)
+    P.k_e    = 65 / P.L_a;        % 65 bp/s for unrecognized Pol II
     P.k_e2   = 30 / P.L_a;        % Elongation rate (after PAS, in REH)
 
     % --- Pool sizes ---
@@ -30,19 +28,17 @@ function P = default_parameters()
     P.Pol_total = 70000;           % Total Pol II pool
 
     % --- E factor binding ---
-    P.kEon   = 2.22e-6;            % molecule^-1 s^-1; 374 um^3 nucleus (C)
+    P.kEon   = 2.5e-6;             % molecule^-1 s^-1
     P.kEoff  = 0.5;                % E factor off-rate
     P.kEoff_engaged = 0.05;        % s^-1; full-model engaged-E detachment reference
     % Working value used by the full-model analyses; no appendix range is supplied.
  
     % --- PAS recognition (hexamer) ---
-    P.kHon   = 7.04;               % s^-1; effective PAS encounter rate (B.2)
-    P.kHoff  = 0.5;                % s^-1; provisional working default
-    % Section B.3 gives [0.05, 1.0] s^-1 but no baseline; 0.5 is a
-    % working choice within that interval, not a quoted appendix estimate.
+    P.kHon   = 7;                  % s^-1 per bound E
+    P.kHoff  = 1;                  % s^-1
  
     % --- Cleavage ---
-    P.kc     = 0.439;              % s^-1; sequential commitment estimate (D)
+    P.kc     = 0.15;               % s^-1
 
     % --- Ser2P phosphorylation ---
     P.kPon_min   = 0.01;           % Min Ser2P phosphorylation rate (at TSS)
