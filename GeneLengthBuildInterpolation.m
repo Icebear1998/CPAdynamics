@@ -49,24 +49,26 @@ end
 fprintf('\nValidating and cleaning data...\n');
 
 % Extract data
-R_free_data = results.data.R_free_vec;
-E_free_data = results.data.E_free_vec;
-L_data = results.data.L_vec;
-R_occupied_data = results.data.R_occupied_vec;
-E_occupied_data = results.data.E_occupied_vec;
-success_flags = results.data.success_flag;
+R_free_data = results.data.R_free_vec(:);
+E_free_data = results.data.E_free_vec(:);
+L_data = results.data.L_vec(:);
+[R_occupied_data, E_occupied_data, grid_validation] = validate_full_gene_length_grid( ...
+    results.data, results.parameters.base_parameters.EBindingNumber);
 
-% Remove failed simulations
-valid_indices = (success_flags == 1) & isfinite(R_occupied_data) & isfinite(E_occupied_data) ...
-    & R_occupied_data >= 0 & E_occupied_data >= 0;
-n_valid = sum(valid_indices);
-n_total = length(success_flags);
+% Keep every Cartesian grid row. Only solver-level roundoff is corrected;
+% the validator rejects failed, nonfinite or materially negative results.
+n_total = numel(results.data.success_flag);
+valid_indices = true(n_total, 1);
+n_valid = n_total;
 
 fprintf('Valid data points: %d/%d (%.1f%%)\n', n_valid, n_total, n_valid/n_total*100);
 
-if n_valid ~= n_total
-    error('GeneLengthBuildInterpolation:IncompleteGrid', ...
-        'Full-model interpolation requires a complete grid; inspect results.data.error_messages and regenerate.');
+if grid_validation.corrected_rows > 0
+    fprintf('Corrected numerical roundoff to zero in %d rows (Pol: %d, E: %d values).\n', ...
+        grid_validation.corrected_rows, grid_validation.corrected_R_values, grid_validation.corrected_E_values);
+    fprintf('  Raw minima: Pol = %.3g, E = %.3g; maximum tolerances: Pol = %.3g, E = %.3g.\n', ...
+        grid_validation.minimum_raw_R_occupied, grid_validation.minimum_raw_E_occupied, ...
+        grid_validation.max_R_tolerance, grid_validation.max_E_tolerance);
 end
 
 % Clean data
@@ -198,6 +200,7 @@ interpolation_results.validation.R_occupied_mean_error = mean(R_error);
 interpolation_results.validation.R_occupied_max_error = max(R_error);
 interpolation_results.validation.E_occupied_mean_error = mean(E_error);
 interpolation_results.validation.E_occupied_max_error = max(E_error);
+interpolation_results.validation.grid_roundoff = grid_validation;
 
 % Gene length distribution parameters
 interpolation_results.gene_length_distribution.type = 'log-normal';
