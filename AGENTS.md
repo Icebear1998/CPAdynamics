@@ -15,41 +15,41 @@ This is Version 2.0 of the model. The key advance over Version 1.0 is that each 
 - **Pol II** transcribes along a gene, modeled as a 1D lattice with node spacing `L_a = 100 bp`
 - **R**: elongating Pol II (can bind E factors along the gene)
 - **REH**: terminating Pol II that has recognized the PAS and is committed to cleavage
-- **E factor**: a CPA assembly factor that binds Pol II CTD (Ser2P-phosphorylated); binding is modeled as rapid equilibrium
+- **E factor**: a CPA assembly factor that binds Pol II CTD (Ser2P-phosphorylated); binding is modeled with explicit finite rates
 - **PAS (poly(A) signal)**: the point on the gene where REH complexes begin forming; located at `PASposition` bp from TSS
 - **Ser2P**: CTD phosphorylation state, modeled as increasing linearly from TSS with slope `kPon_slope`
 - Termination occurs when REH complexes cleave RNA at rate `kc`
 
 ## Model Architecture
 
-### Two-timescale hybrid:
+### Full finite-rate model
 
-1. **Slow (ODE system)**: Pol II elongation and termination. Solved numerically with `fsolve` at steady state.
-2. **Fast (symbolic/numerical equilibrium)**: E factor binding to Pol II CTD. Pre-computed and stored as a function handle `P.RE_val_bind_E(Ef)`.
+All active MATLAB analyses use `run_full_termination_simulation`. Phosphorylation,
+E binding, PAS recognition, elongation and cleavage are explicit finite-rate
+reactions. There is no rapid-equilibrium closure and `P.kHon` is never rescaled.
+R states have `0 <= e <= p <= M`; recognized RHE states have `1 <= e <= p <= M`.
+Exactly one E in each RHE state is engaged with H. `kEoff_engaged` controls its
+independent detachment and rapid EH disassembly; the working default is 0.05 s^-1.
 
-### Gene discretization:
+Geometry is `P.N = floor(geneLength_bp/L_a)`, `P.PAS = floor(PASposition/L_a)`
+and `P.N_PAS = P.N-P.PAS+1`. All geometry and free pools are stored in `P`.
 
-- Gene split into `N = geneLength_bp / L_a` nodes
-- PAS at node `PAS = PASposition / L_a`
-- `N_PAS = N - PAS + 1` nodes after PAS (where REH exists)
-- Geometry and steady-state free E are stored in the parameter struct: `P.N`, `P.PAS`, `P.N_PAS`, `P.Ef_ss` — no global variables are used
-
-### Rate matrix for E binding:
-
-States are indexed in a 2D (P-level, E-level) block structure. The rate matrix is built **numerically** via `build_rate_matrix_numerical.m`, which is shared by both `compute_steady_states_numerical.m` and `compute_avg_E_bound_numerical.m`. The old symbolic path (`construct_rate_matrix.m` + `compute_steady_states.m`) is no longer called by any active script.
+All active analyses and tests use the full finite-rate helpers in the project root.
 
 ## File Map
 
 ### Core simulation
 
-| File                                | Role                                                                                                                                              |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `run_termination_simulation.m`      | Top-level function: sets up geometry (`P.N/PAS/N_PAS`), pre-computes E-binding grid, solves free E self-consistently by default, stores `P.Ef_ss` |
-| `ode_dynamics_multipleE.m`          | ODE RHS; reads geometry and rates from `P`; no globals, no nested solver                                                                          |
-| `build_rate_matrix_numerical.m`     | **Shared** numerical rate matrix builder used by both steady-state functions                                                                      |
-| `compute_steady_states_numerical.m` | Numerical null-space (SVD) steady-state distributions for E-binding and Ser2P                                                                     |
-| `compute_avg_E_bound_numerical.m`   | Computes average E bound at each gene position numerically                                                                                        |
-| `calculate_pas_cleavage_profile.m`  | Flux-based CDF of termination events downstream of PAS                                                                                            |
+| File | Role |
+| --- | --- |
+| `run_full_termination_simulation.m` | Full finite-rate steady state; closed or fixed free pools; microstate-derived averages and resource demand |
+| `build_full_rate_matrices.m` | Shared sparse transport/reaction operator |
+| `build_full_internal_rate_matrices.m` | Local phosphorylation and E-binding generators |
+| `build_full_state_map.m` | R/RHE (p,e) state indexing |
+| `ode_dynamics_full_multipleE.m` | Full ODE RHS with explicit E and Pol II pools |
+| `full_model_jacobian.m` | Sparse full ODE Jacobian |
+| `calculate_full_pas_cleavage_profile.m` | Flux-based cleavage CDF and within-window CAD |
+| `solve_full_genome_pools.m` | Bounded genome-wide conservation solve using full-model occupancy interpolation |
 
 ### Analysis scripts
 
@@ -78,7 +78,7 @@ States are indexed in a 2D (P-level, E-level) block structure. The rate matrix i
 | File                      | Role                                                       |
 | ------------------------- | ---------------------------------------------------------- |
 | `default_parameters.m`    | Standard parameter set; called by all analysis scripts     |
-| `save_analysis_results.m` | Standardized result/plot saving to `SecondVersionResults/` |
+| `save_analysis_results.m` | Standardized result/plot saving to `Results/` |
 
 ## Standard Parameter Set
 
@@ -87,15 +87,16 @@ These are defined in `default_parameters.m`. All scripts call `default_parameter
 ```matlab
 P.L_a        = 100;        % bp per node
 P.k_in       = 2;          % Pol II initiation rate
-P.k_e        = 65/100;     % Elongation rate (before PAS)
+P.k_e        = (4000/60)/100;     % Elongation rate (before PAS)
 P.k_e2       = 30/100;     % Elongation rate (after PAS, in REH)
 P.E_total    = 100000;     % Total E factor pool
 P.Pol_total  = 70000;      % Total Pol II pool
-P.kEon       = 0.000001;  % E factor on-rate
-P.kEoff      = 0.2;        % E factor off-rate
-P.kHon       = 1;          % PAS recognition (hexamer) on-rate
+P.kEon       = 2.22e-6;  % E factor on-rate
+P.kEoff      = 0.5;        % E factor off-rate
+P.kEoff_engaged = 0.05;    % Independent engaged-E off-rate
+P.kHon       = 7.04;          % PAS recognition (hexamer) on-rate
 P.kHoff      = 0.5;          % Hexamer off-rate
-P.kc         = 0.13;        % Cleavage rate
+P.kc         = 0.439;        % Cleavage rate
 P.kPon_min   = 0.01;       % Min Ser2P phosphorylation rate (at TSS)
 P.kPon_slope = 0.005;      % Linear slope of kPon along gene
 P.kPoff      = 1;          % Ser2P dephosphorylation rate
@@ -104,29 +105,38 @@ P.PASposition   = 20000;   % PAS position from TSS
 EBindingNumber  = 5;       % Max E factors per polymerase
 ```
 
-## Self-Consistent Solution Strategy in `run_termination_simulation.m`
+## Full-model solution strategy
 
-0. **Pre-computation**: `P.RE_val_bind_E` is built as a fast interpolant over a pre-computed grid of 100 `Ef_val` points (avoids repeated SVD calls inside the solver):
-   ```matlab
-   P.RE_val_bind_E = @(Ef_val) interpolate_E_bound(Ef_val, Ef_grid, avg_E_bound_grid, avg_Ser2P_grid);
-   ```
-1. **Warm start**: Solve the ODE once with initial `kHon` to get a stable initial Pol II distribution.
-2. **Self-consistent free E**: Use `fzero` to find `P.Ef_ss` such that `Ef = E_total - E_bound(R(Ef), REH(Ef), Ef)`. For each candidate `Ef`, update `P.kHon = kHon_base * avg_E_bound(P.PAS)`, re-solve the ODE, and evaluate E conservation.
-3. **Final solve**: Re-solve the ODE at the converged `P.Ef_ss`, so returned `R_sol`, `REH_sol`, `P.kHon`, and `P.Ef_ss` are mutually consistent.
+`run_full_termination_simulation(P, M)` builds one sparse operator, solves its
+linear microstate equations at each trial free E, scales occupancy to conserve
+Pol II, and uses `fzero` to conserve E. Returned `P.Ef_ss` and `P.Pol_free_ss`
+are consistent with the returned R and RHE profiles.
 
-Geometry (`P.N`, `P.PAS`, `P.N_PAS`) and `P.Ef_ss` are stored in the returned struct `P`. The returned `r_E_BeforePas` and `r_P` outputs are always `[]` — they exist only for call-site compatibility.
+`run_full_termination_simulation(P, M, 'FreePools', [R_free E_free])` holds both
+free pools fixed. It is used for the gene-length lookup grid and profiles after
+the shared genome-wide pools have been solved. Local totals must not be enforced
+again in this mode. Read `details.Pol_bound` and `details.E_bound` for resource
+demand. The full kinetic RHS and flux balance are still validated.
 
-**There is no symbolic cache.** The `SymbolicCache/` folder and `compute_steady_states.m` are no longer used.
+Read `details.avg_E_bound` and `details.avg_Ser2P` for averages over all polymerases
+at each node, including RHE after PAS. Empty nodes have NaN averages and zero
+resource demand. No binding equilibrium interpolant or symbolic cache is used.
+
+The gene-length pipeline writes `full_gene_length_grid_data_*.mat`, then
+`full_gene_length_interpolation_*.mat`, then `full_gene_length_TCD_analysis_*.mat`.
+Rebuild both prerequisites after a model or parameter change. Old equilibrium
+artifacts are rejected. The grid includes zero through the global pool totals;
+interpolation never extrapolates and the length PDF is normalized over the grid's
+finite length interval. The saved metadata records that interval and PDF mass.
 
 ## Output Organization
 
-All results go to `SecondVersionResults/<analysis_type>/` with timestamped filenames. Subdirectories include:
+The standard saver writes to `Results/<analysis_type>/`; full binding-capacity and gene-length analyses use `SecondVersionResults/`. `CPAD_RESULTS_ROOT` overrides either root. The latter analyses use timestamped outputs. Subdirectories include:
 
 - `CPA_multipleE_main/` (`CpaMultipleEMain`)
 - `parameter_sweep_1D/` (`ParameterSweep1D`)
 - `ProximalPASUsage_ParameterSweep/` (`SweepParameterPasUsage`)
-- `Sanity_check_multipleE/` (`SanityCheckMultipleE`)
-- `Sweep1DEbindingnumber/` (`EBindingNumberVsCad`)
+- `Full_EBindingNumber_vs_CAD/` (`EBindingNumberVsCad`)
 - `Ser2P_Eaverage_Profile/` (`PlotEBindingProfile`)
 - `GeneLengthAnalysis/` (`GeneLengthGenerateGrid`, `GeneLengthBuildInterpolation`, `GeneLengthAnalyze` — grid data and interpolation .mat files)
 
@@ -137,17 +147,16 @@ The genome-wide self-consistency condition:
 $$R_{\text{total}} = R_{\text{free}} + N_{\text{genes}} \int R_{\text{occupied}}(R_f, E_f, L)\, f(L)\, dL$$
 $$E_{\text{total}} = E_{\text{free}} + N_{\text{genes}} \int E_{\text{occupied}}(R_f, E_f, L)\, f(L)\, dL$$
 
-where $f(L)$ is a log-normal gene length distribution fit to human genomic data. Solved with `fsolve` in `GeneLengthAnalyze.m`.
+where $f(L)$ is a log-normal gene length distribution fit to human genomic data. Solved by `solve_full_genome_pools`: analytically eliminate R_free using linear occupancy scaling and use bracketed `fzero` for E_free.
 
 ## Common Gotchas
 
-- **No global variables**: geometry (`P.N`, `P.PAS`, `P.N_PAS`) and free E concentration (`P.Ef_ss`) are stored in the parameter struct `P` and passed explicitly. Do not reintroduce `global` declarations.
-- **`P.Ef_ss` is set by `run_termination_simulation`** via the self-consistent free-E solve; it is available on the returned `P` struct. Scripts that need `Ef_ss` should read `P_out.Ef_ss`.
-- **No symbolic cache**: the old `SymbolicCache/` folder and `compute_steady_states.m` are no longer part of the active pipeline. Do not reintroduce them.
-- **Parallel workers** (`parfor`): `SweepParameterPasUsage.m` and `GeneLengthAnalyze.m` use `parfor`; each worker calls `run_termination_simulation` independently and receives its own `P` struct with `P.Ef_ss` — no shared state needed.
-- **`P.RE_val_bind_E`** is a function handle `@(Ef_val) ...` returning a `1×N` vector of average E bound at each node. It is set inside `run_termination_simulation.m` and must be present in `P` before calling `ode_dynamics_multipleE`.
-- **CAD is not extrapolated by default**: `calculate_pas_cleavage_profile` returns `NaN` and warns when the requested cleavage percentage is not reached within the simulated post-PAS window. Use the returned `diagnostics.max_exit_cdf` to report the within-window commitment fraction.
-- **Rate matrix**: all active code builds the rate matrix numerically via `build_rate_matrix_numerical.m`. `construct_rate_matrix.m` is kept in `SparedCodes/` for reference only.
-- **File naming**: main analysis scripts use PascalCase (e.g., `CpaMultipleEMain.m`); helper functions use snake_case (e.g., `run_termination_simulation.m`, `build_rate_matrix_numerical.m`).
-- The `FirstVersion/` folder contains legacy code (single E binding). Do not modify; use for reference only.
-- `SparedCodes/` contains archived/experimental variants. Do not call any file there from active scripts.
+- Never introduce globals, symbolic caches or equilibrium binding handles into active code.
+- `P.kHon` remains the base per-E recognition rate in every full-model simulation.
+- Use `calculate_full_pas_cleavage_profile`: unreached CAD thresholds return NaN. Report `diagnostics.max_exit_cdf` alongside them.
+- `run_full_termination_simulation` requires positive initiation and elongation rates; do not turn solver errors into successful zero-population cases.
+- Shared-pool gene-length runs must pass both pools explicitly through `'FreePools'` and reuse the grid's parameters and downstream length.
+- `parfor` workers each receive their own parameter struct; no shared mutable solver state is needed.
+- Average E and Ser2P profiles come from full microstates, not `P.RE_val_bind_E`.
+- Main analysis scripts use PascalCase; helpers use snake_case.
+- `FirstVersion/` and `SparedCodes/` contain legacy/reference code. Do not modify or call them from active scripts.

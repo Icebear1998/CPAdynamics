@@ -1,6 +1,7 @@
 FirstVersion/
 SecondVersionResults/
-SparedCodes/
+SparedCodes/*
+!SparedCodes/OriginalEquilibriumModel/
 SymbolicCache/
 pyCPA/
 *.asv

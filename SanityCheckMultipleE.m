@@ -1,191 +1,69 @@
-%% 1. Define Model Parameters
+% Physical checks for the full finite-rate model. Failures are assertions;
+% solver errors are never converted into artificial zero-population passes.
 P = default_parameters();
-
 EBindingNumber = 1;
+[R, RHE, P_sim, details] = run_full_termination_simulation(P, EBindingNumber);
+check_full_solution(P_sim, details);
+fprintf('Full-model baseline: resource conservation, nonnegativity and steady flux [PASS]\n');
 
-%% 2. Solve the Steady State
-fprintf('Running main simulation...\n');
-[R_sol, REH_sol, P_sim] = run_termination_simulation(P, EBindingNumber);
-fprintf('Simulation complete.\n');
+positions_bp = ((1:P_sim.N)-P_sim.PAS)*P_sim.L_a;
+figure;
+plot(positions_bp, R, 'b-', positions_bp, [zeros(P_sim.PAS-1, 1); RHE], 'r-', 'LineWidth', 2);
+xlabel('Position relative to PAS (bp)');
+ylabel('Polymerase count');
+legend('R', 'RHE', 'Location', 'best');
+title('Full finite-rate steady state');
+grid on;
 
-N     = P_sim.N;
-PAS   = P_sim.PAS;
-N_PAS = P_sim.N_PAS;
-
-%% 3. Plot Results Using a Function
-plot_spatial_distribution(R_sol, REH_sol, zeros(EBindingNumber+1, N), N, PAS, EBindingNumber, 'Main Run: Spatial Distribution of R(l) and REH(l)');
-
-%% 4. Perform Sanity Checks
-fprintf('\n--- Main Run Checks ---\n');
-
-% 4.1 Pol II Conservation Check
-Pol_f = P.Pol_total - sum(R_sol) - sum(REH_sol);
-Pol_used = sum(R_sol) + sum(REH_sol);
-Pol_cons = Pol_used + Pol_f;
-fprintf('Pol II conservation check:\n');
-fprintf('  Total Pol II (expected): %d\n', P.Pol_total);
-fprintf('  Sum of R + REH + Pol_f at final time: %g\n', Pol_cons);
-
-% 4.2 E Conservation Check
-avg_E_bound = P_sim.RE_val_bind_E(P_sim.Ef_ss);
-E_used_R   = sum(R_sol'   .* avg_E_bound);
-E_used_REH = sum(REH_sol' .* avg_E_bound(PAS:N));
-E_bound = E_used_R + E_used_REH;
-E_f = P.E_total - E_bound;
-E_cons = E_f + E_bound;
-fprintf('E conservation check at final time:\n');
-fprintf('  E_total (expected): %g\n', P.E_total);
-fprintf('  E_free + E_bound = %g\n', E_cons);
-
-% 4.3 Non-negativity Check
-fprintf('\n--- Non-Negativity Check at Final Time ---\n');
-if any(R_sol < 0)
-    neg_idx = find(R_sol < 0);
-    neg_values = R_sol(neg_idx);
-    fprintf('ERROR: Negative R at indices: %s, values: %s\n',...
-         mat2str(neg_idx), mat2str(neg_values));
-end
-if any(REH_sol < 0)
-    neg_idx = find(REH_sol < 0);
-    neg_values = REH_sol(neg_idx);
-    fprintf('ERROR: Negative REH at indices: %s, values: %s\n',...
-         mat2str(neg_idx), mat2str(neg_values));
-end
-if ~any(R_sol < 0) && ~any(REH_sol < 0)
-    fprintf('All state variables non-negative.\n');
-end
-
-% 4.4 E-Binding Before PAS Check
-fprintf('\n--- E-Binding Before PAS Check ---\n');
-% Check if the number of bound E molecules increases as kPon increases
-bound_E = avg_E_bound(1:PAS);
-% Since kP decreases from kPmax to kPmin, bound_E should decrease
-if all(diff(bound_E) <= 0)
-    fprintf('E-binding decreases as kP decreases (kPmax to kPmin). [PASS]\n');
-else
-    fprintf('E-binding does not decrease monotonically with kP. [FAIL]\n');
-end
-
-% 4.5 Consistency of E_f
-fprintf('\n--- E_f Consistency Check ---\n');
-E_f_computed = P.E_total - E_bound;
-if abs(E_f_computed - P_sim.Ef_ss) < 1e-6
-    fprintf('E_f from computation matches Ef_ss. [PASS]\n');
-else
-    fprintf('E_f mismatch: Computed E_f = %g, Ef_ss = %g. [FAIL]\n', E_f_computed, P_sim.Ef_ss);
-end
-
-%% 5. Edge Case Tests
-fprintf('\n--- Edge Case Tests ---\n');
-
-% Edge Case 1: k_in = 0 → No Pol II should initiate
-P_temp = P; P_temp.k_in = 0;
-try
-    [R_test, REH_test] = run_termination_simulation(P_temp, EBindingNumber);
-catch
-    R_test = zeros(N, 1); REH_test = zeros(N_PAS, 1);
-end
-if max(abs(R_test)) < 1e-6 && max(abs(REH_test)) < 1e-6
-    fprintf('Edge Case 1 (k_in = 0): No Pol II initiated as expected. [PASS]\n');
-else
-    fprintf('Edge Case 1 (k_in = 0): Pol II is present. [FAIL]\n');
-    plot_spatial_distribution(R_test, REH_test, zeros(EBindingNumber+1, N), N, PAS, EBindingNumber, 'Edge Case 1 (k_in = 0): Pol II Distribution');
-end
-
-% Edge Case 2: k_e = k_e2 = 0 → Pol II should stay at initiation site
-P_temp = P; P_temp.k_e = 0; P_temp.k_e2 = 0;
-try
-    [R_test, REH_test] = run_termination_simulation(P_temp, EBindingNumber);
-catch
-    R_test = zeros(N, 1); REH_test = zeros(N_PAS, 1);
-end
-if all(R_test(2:PAS) < 1e-6) && all(REH_test < 1e-6)
-    fprintf('Edge Case 2 (k_e = k_e2 = 0): Pol II does not elongate. [PASS]\n');
-else
-    fprintf('Edge Case 2 (k_e = k_e2 = 0): Pol II spreads along gene. [FAIL]\n');
-    plot_spatial_distribution(R_test, REH_test, zeros(EBindingNumber+1, N), N, PAS, EBindingNumber, 'Edge Case 2 (k_e = k_e2 = 0): Pol II Distribution');
-end
-
-% Edge Case 3: k_e2 = 0 → Pol II should accumulate at PAS
-P_temp = P; P_temp.k_e2 = 0;
-try
-    [R_test, REH_test] = run_termination_simulation(P_temp, EBindingNumber);
-catch
-    R_test = zeros(N, 1); REH_test = zeros(N_PAS, 1);
-end
-accumPAS = R_test(PAS) + REH_test(1);
-otherSum = sum(R_test) + sum(REH_test) - accumPAS;
-if otherSum < 1e-3
-    fprintf('Edge Case 3 (k_e2 = 0): Pol II accumulates at PAS. [PASS]\n');
-else
-    fprintf('Edge Case 3 (k_e2 = 0): Pol II also present beyond PAS? [FAIL]\n');
-    fprintf('Pol II at PAS: %g\n', accumPAS);
-    fprintf('Pol II elsewhere: %g\n', otherSum);
-    plot_spatial_distribution(R_test, REH_test, zeros(EBindingNumber+1, N), N, PAS, EBindingNumber, 'Edge Case 3 (k_e2 = 0): Pol II Distribution');
-end
-
-% Edge Case 4: k_c = 0 → Pol II should accumulate at last node
-P_temp = P; P_temp.kc = 0;
-try
-    [R_test, REH_test] = run_termination_simulation(P_temp, EBindingNumber);
-catch
-    R_test = zeros(N, 1); REH_test = zeros(N_PAS, 1);
-end
-lastPosPop = R_test(N) + REH_test(N_PAS);
-othersPop = sum(R_test) + sum(REH_test) - lastPosPop;
-if othersPop < 1e-3
-    fprintf('Edge Case 4 (k_c = 0): Pol II accumulates at last node. [PASS]\n');
-else
-    fprintf('Edge Case 4 (k_c = 0): Pol II found in earlier nodes? [FAIL]\n');
-    fprintf('Pol II at last node: %g\n', lastPosPop);
-    fprintf('Pol II elsewhere: %g\n', othersPop);
-    plot_spatial_distribution(R_test, REH_test, zeros(EBindingNumber+1, N), N, PAS, EBindingNumber, 'Edge Case 4 (k_c = 0): Pol II Distribution');
-end
-
-% Edge Case 5: E_total = 0 → No E-binding should occur
-P_temp = P; P_temp.E_total = 0;
-try
-    [R_test, REH_test, P_sim5] = run_termination_simulation(P_temp, EBindingNumber);
-    avg_E_test = P_sim5.RE_val_bind_E(P_sim5.Ef_ss);
-    if max(abs(REH_test)) < 1e-6 && max(abs(avg_E_test)) < 1e-6
-        fprintf('Edge Case 5 (E_total = 0): No E-binding occurs. [PASS]\n');
-    else
-        fprintf('Edge Case 5 (E_total = 0): E-binding occurs. [FAIL]\n');
-        plot_spatial_distribution(R_test, REH_test, zeros(EBindingNumber+1, N), N, PAS, EBindingNumber, 'Edge Case 5 (E_total = 0): Pol II Distribution');
+% E is required for recognition; disabling E supply or either on-rate
+% removes RHE while preserving transport and total-resource conservation.
+for field = {'E_total', 'kEon', 'kHon'}
+    P_case = P;
+    P_case.(field{1}) = 0;
+    [~, RHE_case, P_case, D] = run_full_termination_simulation(P_case, EBindingNumber);
+    check_full_solution(P_case, D);
+    assert(max(abs(RHE_case)) < 1e-8, 'RHE persists with %s = 0.', field{1});
+    if ~strcmp(field{1}, 'kHon')
+        assert(abs(D.E_bound) < 1e-8, 'Bound E persists without E supply or binding.');
     end
-catch ME
-    fprintf('Edge Case 5 (E_total = 0): Simulation failed - %s\n', ME.message);
+    fprintf('%s = 0: no PAS recognition [PASS]\n', field{1});
 end
 
-% Edge Case 6: Large k_c, kHon → Immediate exit at PAS
-P_temp = P; P_temp.kc = 1; P_temp.kHon = 10; P_temp.k_in = 0.01;
-try
-    [R_test, REH_test] = run_termination_simulation(P_temp, EBindingNumber);
-catch
-    R_test = zeros(N, 1); REH_test = zeros(N_PAS, 1);
-end
-finalPol = sum(R_test) + sum(REH_test);
-if finalPol < 1e-3
-    fprintf('Edge Case 6 (k_c, kHon large): Immediate exit achieved. [PASS]\n');
-else
-    fprintf('Edge Case 6 (k_c, kHon large): Pol II remains in system? [FAIL]\n');
-    fprintf('Total Pol II in system: %g\n', finalPol);
-    plot_spatial_distribution(R_test, REH_test, zeros(EBindingNumber+1, N), N, PAS, EBindingNumber, 'Edge Case 6 (k_c, kHon large): Pol II Distribution');
-end
+% With no cleavage, polymerases still leave the finite gene by elongation.
+P_case = P;
+P_case.kc = 0;
+[R_case, RHE_case, P_case, D] = run_full_termination_simulation(P_case, EBindingNumber);
+check_full_solution(P_case, D);
+[cdf, ~] = calculate_full_pas_cleavage_profile(R_case, RHE_case, P_case, 'PercentCleavage', 0);
+assert(all(cdf == 0), 'Cleavage must vanish when kc = 0.');
+assert(abs(P_case.k_e*R_case(end)+P_case.k_e2*RHE_case(end)-P_case.k_in*P_case.Pol_free_ss) < 1e-6, ...
+    'Initiation and terminal elongation flux must balance when kc = 0.');
+fprintf('kc = 0: no cleavage, terminal elongation balances initiation [PASS]\n');
 
-fprintf('\n--- All Edge Cases Completed ---\n');
+% The algebraic steady solver explicitly requires positive transport rates.
+for field = {'k_in', 'k_e', 'k_e2'}
+    P_case = P;
+    P_case.(field{1}) = 0;
+    rejected = false;
+    try
+        run_full_termination_simulation(P_case, EBindingNumber);
+    catch ME
+        if ~strcmp(ME.identifier, 'run_full_termination_simulation:InvalidTransport')
+            rethrow(ME);
+        end
+        rejected = true;
+    end
+    assert(rejected, 'Zero %s must be rejected by the steady solver.', field{1});
+    fprintf('%s = 0: documented unsupported steady-solver input [PASS]\n', field{1});
+end
+fprintf('All full-model sanity checks passed.\n');
 
-%% Plotting Function
-function plot_spatial_distribution(R, REH, RE_vals, N, PAS, EBindingNumber, plot_title)
-    l_values = (1 - PAS):(N - PAS);
-    figure;
-    hold on;
-    plot(l_values, R, 'b-', 'LineWidth', 2, 'DisplayName', 'R(l)');
-    plot(l_values, [zeros(PAS-1, 1); REH], 'r-', 'LineWidth', 2, 'DisplayName', 'REH(l)');
-    xlabel('Position relative to PAS (x100 bp)');
-    ylabel('Concentration');
-    title(plot_title);
-    legend('show', 'Location', 'best');
-    grid on;
-    hold off;
+function check_full_solution(P, D)
+    E_from_microstates = sum(D.R_micro*D.R_states(:, 2)) ...
+        + sum(D.RHE_micro*D.RHE_states(:, 2));
+    Pol_from_microstates = sum(D.R_micro(:))+sum(D.RHE_micro(:));
+    assert(abs(P.Ef_ss+E_from_microstates-P.E_total) < 1e-6, 'E conservation failed.');
+    assert(abs(P.Pol_free_ss+Pol_from_microstates-P.Pol_total) < 1e-6, 'Pol II conservation failed.');
+    assert(min(D.state_ss) >= -1e-9, 'Negative microstate population.');
+    assert(D.rhs_max_abs < 1e-6 && abs(D.flux_residual) < 1e-6, 'Steady-state balance failed.');
 end

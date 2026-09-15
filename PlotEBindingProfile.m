@@ -2,7 +2,8 @@
 % For each EBindingNumber, generates:
 %   - Average E binding profile (solid line)
 %   - Ser2P profile (dashed line, same color)
-% on a single combined figure
+% on a single combined figure from TSS to PAS (inclusive).
+% The full gene is still simulated and exported for consistent free pools.
 saveData = strcmpi(getenv('CPAD_FORCE_SAVE'), 'true');
 
 % --- BASE PARAMETERS ---
@@ -44,19 +45,25 @@ for idx = 1 : length(BindingNumbers)
 
     % --- Plot ---
     col = Colors{idx};
+    plot_nodes = 1:P_out.PAS;
+    plot_coords = plot_nodes * P.L_a / 1000; % Distance from TSS, kb
 
-    plot(x_coords, avg_E_bound, '-',  'Color', col, 'LineWidth', 2, ...
+    plot(plot_coords, avg_E_bound(plot_nodes), '-',  'Color', col, 'LineWidth', 2, ...
         'DisplayName', sprintf('Avg E (N=%d)', nb));
-    plot(x_coords, avg_Ser2P,  '--', 'Color', col, 'LineWidth', 2, ...
+    plot(plot_coords, avg_Ser2P(plot_nodes),  '--', 'Color', col, 'LineWidth', 2, ...
         'DisplayName', sprintf('Ser2P (N=%d)', nb));
 end
 
 % Finalize plot
-xlabel('Position relative to PAS (kb)', 'FontSize', 12);
+xlabel('Distance from TSS (kb)', 'FontSize', 12);
 ylabel('Average Bound Factors', 'FontSize', 12);
 title('Full finite-rate E binding (solid) and Ser2P (dashed)', 'FontSize', 14);
 legend('Location', 'northwest', 'FontSize', 10);
-xline(0, 'k--', 'PAS', 'LineWidth', 1.5);
+pas_kb = P_out.PAS * P.L_a / 1000;
+xlim([0, pas_kb]);
+xticks(linspace(0, pas_kb, 5));
+xline(pas_kb, 'k--', 'PAS', 'LineWidth', 1.5, ...
+    'LabelHorizontalAlignment', 'left', 'HandleVisibility', 'off');
 grid on;
 
 if saveData
