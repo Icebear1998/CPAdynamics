@@ -45,7 +45,6 @@ All active analyses and tests use the full finite-rate helpers in the project ro
 | `run_full_termination_simulation.m` | Full finite-rate steady state; closed or fixed free pools; microstate-derived averages and resource demand |
 | `build_full_rate_matrices.m` | Sparse transport/reaction operator with local state-map and internal-generator helpers |
 | `ode_dynamics_full_multipleE.m` | Full ODE RHS with explicit E and Pol II pools |
-| `full_model_jacobian.m` | Sparse full ODE Jacobian |
 | `calculate_full_pas_cleavage_profile.m` | Flux-based cleavage CDF and within-window CAD |
 
 ### Analysis scripts

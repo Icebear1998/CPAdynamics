@@ -6,6 +6,66 @@ package and does not modify MATLAB or the legacy analyses.
 
 ## Run
 
+To reproduce the full-model figures and diagnostics from `CpaMultipleEMain.m`:
+
+```bash
+python3 python/run_cpa_multiple_e_main.py
+```
+
+This uses `EBindingNumber=5` and writes E/Ser2P and R/RHE plots, CAD50,
+cleavage CDF, raw profiles, microstates and a manifest under
+`SecondVersionResults/python_CPA_multipleE_main/<timestamp>/`. The profiles
+span the full simulated gene and use position relative to PAS, matching the
+MATLAB script. Pass `--m N` or `--output-dir PATH` to change those settings.
+
+To run gene length versus CAD with the full finite-rate model:
+
+```bash
+python3 python/plot_gene_length_vs_cad.py
+```
+
+This implements the shared-pool analysis in `GeneLengthGenerateGrid.m`,
+`GeneLengthBuildInterpolation.m`, and `GeneLengthAnalyze.m`. It uses the current
+working parameters, capacity 5, 10,000 active genes, per-gene `k_in=2/10000`,
+TSS-to-PAS lengths 2.5–200 kb, and a fixed 5 kb downstream extension. The
+lognormal length distribution has median 22 kb and log10 standard deviation
+0.68, normalized over the simulated range.
+
+The Python implementation directly solves the full kinetic equations at every
+100 bp lattice length. Forward block substitution reuses upstream states
+without changing any reactions or transport rates. Exact lognormal probability
+differences integrate each lattice-length bin, avoiding the MATLAB pipeline's
+occupancy interpolation and coarse quadrature. It solves one shared pair of
+free pools and checks representative genes against the complete sparse model.
+This is equation parity with MATLAB, not an expectation of identical output
+from a coarse MATLAB interpolation grid. MATLAB execution is not required.
+
+The command saves PNG/SVG figures, all 1,976 CAD/occupancy rows, a selected-length
+CSV, cleavage CDFs, a report, and a manifest with parameters, source hashes and
+validation under `SecondVersionResults/python_GeneLengthAnalysis/<timestamp>/`.
+Use `--m 1` to change capacity, `--output-dir PATH` for a chosen directory, or
+`CPAD_RESULTS_ROOT` to relocate results. CAD is never extrapolated. Matching
+MATLAB's PAS-bin convention, the 5 kb extension contains 51 cleavage bins with
+CDF coordinates through 5.1 kb. The upper endpoint at 200 kb is plotted but has
+zero mass under the continuous length distribution.
+
+To reproduce the current `PlotEBindingProfile.m` with the full finite-rate model:
+
+```bash
+python3 python/plot_ebinding_profile.py
+```
+
+This runs capacities 1, 5 and 10 and plots average E (solid) and Ser2P (dashed)
+from TSS to PAS (inclusive), with distance from TSS in kb on the x-axis.
+Both averages include R and RHE populations. The full gene is still simulated;
+raw CSVs retain the full profiles and their coordinates relative to PAS.
+All analysis entry points use the same defaults as `default_parameters.m`:
+`kEon=2.5e-6`, `kEoff=0.5`, `kEoff_engaged=0.05`, `kHon=7`,
+`kHoff=1`, `kc=0.15`, `k_e=0.65`, and `k_e2=0.3`. The profile command saves
+PNG/SVG figures, profile CSVs, microstates and a parameter/diagnostics manifest
+under `SecondVersionResults/python_EBindingProfile/<timestamp>/` and prints the
+absolute path. Use `--output-dir PATH` or `CPAD_RESULTS_ROOT` to change its location.
+
 From the repository root, using Python 3.10 or later:
 
 ```bash
@@ -14,7 +74,8 @@ python3 python/run_comparison.py --m 1 5
 PYTHONPATH=python python3 -m unittest discover -s python/tests -v
 ```
 
-The comparison first verifies the equilibrium reference against all six supplied
+Using explicit historical inputs (`kHon=4`, `kHoff=2`, `kc=0.13`,
+`kEoff_engaged=0`), the comparison first verifies the equilibrium reference against all six supplied
 MATLAB CAD50 values: **1191, 728, 571, 490, 442, 407 bp** for M=1..6. Each must
 agree within 0.5 bp, the precision of the supplied numbers, before full-model
 calculations run. MATLAB itself was unavailable during implementation; this is
@@ -135,8 +196,8 @@ free-protein pool; the event removes recognition, not the transcript.
 
 There is no RHE state with e=0. When the last E detaches, the destination is
 R(p,0), not RHE(p,0). Additional E can bind and unbind normally while the complex
-is recognized. `kEoff_engaged=0` is the default and reproduces the original full
-model; nonzero rates enable the new route in both the steady and time solvers.
+is recognized. The default `kEoff_engaged=0.05` enables this route in both
+the steady and time solvers; setting it to zero disables engaged-E loss.
 
 R elongates at `k_e`, RHE at `k_e2`, preserving `(p,e)`. Cleavage and final-node
 run-off return one polymerase and all its bound E to the free pools. H denotes
@@ -219,7 +280,7 @@ instead of SVD, and the linear transport equations directly instead of fsolve.
 These are equivalent equations at the default positive rates. The outer root
 is solved to tighter tolerance than the older Python port.
 
-The default full model predicts approximately **1535.654 bp (M=1)** and
+With the historical regression inputs above, the full model predicts approximately **1535.654 bp (M=1)** and
 **551.494 bp (M=5)**, versus **1191.205** and **441.784 bp** from the equilibrium
 reference. This comparison changes finite-rate loading, protection in RHE, and
 recognition based on actual occupancy. It does **not** isolate the error caused
@@ -274,3 +335,7 @@ versus 1535.654 and 551.494 bp when the new route is disabled. In this tested
 regime the extra loss pathway lengthens CAD, moving it farther from the
 original equilibrium reference. This reflects the chosen rapid-disassembly
 mechanism and does not establish a measured biological off-rate.
+
+The current default full model gives **CAD50 = 355.4668 bp at M=5**,
+matching the MATLAB output supplied on 2026-09-15. Historical numerical results
+above retain their original parameter inputs and are not current-default predictions.

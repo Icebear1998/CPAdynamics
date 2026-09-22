@@ -1,5 +1,5 @@
 function J = full_model_jacobian(~, X, model)
-% FULL_MODEL_JACOBIAN Analytic sparse Jacobian for ode15s.
+% FULL_MODEL_JACOBIAN Test helper: analytic sparse Jacobian for ode15s.
 x = X(1:model.size);
 Ef = X(end-1);
 J = [model.A0+Ef*model.AE, sparse(model.AE*x), sparse(model.initiation); ...

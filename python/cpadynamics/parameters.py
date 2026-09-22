@@ -1,4 +1,4 @@
-"""Parameters matching the MATLAB defaults checked on 2026-09-10."""
+"""Parameters matching the MATLAB baseline supplied on 2026-09-15."""
 from dataclasses import dataclass, fields
 import math
 
@@ -15,15 +15,15 @@ class Parameters:
     Pol_total: float = 70000.0
     kEon: float = 2.5e-6
     kEoff: float = 0.5
-    kHon: float = 4.0  # base rate PER E; never overwritten by an effective rate
-    kHoff: float = 2.0
-    kc: float = 0.13
+    kHon: float = 7.0  # base rate PER E; never overwritten by an effective rate
+    kHoff: float = 1.0
+    kc: float = 0.15
     kPon_min: float = 0.01
     kPon_slope: float = 0.005
     kPoff: float = 1.0
     # Full model only: CTD detachment of the H-engaged E, followed by rapid EH
-    # disassembly. Zero preserves the original full-model baseline.
-    kEoff_engaged: float = 0.0
+    # disassembly.
+    kEoff_engaged: float = 0.05
 
     def __post_init__(self):
         for field in fields(self):
@@ -41,3 +41,8 @@ class Parameters:
         n = math.floor(self.geneLength_bp / self.L_a)
         pas = math.floor(self.PASposition / self.L_a) - 1
         return n, pas, n - pas
+
+
+def working_parameters():
+    """Return the shared MATLAB/Python default parameter set."""
+    return Parameters()

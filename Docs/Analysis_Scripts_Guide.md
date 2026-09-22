@@ -1,7 +1,7 @@
 # CPA Dynamics Analysis Scripts - User Guide
 
 **Version 2.0**  
-**Last Updated: June 2026**
+**Last Updated: September 2026**
 
 ## Table of Contents
 
@@ -21,7 +21,9 @@ This guide describes the complete suite of analysis scripts for the CPA (Cleavag
 
 All scripts support an optional `saveData` (or `save_result`) flag at the top of the file. Set it to `true` to save results via the unified `save_analysis_results.m` utility. Results are written to `Results/<analysis_type>/`.
 
-The model uses a fully **numerical** approach — no Symbolic Math Toolbox is required.
+All active MATLAB analyses use the **full finite-rate R/RHE model** via `run_full_termination_simulation`. Binding and phosphorylation profiles are computed from microstates, and `kHon` stays at its base per-E value. The working engaged-E off-rate is `P.kEoff_engaged = 0.05` s⁻¹ in `default_parameters.m`.
+
+No Symbolic Math or Optimization Toolbox is needed for the active steady solvers. Scripts using `parfor`/`parpool` require Parallel Computing Toolbox.
 
 ---
 
@@ -35,7 +37,7 @@ The model uses a fully **numerical** approach — no Symbolic Math Toolbox is re
 
 - Solves the full ODE system for polymerase dynamics
 - Computes steady-state concentrations of R (elongating) and REH (terminating) polymerases
-- Calculates Ser2P phosphorylation levels and average E factor binding profiles
+- Calculates Ser2P and average E binding from full microstate populations, including RHE downstream of PAS
 - Generates two plots: Ser2P/AverageE profiles, and R/REH concentration profiles
 - Reports polymerase distribution at steady state
 
@@ -113,32 +115,37 @@ The model uses a fully **numerical** approach — no Symbolic Math Toolbox is re
 - Understanding parameter interactions
 - Identifying combinations that produce specific termination behaviors
 
-### 4. Sweep2DkHdkEdCad.m
+### 4. Sweep2DCad.m
 
-**Purpose**: 2D contour map of CAD₅₀ as a function of PAS recognition and E factor binding dissociation constants
+**Purpose**: Full finite-rate CAD₅₀ contour maps for all three pairs of PAS recognition affinity, E factor affinity and cleavage rate.
 
 **What it does**:
 
-- Sweeps `kHd = kHoff/kHon` and `kEd = kEoff/kEon` over literature-plausible ranges
-- Fixes on-rates at reference values; varies off-rates to achieve target dissociation constants
-- Generates a filled contour plot with experimental target band (400–800 bp) overlaid
-- Computes and marks the CAD at base parameters
+- Sweeps (x, y) = (kHd, kEd), (kc, kHd) and (kc, kEd), with `kHd = kHoff/kHon` and `kEd = kEoff/kEon`.
+- Uses log-spaced ranges from `P.ranges` in `default_parameters.m`, including `P.ranges.kc`.
+- Fixes on-rates at reference values and reconstructs off-rates from dissociation constants. The unswept parameter and `kEoff_engaged` stay at baseline.
+- Uses `run_full_termination_simulation`; CAD thresholds outside the simulated window remain `NaN`.
+- Computes the baseline once per binding capacity and marks it on each map.
 
 **Key Features**:
 
-- Configurable literature ranges for individual rates
+- Set `nPoints`, `percent_cleavage` and `EBindingNumbers` in the script. Default binding capacity is 5; use `[1 5]` for comparison.
 - `save_result` flag (default: `true`)
 - Version-safe colormap (falls back from `turbo` to `jet`)
+- All sweep and plotting helpers are local functions in `Sweep2DCad.m`; run that script to compute, plot and save all three pairs.
+- Raw CAD, within-window cleavage fractions, ODE residuals and per-cell errors are saved with explicit matrix orientation (rows = y, columns = x).
 
 **Expected Results**:
 
-- Contour map of CAD₅₀ across (kHd, kEd) space
-- Red dashed contours at 400 bp and 800 bp (experimental window)
-- Star marker at base-parameter point
+- Three figures per binding capacity, with logarithmic axes and a shared 0–1600 bp display scale. Saved CAD values are uncapped.
+- Red dashed contours at 400 bp and 800 bp when crossed by the data
+- Star marker at the base-parameter point, with a text-only `Base parameters CAD_50 = ... bp` legend in the upper-left corner
+- Open circles for unreached thresholds and crosses for failed simulations; missing CAD regions stay gray.
+- Separate output folders: `sweep_2D_kHd_kEd_CAD`, `sweep_2D_kc_kHd_CAD` and `sweep_2D_kc_kEd_CAD` under `Results/` (or `CPAD_RESULTS_ROOT` when configured).
 
 **When to use**:
 
-- Parameter robustness analysis for kHon/kHoff and kEon/kEoff
+- Parameter robustness analysis for kHd, kEd and kc
 - Demonstrating that the model is consistent with experimental CAD ranges
 
 ---
@@ -179,8 +186,8 @@ The model uses a fully **numerical** approach — no Symbolic Math Toolbox is re
 **What it does**:
 
 - Sweeps `EBindingNumber` from 1 to 6
-- Computes CAD₅₀ for each value
-- Plots CAD (bp) vs EBindingNumber with data labels
+- Computes CAD₅₀ using the full finite-rate model for engaged-E off-rates of 0, 0.05 and 0.5 s⁻¹
+- Plots one CAD (bp) vs EBindingNumber curve per engaged-E off-rate; zero is the protected-E limit
 
 **Key Features**:
 
@@ -226,8 +233,8 @@ The model uses a fully **numerical** approach — no Symbolic Math Toolbox is re
 
 **What it does**:
 
-- Runs a single simulation and computes the termination CDF
-- Interpolates the CDF to a fine grid of distances (0–1000 bp, 10 bp steps)
+- Runs the full finite-rate simulation and computes the cleavage-flux CDF
+- Interpolates the CDF from the physical origin to a fine distance grid (0–1000 bp, 10 bp steps); queries beyond the simulated window return NaN
 - Plots "% CPA Assembly Completion" vs poly(A)–anti-poly(A) separation distance
 - Analogous to Figure 8 from Chao et al. (1999)
 
@@ -253,12 +260,12 @@ The model uses a fully **numerical** approach — no Symbolic Math Toolbox is re
 
 - Checks Pol II and E factor conservation at steady state
 - Verifies non-negativity of all state variables
-- Tests 6 edge cases (k_in = 0, k_e = 0, k_e2 = 0, kc = 0, E_total = 0, large kHon/kc)
+- Tests no E supply, no E binding, no recognition and no cleavage; verifies that zero initiation/elongation is rejected by the algebraic steady solver
 
 **Expected Results**:
 
-- Console output with PASS/FAIL for each check
-- Diagnostic plots generated only for FAIL cases
+- Assertions stop on failures; successful checks print PASS
+- Baseline R/RHE spatial plot
 
 **When to use**:
 
@@ -266,6 +273,26 @@ The model uses a fully **numerical** approach — no Symbolic Math Toolbox is re
 - Debugging unexpected simulation behavior
 
 ---
+
+## Gene-length analysis pipeline
+
+Run these in order after migrating or changing the model parameters:
+
+```matlab
+GeneLengthGenerateGrid
+GeneLengthBuildInterpolation
+GeneLengthAnalyze
+```
+
+The grid solves full finite-rate kinetics at prescribed `[R_free, E_free]` using `'FreePools'`. It records Pol II and E demand directly from microstates and covers zero through each global pool total. The interpolator requires a complete Cartesian grid, preserves linear scaling in free Pol II, and disables extrapolation.
+
+`GeneLengthAnalyze` uses the grid's parameters and downstream window. It normalizes the length distribution over the simulated interval, eliminates free Pol II analytically, and solves E conservation with bounded `fzero` through its local `solve_full_genome_pools` function. It then computes full-model CAD profiles at the shared pools. Unreached thresholds remain NaN, with cleavage fractions, solver errors and residuals saved alongside them.
+
+Artifacts use `full_gene_length_*` filenames in `SecondVersionResults/GeneLengthAnalysis/` (or `CPAD_RESULTS_ROOT`). Old equilibrium grid/interpolation files are not reused. Grid-node reconstruction errors do not establish interpolation accuracy between nodes; increase grid resolution to assess convergence.
+
+## Verification
+
+Run `runtests('tests/test_full_termination_model.m')`, `runtests('tests/test_full_model_analysis.m')` and `SanityCheckMultipleE` in MATLAB. The migration tests cover fixed-pool equivalence, resource accounting, empty states, analytical genome conservation and recovery of a single-gene closed-pool solution.
 
 ## Output and Results
 
@@ -308,7 +335,7 @@ CPA_assembly_EBinding5_data.txt
 
 1. **Start with `CpaMultipleEMain.m`** to understand basic model behavior
 2. **Use `ParameterSweep1D.m`** to identify sensitive parameters
-3. **Use `Sweep2DkHdkEdCad.m`** for robustness analysis over kHon/kEon space
+3. **Use `Sweep2DCad.m`** for pairwise robustness analysis over kHd, kEd and kc
 4. **Use `SweepParameterPasUsage.m`** for APA site choice predictions
 5. **Run `SanityCheckMultipleE.m`** after any model modifications
 
@@ -335,7 +362,7 @@ saveData = true;   % or save_result / save_results depending on the script
 **1. "Solver failed" errors**:
 
 - Check for unphysical parameter combinations (e.g., rates near zero)
-- Verify all helper functions (`run_termination_simulation`, `calculate_pas_cleavage_profile`, etc.) are on the MATLAB path
+- Verify the active full-model helpers (`run_full_termination_simulation`, `calculate_full_pas_cleavage_profile`, etc.) are on the MATLAB path
 
 **2. Negative or very large concentrations**:
 

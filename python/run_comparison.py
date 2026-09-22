@@ -1,7 +1,7 @@
 """Validate the equilibrium port, then save full-model calculations (no plotting)."""
 import argparse
 import csv
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -38,17 +38,17 @@ def main():
     output = args.output or repo/'SecondVersionResults'/'python_full_model'/timestamp
     output.mkdir(parents=True, exist_ok=False)
     p = Parameters()
-    references, parity = {}, []
+    parity_parameters = replace(p, kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0)
+    parity = []
 
     for m, target in TARGETS.items():
-        reference = solve_equilibrium(p, m)
-        profile = cleavage_profile(reference.R, reference.RHE, p)
+        reference = solve_equilibrium(parity_parameters, m)
+        profile = cleavage_profile(reference.R, reference.RHE, parity_parameters)
         error = profile.cad50_bp-target
         passed = bool(abs(error) < .5 and abs(reference.e_residual) < 1e-6)
         parity.append(dict(M=m, matlab_reported_bp=target, python_equilibrium_bp=profile.cad50_bp,
                            difference_bp=error, E_free=reference.E_free,
                            E_conservation_residual=reference.e_residual, passed=passed))
-        references[m] = reference
         print(f'Parity M={m}: {profile.cad50_bp:.6f} bp vs MATLAB {target} bp: {"PASS" if passed else "FAIL"}', flush=True)
     write_csv(output/'matlab_parity.csv', parity)
     if not all(row['passed'] for row in parity):
@@ -58,7 +58,7 @@ def main():
     for m in sorted(set(args.m)):
         model = FullModel(p, m)
         full = model.solve_steady_state()
-        reference = references[m] if m in references else solve_equilibrium(p, m)
+        reference = solve_equilibrium(p, m)
         full_cdf = cleavage_profile(full.R, full.RHE, p)
         ref_cdf = cleavage_profile(reference.R, reference.RHE, p)
         comparison.append(dict(M=m, equilibrium_cad50_bp=ref_cdf.cad50_bp,
@@ -115,12 +115,13 @@ def main():
     write_csv(output/'comparison.csv', comparison)
     if dynamics:
         write_csv(output/'dynamic_validation.csv', dynamics)
-    source_paths = [repo/name for name in ['default_parameters.m', 'build_rate_matrix_numerical.m',
-                    'compute_avg_E_bound_numerical.m', 'run_termination_simulation.m',
-                    'ode_dynamics_multipleE.m', 'calculate_pas_cleavage_profile.m']]
+    source_paths = [repo/name for name in ['default_parameters.m', 'build_full_rate_matrices.m',
+                    'run_full_termination_simulation.m', 'ode_dynamics_full_multipleE.m',
+                    'calculate_full_pas_cleavage_profile.m']]
     source_paths += sorted((repo/'python'/'cpadynamics').glob('*.py'))
     source_paths += [Path(__file__).resolve()]
-    manifest = dict(created_utc=timestamp, parameters=asdict(p), M=sorted(set(args.m)),
+    manifest = dict(created_utc=timestamp, parameters=asdict(p),
+                    parity_parameters=asdict(parity_parameters), M=sorted(set(args.m)),
                     python=platform.python_version(), numpy=np.__version__, scipy=scipy.__version__,
                     matlab_execution='Not run: MATLAB/Octave unavailable. Targets supplied by user.',
                     parity_tolerance_bp=.5, transient_seconds=args.transient_seconds,
