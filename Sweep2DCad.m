@@ -8,11 +8,10 @@
 %% User configuration
 save_result = true;
 EBindingNumbers = 5;      % Use [1 5] to compare binding capacities
-nPoints = 4;             % Log-spaced points per axis (at least 2)
+nPoints = 10;             % Log-spaced points per axis (at least 2)
 percent_cleavage = 50;
 
 P = default_parameters();
-P.kEoff_engaged = 0.05;   % s^-1; held fixed in all three maps
 
 %% Compute, plot and save each pair
 for EBindingNumber = EBindingNumbers(:)'
@@ -162,7 +161,7 @@ function fig = plot_cad_parameter_sweep(data)
 % Gray regions have no measured CAD. Markers distinguish unreached
 % thresholds (open circles) from solver failures (crosses).
 
-display_cap = 1600;
+display_cap = 2000;
 fig = figure('Name', sprintf('CAD: %s vs %s, M = %d', ...
     data.x_name, data.y_name, data.EBindingNumber), 'Position', [100 100 900 700]);
 ax = axes('Parent', fig);

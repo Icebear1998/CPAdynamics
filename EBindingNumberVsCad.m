@@ -4,8 +4,8 @@ fprintf('=== E Binding Number: Full Finite-Rate Model ===\n\n');
 
 % --- PARAMETERS AND SWEEP CONFIGURATION ---
 P = default_parameters();
-EBindingNumber_values = 1:6; % Use 1:7 or [1,5]; both maximum p and e change.
-engaged_E_off_rates = [0, 0.05, 0.5]; % s^-1; 0 is the protected-E limit
+EBindingNumber_values = 1:10; % Use 1:7 or [1,5]; both maximum p and e change.
+engaged_E_off_rates = [P.kEoff_engaged]; % s^-1; 0 is the protected-E limit
 cutoff_threshold = 0.5;
 percent_cleavage = 100*cutoff_threshold;
 
@@ -61,7 +61,7 @@ for i = 1:num_capacities
 end
 
 % --- PLOT COMPARISON ---
-fig = figure('Color', 'w', 'Position', [100, 100, 1200, 780]);
+fig = figure('Color', 'w', 'Position', [0, 0, 1200, 780]);
 ax = axes('Parent', fig);
 hold(ax, 'on');
 full_colors = [21, 111, 138; 207, 110, 23; 143, 67, 139]/255;
@@ -83,9 +83,9 @@ set(ax, 'FontSize', 13, 'XTick', EBindingNumber_values, 'Box', 'off', ...
 xlim(ax, [min(EBindingNumber_values)-0.25, max(EBindingNumber_values)+0.25]);
 finite_cad = cutoff_positions(isfinite(cutoff_positions));
 if isempty(finite_cad)
-    ylim(ax, [0, 1]);
+    ylim(ax, [100, 1]);
 else
-    ylim(ax, [0, max(1, 1.08*max(finite_cad))]);
+    ylim(ax, [100, max(1, 1.08*max(finite_cad))]);
 end
 grid(ax, 'on');
 

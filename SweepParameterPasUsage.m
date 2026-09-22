@@ -3,8 +3,8 @@
 % Uses flux-based termination profile to calculate proximal site usage
 save_results = true;
 
-% MODIFIED: Start a parallel pool of workers if one is not already running.
-if isempty(gcp('nocreate')); parpool; end
+% % MODIFIED: Start a parallel pool of workers if one is not already running.
+% if isempty(gcp('nocreate')); parpool; end
 
 % --- CONFIGURATION: CHOOSE THE PARAMETER TO SWEEP ---
 sweep_param_name = 'kHoff';
@@ -35,10 +35,9 @@ max_exit_cdf = NaN(1, numel(sweep_param_values));
 rhs_residuals = NaN(1, numel(sweep_param_values));
 
 % --- PARAMETER SWEEP LOOP ---
-fprintf('Starting parallel sweep over parameter: %s\n', sweep_param_name);
 
 % MODIFIED: Changed 'for' to 'parfor' to distribute iterations across workers.
-parfor p_idx = 1:length(sweep_param_values)
+for p_idx = 1:length(sweep_param_values)
     % Create a copy of the parameters for this iteration.
     P_run = P;
     P_run.(sweep_param_name) = sweep_param_values(p_idx);

@@ -11,7 +11,7 @@ P = default_parameters();
 
 
 % Analysis Scenarios
-BindingNumbers = [1, 5, 10];
+BindingNumbers = [1, 5];
 Colors = {'r', 'b', 'g'};
 
 fprintf('Starting simulations for Support Figures...\n');
