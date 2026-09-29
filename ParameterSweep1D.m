@@ -9,9 +9,9 @@ L_a = P_default.L_a;
 % Available: 'k_e', 'k_e2', 'E_total', 'Pol_total', 'kc', 'kEon', 'kEoff', 
 %            'k_in', 'kHoff', 'kHon', 'kPon_slope'
 % All parameters use the full finite-rate solver.
-param_list = {'kPon_slope'};
+param_list = {'kc'};
 
-EBindingNumber = 5;
+EBindingNumber = 1;
 
 % Iterate over each parameter to sweep
 for param_idx = 1:length(param_list)
@@ -46,7 +46,7 @@ for param_idx = 1:length(param_list)
 
         case 'kc'
             % Range: 0.007–0.09 s^-1 after productive-assembly/steric commitment correction
-            base_range = logspace(log10(0.015), log10(0.4), 8);
+            base_range = logspace(log10(0.01), log10(1), 10);
             param_values = sort(unique([base_range, default_value]));
 
         case 'k_in'
@@ -160,7 +160,9 @@ for param_idx = 1:length(param_list)
         data.sweep_param = param_to_sweep;
         data.param_values = param_values;
         data.cutoff_values = cutoff_values;
-        save_analysis_results('parameter_sweep_1D', data, P_default);
+        save_analysis_results('parameter_sweep_1D', data, P_default, ...
+            'Folder', 'ParameterSweep1D', ...
+            'ParamSet', sprintf('M%d_%s', EBindingNumber, param_to_sweep));
     end
 end
 

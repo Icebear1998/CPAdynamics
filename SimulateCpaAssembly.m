@@ -73,5 +73,6 @@ if saveData
     data.EBindingNumber = EBindingNumber;
     data.separations_bp = separations_bp;
     data.rescue_fraction = rescue_fraction;
-    save_analysis_results('CPA_assembly', data, P);
+    save_analysis_results('CPA_assembly', data, P, ...
+        'Folder', 'SimulateCpaAssembly', 'ParamSet', sprintf('M%d', EBindingNumber));
 end

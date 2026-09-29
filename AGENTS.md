@@ -74,7 +74,7 @@ All active analyses and tests use the full finite-rate helpers in the project ro
 | File                      | Role                                                       |
 | ------------------------- | ---------------------------------------------------------- |
 | `default_parameters.m`    | Standard parameter set; called by all analysis scripts     |
-| `save_analysis_results.m` | Standardized result/plot saving to `Results/` |
+| `save_analysis_results.m` | Standardized result/plot saving to `Results/<script>/<parameter set>/` |
 
 ## Standard Parameter Set
 
@@ -118,8 +118,8 @@ Read `details.avg_E_bound` and `details.avg_Ser2P` for averages over all polymer
 at each node, including RHE after PAS. Empty nodes have NaN averages and zero
 resource demand. No binding equilibrium interpolant or symbolic cache is used.
 
-The gene-length pipeline writes `full_gene_length_grid_data_*.mat`, then
-`full_gene_length_interpolation_*.mat`, then `full_gene_length_TCD_analysis_*.mat`.
+The gene-length pipeline writes `grid_data.mat`, then `interpolation.mat`, then
+`TCD_analysis.mat` in `Results/GeneLengthAnalysis/M<EBindingNumber>/`.
 Rebuild both prerequisites after a model or parameter change. Old equilibrium
 artifacts are rejected. The grid includes zero through the global pool totals;
 interpolation never extrapolates and the length PDF is normalized over the grid's
@@ -127,14 +127,21 @@ finite length interval. The saved metadata records that interval and PDF mass.
 
 ## Output Organization
 
-The standard saver writes to `Results/<analysis_type>/`; full binding-capacity and gene-length analyses use `SecondVersionResults/`. `CPAD_RESULTS_ROOT` overrides either root. The latter analyses use timestamped outputs. Subdirectories include:
+All analyses save under one folder, `Results/` (override with `CPAD_RESULTS_ROOT`):
 
-- `CPA_multipleE_main/` (`CpaMultipleEMain`)
-- `parameter_sweep_1D/` (`ParameterSweep1D`)
-- `ProximalPASUsage_ParameterSweep/` (`SweepParameterPasUsage`)
-- `Full_EBindingNumber_vs_CAD/` (`EBindingNumberVsCad`)
-- `Ser2P_Eaverage_Profile/` (`PlotEBindingProfile`)
-- `GeneLengthAnalysis/` (`GeneLengthGenerateGrid`, `GeneLengthBuildInterpolation`, `GeneLengthAnalyze` — grid data and interpolation .mat files)
+`Results/<analysis script>/<parameter set>/`
+
+Each script owns one subfolder; each parameter set (e.g. `M5`, `M5_kHoff`,
+`M1_kEoffEngaged0.05`) is a sub-subfolder holding fixed-name outputs (no dates,
+so rerunning a set overwrites it) plus `metadata.txt`/`metadata.mat` with the
+full parameter struct and run settings. `cpad_analysis_output_dir(analysis, set, P, info)`
+creates the folder and writes the metadata; `save_analysis_results` uses it.
+Subfolders: `CpaMultipleEMain/`, `ParameterSweep1D/`, `ParameterSweep2D/`,
+`Sweep2DCad/`, `SweepParameterPasUsage/`, `EBindingNumberVsCad/`,
+`PlotEBindingProfile/`, `SimulateCpaAssembly/`, `CompareTimeSeparationLimit/`,
+`PlotTimeSeparationConvergence/`, and `GeneLengthAnalysis/<set>/` (`grid_data.mat`,
+`interpolation.mat`, `TCD_analysis.mat` plus plots; each step loads the newest set
+from the previous step). `Results/_superseded/` holds migrated older duplicates.
 
 ## Conservation Equations (Gene Length Analysis)
 

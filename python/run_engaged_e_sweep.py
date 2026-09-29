@@ -1,7 +1,6 @@
 """Sensitivity to H-engaged E detachment followed by rapid EH disassembly."""
 import argparse
 from dataclasses import asdict, replace
-from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -27,9 +26,9 @@ def main():
     capacities = sorted(set(args.m))
     p0 = Parameters()
     repo = Path(__file__).resolve().parents[1]
-    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S_%fZ')
-    output = args.output or repo/'SecondVersionResults'/'python_engaged_E_dissociation'/stamp
-    output.mkdir(parents=True, exist_ok=False)
+    param_set = 'M' + '-'.join(str(m) for m in capacities)
+    output = args.output or repo/'python'/'Results'/'engaged_E_dissociation'/param_set
+    output.mkdir(parents=True, exist_ok=args.output is None)
     references, reference_rows = {}, []
     # All six supplied MATLAB targets are checked before running the new model.
     for m in sorted(set(TARGETS) | set(capacities)):
@@ -75,7 +74,7 @@ def main():
     sources = sorted((repo/'python'/'cpadynamics').glob('*.py')) + [
         Path(__file__).resolve(), repo/'python'/'run_comparison.py',
         repo/'default_parameters.m', repo/'EBindingNumberVsCad.m']
-    manifest = dict(created_utc=stamp, base_parameters=asdict(p0), M=capacities,
+    manifest = dict(base_parameters=asdict(p0), M=capacities,
                     relative_off_rates=ratios,
                     rate_interpretation='Illustrative sensitivity values, not experimentally calibrated',
                     mechanism='RHE(p,e) -> R(p,e-1) + free E at kEoff_engaged; rapid EH disassembly',

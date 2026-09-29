@@ -51,5 +51,6 @@ if saveData
     data.Pol_f_final = Pol_f_final;
     data.max_exit_cdf = diagnostics.max_exit_cdf;
     data.rhs_residuals = full_details.rhs_max_abs;
-    save_analysis_results('CPA_multipleE_main', data, P);
+    save_analysis_results('CPA_multipleE_main', data, P, ...
+        'Folder', 'CpaMultipleEMain', 'ParamSet', sprintf('M%d', EBindingNumber));
 end

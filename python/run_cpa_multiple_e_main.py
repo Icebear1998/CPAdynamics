@@ -6,7 +6,6 @@ parameters in default_parameters.m.
 """
 import argparse
 from dataclasses import asdict, replace
-from datetime import datetime
 import hashlib
 import json
 import os
@@ -131,9 +130,8 @@ def main():
                         help='JSON object of parameter overrides applied to the working parameter set')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    results_root = Path(os.environ.get('CPAD_RESULTS_ROOT', root / 'SecondVersionResults'))
-    output_dir = args.output_dir or (results_root / 'python_CPA_multipleE_main'
-                                     / datetime.now().strftime('%Y%m%d_%H%M%S_%f'))
+    results_root = Path(os.environ.get('CPAD_PYTHON_RESULTS_ROOT', root / 'python' / 'Results'))
+    output_dir = args.output_dir or results_root / 'CPA_multipleE_main' / f'M{args.m}'
     parameters = None
     if args.parameters:
         parameters = replace(working_parameters(), **json.loads(args.parameters.read_text()))

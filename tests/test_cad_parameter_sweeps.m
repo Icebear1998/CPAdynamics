@@ -110,11 +110,11 @@ for data = testCase.TestData.sweeps
         verifyEqual(testCase, contours.ZData, expected_display);
     end
 
-    analysis_type = sprintf('sweep_2D_%s_%s_CAD', data.x_name, data.y_name);
-    output_dir = fullfile(testCase.TestData.outputRoot, analysis_type);
-    file_prefix = sprintf('sweep2D_%s_%s_CAD_EBinding%d_', ...
-        data.x_name, data.y_name, data.EBindingNumber);
-    files = dir(fullfile(output_dir, [file_prefix '*_data.txt']));
+    output_dir = fullfile(testCase.TestData.outputRoot, 'Sweep2DCad', ...
+        sprintf('M%d_kEoffEngaged%.3g', data.EBindingNumber, data.kEoff_engaged));
+    verifyTrue(testCase, isfile(fullfile(output_dir, 'metadata.txt')));
+    file_prefix = sprintf('sweep2D_%s_%s_CAD', data.x_name, data.y_name);
+    files = dir(fullfile(output_dir, [file_prefix '_data.txt']));
     assertNumElements(testCase, files, 1);
     content = fileread(fullfile(files(1).folder, files(1).name));
     verifyTrue(testCase, contains(content, sprintf('rows = %s, columns = %s', ...
@@ -122,6 +122,6 @@ for data = testCase.TestData.sweeps
     verifyTrue(testCase, contains(content, 'full_kinetics_rapid_EH_disassembly'));
     verifyTrue(testCase, contains(content, 'max_exit_cdf_matrix'));
     verifyTrue(testCase, contains(content, 'rhs_residual_matrix'));
-    verifyNumElements(testCase, dir(fullfile(output_dir, [file_prefix '*.png'])), 1);
+    verifyNumElements(testCase, dir(fullfile(output_dir, [file_prefix '.png'])), 1);
 end
 end

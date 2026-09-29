@@ -94,6 +94,7 @@ if save_results
     data.description = 'Proximal PAS usage (%) at different inter-PAS distances';
 
     % Save results using the utility function
-    extra_info = sprintf('EBinding%d', EBindingNumber);
-    save_analysis_results('ProximalPASUsage_ParameterSweep', data, P, 'ExtraInfo', extra_info);
+    save_analysis_results('ProximalPASUsage_ParameterSweep', data, P, ...
+        'Folder', 'SweepParameterPasUsage', ...
+        'ParamSet', sprintf('M%d_%s', EBindingNumber, sweep_param_name));
 end

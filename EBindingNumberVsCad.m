@@ -4,7 +4,7 @@ fprintf('=== E Binding Number: Full Finite-Rate Model ===\n\n');
 
 % --- PARAMETERS AND SWEEP CONFIGURATION ---
 P = default_parameters();
-EBindingNumber_values = 1:10; % Use 1:7 or [1,5]; both maximum p and e change.
+EBindingNumber_values = 1:6; % Use 1:7 or [1,5]; both maximum p and e change.
 engaged_E_off_rates = [P.kEoff_engaged]; % s^-1; 0 is the protected-E limit
 cutoff_threshold = 0.5;
 percent_cleavage = 100*cutoff_threshold;
@@ -114,9 +114,16 @@ if saveData
     data.rhs_residuals = rhs_residuals;
     data.error_messages = error_messages;
     data.model_variant = 'full_kinetics_rapid_EH_disassembly';
-    output_dir = cpad_analysis_output_dir('Full_EBindingNumber_vs_CAD', ...
-        fullfile(fileparts(mfilename('fullpath')), 'SecondVersionResults'));
-    stem = sprintf('Engaged_E_off_comparison_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'));
+    param_set = sprintf('CAD%g_M%d-%d_engagedOff%s', percent_cleavage, ...
+        min(EBindingNumber_values), max(EBindingNumber_values), ...
+        strjoin(arrayfun(@(r) sprintf('%.3g', r), engaged_E_off_rates, ...
+        'UniformOutput', false), '-'));
+    info = struct('percent_cleavage', percent_cleavage, ...
+        'EBindingNumber_values', EBindingNumber_values, ...
+        'engaged_E_off_rates', engaged_E_off_rates, ...
+        'model_variant', data.model_variant);
+    output_dir = cpad_analysis_output_dir('EBindingNumberVsCad', param_set, P, info);
+    stem = 'engaged_E_off_comparison';
     save(fullfile(output_dir, [stem '.mat']), 'data', 'P', 'summary_table');
     writetable(summary_table, fullfile(output_dir, [stem '.csv']));
     exportgraphics(fig, fullfile(output_dir, [stem '.png']), 'Resolution', 200);

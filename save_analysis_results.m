@@ -13,7 +13,10 @@ function save_analysis_results(analysis_type, data, parameters, varargin)
 %   'SavePlot'    - Boolean, whether to save the current figure (default: true)
 %   'PlotFormat'  - String, format for plot ('png', 'fig', 'eps') (default: 'png')
 %   'CustomName'  - String, custom filename prefix (default: auto-generated)
-%   'ExtraInfo'   - String, additional information for filename
+%   'Folder'      - Analysis (script) folder under the results root
+%                   (default: analysis_type)
+%   'ParamSet'    - Parameter-set subfolder (default: M<EBindingNumber>);
+%                   metadata.txt with the full parameters is written there
 %
 % Examples:
 %   % For PASUsageAnalysis:
@@ -30,23 +33,37 @@ function save_analysis_results(analysis_type, data, parameters, varargin)
 %   data.x_values = inter_pas_distances_bp;
 %   data.sweep_values = sweep_param_values;
 %   data.sweep_param = sweep_param_name;
-%   save_analysis_results('ParameterSweep', data, P, 'ExtraInfo', 'EBinding5');
+%   save_analysis_results('ParameterSweep', data, P, ...
+%       'Folder', 'SweepParameterPasUsage', 'ParamSet', 'M5_kHoff');
 
 % Parse optional inputs
 p = inputParser;
 addParameter(p, 'SavePlot', true, @islogical);
 addParameter(p, 'PlotFormat', 'png', @ischar);
 addParameter(p, 'CustomName', '', @ischar);
-addParameter(p, 'ExtraInfo', '', @ischar);
+addParameter(p, 'Folder', '', @ischar);
+addParameter(p, 'ParamSet', '', @ischar);
 parse(p, varargin{:});
 
 save_plot = p.Results.SavePlot;
 plot_format = p.Results.PlotFormat;
 custom_name = p.Results.CustomName;
-extra_info = p.Results.ExtraInfo;
+folder = p.Results.Folder;
+param_set = p.Results.ParamSet;
+if isempty(folder)
+    folder = analysis_type;
+end
+if isempty(param_set)
+    if isfield(data, 'EBindingNumber')
+        param_set = sprintf('M%d', data.EBindingNumber);
+    else
+        param_set = 'default';
+    end
+end
 
 % Create output directory
-output_dir = cpad_analysis_output_dir(analysis_type, 'Results');
+output_dir = cpad_analysis_output_dir(folder, param_set, parameters, ...
+    struct('analysis_type', analysis_type));
 
 % Generate filename
 if ~isempty(custom_name)
@@ -61,35 +78,25 @@ else
             base_filename = sprintf('Sweep_%s_%.3g-%.3g', ...
                 data.sweep_param, min(data.sweep_values), max(data.sweep_values));
         case 'CPA_multipleE_main'
-            base_filename = sprintf('CPA_main_EBinding%d', ...
-                data.EBindingNumber);
+            base_filename = 'CPA_main';
         case 'parameter_sweep_1D'
-            base_filename = sprintf('Sweep1D_%s_EBinding%d', ...
-                data.sweep_param, data.EBindingNumber);
+            base_filename = sprintf('Sweep1D_%s', data.sweep_param);
         case 'parameter_sweep_2D'
-            base_filename = sprintf('Sweep2D_%s_%s_EBinding%d', ...
-                data.param1, data.param2, data.EBindingNumber);
+            base_filename = sprintf('Sweep2D_%s_%s', data.param1, data.param2);
         case 'PASUsagevsInterPASDistance'
-            base_filename = sprintf('PASvsDistance_EBinding%d', ...
-                data.EBindingNumber);
+            base_filename = 'PASvsDistance';
         case 'EBindingNumber_vs_CAD'
             base_filename = sprintf('EBinding_vs_CAD_N%d-%d', ...
                 min(data.EBindingNumber_values), max(data.EBindingNumber_values));
         case 'CPA_assembly'
-            base_filename = sprintf('CPA_assembly_EBinding%d', data.EBindingNumber);
+            base_filename = 'CPA_assembly';
         case {'sweep_2D_kHd_kEd_CAD', 'sweep_2D_kc_kHd_CAD', 'sweep_2D_kc_kEd_CAD'}
-            base_filename = sprintf('sweep2D_%s_%s_CAD_EBinding%d', ...
-                data.x_name, data.y_name, data.EBindingNumber);
+            base_filename = sprintf('sweep2D_%s_%s_CAD', data.x_name, data.y_name);
         case 'ProximalPASUsage_ParameterSweep'
             base_filename = sprintf('ProxPASUsage_%s', data.sweep_param);
         otherwise
             base_filename = analysis_type;
     end
-end
-
-% Add extra info if provided
-if ~isempty(extra_info)
-    base_filename = sprintf('%s_%s', base_filename, extra_info);
 end
 
 % Save the plot if requested
@@ -114,7 +121,6 @@ fid = fopen(data_filename, 'w');
 
 % Write header with metadata
 fprintf(fid, '%% %s Analysis Results\n', analysis_type);
-fprintf(fid, '%% Generated on: %s\n', datestr(now));
 if isfield(data, 'model_variant')
     fprintf(fid, '%% Model: %s\n', data.model_variant);
 end

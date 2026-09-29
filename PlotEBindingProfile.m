@@ -11,8 +11,10 @@ P = default_parameters();
 
 
 % Analysis Scenarios
-BindingNumbers = [1, 5];
+BindingNumbers = [1, 5, 10];
 Colors = {'r', 'b', 'g'};
+
+profile_set = ['M' strjoin(arrayfun(@num2str, BindingNumbers, 'UniformOutput', false), '-')];
 
 fprintf('Starting simulations for Support Figures...\n');
 
@@ -36,7 +38,8 @@ for idx = 1 : length(BindingNumbers)
     
     % --- Save raw data ---
     if saveData
-        dataOutDir = cpad_analysis_output_dir('Ser2P_Eaverage_Profile', 'Results');
+        dataOutDir = cpad_analysis_output_dir('PlotEBindingProfile', profile_set, P, ...
+            struct('BindingNumbers', BindingNumbers));
         filename = fullfile(dataOutDir, sprintf('ProfileData_N%d.txt', nb));
         T = table(x_coords(:), avg_E_bound(:), avg_Ser2P(:), ...
             'VariableNames', {'PositionRelPAS_kb', 'Avg_E_bound', 'Avg_Ser2P'});
@@ -67,7 +70,7 @@ xline(pas_kb, 'k--', 'PAS', 'LineWidth', 1.5, ...
 grid on;
 
 if saveData
-    outputDir = cpad_analysis_output_dir('SupportFigures', 'Results');
+    outputDir = cpad_analysis_output_dir('PlotEBindingProfile', profile_set);
     saveas(fig, fullfile(outputDir, 'Average_E_and_Ser2P_Comparison.png'));
 end
 

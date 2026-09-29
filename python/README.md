@@ -14,7 +14,7 @@ python3 python/run_cpa_multiple_e_main.py
 
 This uses `EBindingNumber=5` and writes E/Ser2P and R/RHE plots, CAD50,
 cleavage CDF, raw profiles, microstates and a manifest under
-`SecondVersionResults/python_CPA_multipleE_main/<timestamp>/`. The profiles
+`python/Results/CPA_multipleE_main/`. The profiles
 span the full simulated gene and use position relative to PAS, matching the
 MATLAB script. Pass `--m N` or `--output-dir PATH` to change those settings.
 
@@ -42,9 +42,9 @@ from a coarse MATLAB interpolation grid. MATLAB execution is not required.
 
 The command saves PNG/SVG figures, all 1,976 CAD/occupancy rows, a selected-length
 CSV, cleavage CDFs, a report, and a manifest with parameters, source hashes and
-validation under `SecondVersionResults/python_GeneLengthAnalysis/<timestamp>/`.
+validation under `python/Results/GeneLengthAnalysis/`.
 Use `--m 1` to change capacity, `--output-dir PATH` for a chosen directory, or
-`CPAD_RESULTS_ROOT` to relocate results. CAD is never extrapolated. Matching
+`CPAD_PYTHON_RESULTS_ROOT` to relocate results. CAD is never extrapolated. Matching
 MATLAB's PAS-bin convention, the 5 kb extension contains 51 cleavage bins with
 CDF coordinates through 5.1 kb. The upper endpoint at 200 kb is plotted but has
 zero mass under the continuous length distribution.
@@ -63,8 +63,8 @@ All analysis entry points use the same defaults as `default_parameters.m`:
 `kEon=2.5e-6`, `kEoff=0.5`, `kEoff_engaged=0.05`, `kHon=7`,
 `kHoff=1`, `kc=0.15`, `k_e=0.65`, and `k_e2=0.3`. The profile command saves
 PNG/SVG figures, profile CSVs, microstates and a parameter/diagnostics manifest
-under `SecondVersionResults/python_EBindingProfile/<timestamp>/` and prints the
-absolute path. Use `--output-dir PATH` or `CPAD_RESULTS_ROOT` to change its location.
+under `python/Results/EBindingProfile/` and prints the
+absolute path. Use `--output-dir PATH` or `CPAD_PYTHON_RESULTS_ROOT` to change its location.
 
 From the repository root, using Python 3.10 or later:
 
@@ -81,8 +81,8 @@ agree within 0.5 bp, the precision of the supplied numbers, before full-model
 calculations run. MATLAB itself was unavailable during implementation; this is
 regression against supplied MATLAB outputs, not a new MATLAB execution.
 
-Results go to a new timestamped directory under
-`SecondVersionResults/python_full_model/`. That generated-results directory is
+Results go to a parameter-set directory under
+`python/Results/full_model/`. That generated-results directory is
 git-ignored by the existing repository configuration; the code here is not.
 The run prints the absolute output directory. To plot its saved CSVs:
 
@@ -324,7 +324,7 @@ to 0, 0.05 and 0.5 s^-1 with the current defaults. These are illustrative
 sensitivity values, not experimentally estimated rates. Adjust the sweep with
 `--m 1 5` or `--relative-off-rates 0 0.01 0.1 1`.
 
-Results are saved under `SecondVersionResults/python_engaged_E_dissociation/`
+Results are saved under `python/Results/engaged_E_dissociation/`
 with the parameters, source hashes, CSVs, microstate NPZs, and a report. The
 original MATLAB-equilibrium reference does not include the new reaction and is
 calculated with the original parameters. All six supplied MATLAB values are

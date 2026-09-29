@@ -4,13 +4,16 @@
 % again. CAD is measured only within the simulated downstream window.
 
 fprintf('=== Full-Model Gene Length TCD Analysis ===\n');
-interp_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'SecondVersionResults');
-interp_files = dir(fullfile(interp_dir, 'full_gene_length_interpolation_*.mat'));
+% Use the most recent GeneLengthAnalysis/<parameter set>/interpolation.mat and
+% save the analysis in that same parameter-set folder.
+interp_files = dir(fullfile(cpad_analysis_output_dir('GeneLengthAnalysis'), ...
+    '*', 'interpolation.mat'));
 if isempty(interp_files)
     error('GeneLengthAnalyze:MissingFullInterpolation', ...
         'Run GeneLengthGenerateGrid.m and GeneLengthBuildInterpolation.m to create full-model data.');
 end
 [~, newest_idx] = max([interp_files.datenum]);
+interp_dir = interp_files(newest_idx).folder;
 interp_filename = fullfile(interp_dir, interp_files(newest_idx).name);
 loaded = load(interp_filename, 'interpolation_results');
 interpolation_results = loaded.interpolation_results;
@@ -66,8 +69,8 @@ max_exit_cdf = NaN(n_L_TCD, 1);
 rhs_residuals = NaN(n_L_TCD, 1);
 error_messages = repmat({''}, n_L_TCD, 1);
 termination_profiles = cell(n_L_TCD, 1);
-if isempty(gcp('nocreate')), parpool; end
-parfor i = 1:n_L_TCD
+occupancy_profiles = cell(n_L_TCD, 1);
+for i = 1:n_L_TCD
     try
         P = base_params;
         P.PASposition = L_TCD_analysis(i);
@@ -79,6 +82,8 @@ parfor i = 1:n_L_TCD
         max_exit_cdf(i) = diagnostics.max_exit_cdf;
         rhs_residuals(i) = details.rhs_max_abs;
         termination_profiles{i} = struct('distances', distances, 'profile', cdf);
+        occupancy_profiles{i} = struct('nodes_rel_PAS', (1-P_sim.PAS):(P_sim.N-P_sim.PAS), ...
+            'avg_Ser2P', details.avg_Ser2P, 'avg_E_bound', details.avg_E_bound);
         local_TCD = NaN(1, n_thresholds);
         for j = 1:n_thresholds
             [~, ~, local_TCD(j)] = calculate_full_pas_cleavage_profile( ...
@@ -123,8 +128,37 @@ legend(ax, 'Location', 'best');
 grid(ax, 'on');
 hold(ax, 'off');
 
+% Ser2P (green) and average E (blue) profiles for selected gene lengths on one
+% set of axes: node position relative to the PAS (0 = PAS). Solid = Ser2P,
+% dashed = AvgE; line darkness distinguishes gene length.
+profile_lengths_bp = [5000 20000]; % Nearest analyzed TSS-to-PAS lengths are used
+n_profiles = numel(profile_lengths_bp);
+fig_profile = figure('Position', [100 100 800 600]);
+ax_profile = axes('Parent', fig_profile);
+hold(ax_profile, 'on');
+shade = linspace(1, 0.45, n_profiles);
+for k = 1:n_profiles
+    [~, idx] = min(abs(L_TCD_analysis - profile_lengths_bp(k)));
+    prof = occupancy_profiles{idx};
+    if isempty(prof)
+        warning('GeneLengthAnalyze:MissingProfile', ...
+            'No profile for L = %.0f bp (simulation failed).', L_TCD_analysis(idx));
+        continue;
+    end
+    plot(ax_profile, prof.nodes_rel_PAS, prof.avg_Ser2P, '-', 'LineWidth', 2, ...
+        'Color', [0 1 0]*shade(k), ...
+        'DisplayName', sprintf('Ser2P (L = %.1f kb)', L_TCD_analysis(idx)/1000));
+    plot(ax_profile, prof.nodes_rel_PAS, prof.avg_E_bound, '-', 'LineWidth', 2, ...
+        'Color', [0 0 1]*shade(k), ...
+        'DisplayName', sprintf('AverageE (L = %.1f kb)', L_TCD_analysis(idx)/1000));
+end
+xlabel(ax_profile, 'position');
+ylabel(ax_profile, 'AverageE');
+legend(ax_profile, 'Location', 'northwest');
+box(ax_profile, 'on');
+hold(ax_profile, 'off');
+
 analysis_results = struct();
-analysis_results.metadata.creation_date = datestr(now);
 analysis_results.metadata.model_variant = interpolation_results.metadata.model_variant;
 analysis_results.metadata.pool_mode = 'shared_genome_pools';
 analysis_results.metadata.source_interpolation_file = interp_filename;
@@ -139,15 +173,16 @@ analysis_results.TCD.thresholds = TCD_thresholds;
 analysis_results.TCD.values = TCD_results;
 analysis_results.TCD.valid_indices = valid_TCD;
 analysis_results.TCD.termination_profiles = termination_profiles;
+analysis_results.TCD.occupancy_profiles = occupancy_profiles;
 analysis_results.TCD.max_exit_cdf = max_exit_cdf;
 analysis_results.TCD.rhs_residuals = rhs_residuals;
 analysis_results.TCD.error_messages = error_messages;
 analysis_results.statistics.correlation_with_log_length = correlations;
-timestamp = datestr(now, 'yyyymmdd_HHMMSS');
-results_filename = fullfile(interp_dir, sprintf('full_gene_length_TCD_analysis_%s.mat', timestamp));
+results_filename = fullfile(interp_dir, 'TCD_analysis.mat');
 save(results_filename, 'analysis_results', '-v7.3');
-plot_filename = fullfile(interp_dir, sprintf('Full_TCD_vs_gene_length_%s.png', timestamp));
+plot_filename = fullfile(interp_dir, 'TCD_vs_gene_length.png');
 saveas(fig, plot_filename);
+saveas(fig_profile, fullfile(interp_dir, 'Ser2P_AvgE_profiles.png'));
 fprintf('Saved full-model analysis: %s\n', results_filename);
 
 function solution = solve_full_genome_pools(interpolation_results, L_values, weights, R_total, E_total, num_genes)

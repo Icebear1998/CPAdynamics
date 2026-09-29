@@ -2,7 +2,6 @@
 import argparse
 import csv
 from dataclasses import asdict, replace
-from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -34,9 +33,9 @@ def main():
     if not np.isfinite(args.transient_seconds) or args.transient_seconds < 0:
         parser.error('--transient-seconds must be finite and nonnegative')
     repo = Path(__file__).resolve().parents[1]
-    timestamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S_%fZ')
-    output = args.output or repo/'SecondVersionResults'/'python_full_model'/timestamp
-    output.mkdir(parents=True, exist_ok=False)
+    param_set = 'M' + '-'.join(str(m) for m in sorted(set(args.m)))
+    output = args.output or repo/'python'/'Results'/'full_model'/param_set
+    output.mkdir(parents=True, exist_ok=args.output is None)
     p = Parameters()
     parity_parameters = replace(p, kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0)
     parity = []
@@ -120,7 +119,7 @@ def main():
                     'calculate_full_pas_cleavage_profile.m']]
     source_paths += sorted((repo/'python'/'cpadynamics').glob('*.py'))
     source_paths += [Path(__file__).resolve()]
-    manifest = dict(created_utc=timestamp, parameters=asdict(p),
+    manifest = dict(parameters=asdict(p),
                     parity_parameters=asdict(parity_parameters), M=sorted(set(args.m)),
                     python=platform.python_version(), numpy=np.__version__, scipy=scipy.__version__,
                     matlab_execution='Not run: MATLAB/Octave unavailable. Targets supplied by user.',

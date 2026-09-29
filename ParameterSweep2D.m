@@ -72,7 +72,9 @@ for pair_idx = 1:length(param_pairs)
         data.cutoff_matrix = cutoff_matrix;
 
         % Save results using the utility function
-        save_analysis_results('parameter_sweep_2D', data, P);
+        save_analysis_results('parameter_sweep_2D', data, P, ...
+            'Folder', 'ParameterSweep2D', ...
+            'ParamSet', sprintf('M%d_%s_%s', EBindingNumber, param1, param2));
     end
 
 end

@@ -1,7 +1,6 @@
 """Run the full-model equivalent of PlotEBindingProfile.m and save its figure/data."""
 import argparse
 from dataclasses import asdict
-from datetime import datetime
 import hashlib
 import json
 import os
@@ -122,9 +121,8 @@ def main():
     parser.add_argument('--output-dir', type=Path, help='Directory for figure, CSVs and diagnostics')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    results_root = Path(os.environ.get('CPAD_RESULTS_ROOT', root / 'SecondVersionResults'))
-    output = args.output_dir or (results_root / 'python_EBindingProfile'
-                                 / datetime.now().strftime('%Y%m%d_%H%M%S_%f'))
+    results_root = Path(os.environ.get('CPAD_PYTHON_RESULTS_ROOT', root / 'python' / 'Results'))
+    output = args.output_dir or results_root / 'EBindingProfile' / 'default'
     run_profiles(output)
 
 

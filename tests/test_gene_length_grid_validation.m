@@ -83,7 +83,7 @@ old_figures = findall(groot, 'Type', 'figure');
 cleanup = onCleanup(@() restore_environment(output_root, old_root, old_visibility, old_figures)); %#ok<NASGU>
 setenv('CPAD_RESULTS_ROOT', output_root);
 set(groot, 'defaultFigureVisible', 'off');
-grid_dir = cpad_analysis_output_dir('GeneLengthAnalysis');
+grid_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'test');
 results.data = D;
 results.metadata.model_variant = 'full_kinetics_rapid_EH_disassembly';
 results.metadata.pool_mode = 'fixed_free_pools';
@@ -94,7 +94,7 @@ results.parameters.base_parameters.EBindingNumber = 5;
 results.grid.R_free_values = linspace(0, 70000, 5);
 results.grid.E_free_values = linspace(0, 100000, 5);
 results.grid.L_values = linspace(2500, 200000, 10);
-save(fullfile(grid_dir, 'full_gene_length_grid_data_test.mat'), 'results');
+save(fullfile(grid_dir, 'grid_data.mat'), 'results');
 I = run_builder();
 R = I.functions.R_occupied_interp(D.R_free_vec(:), D.E_free_vec(:), D.L_vec(:));
 E = I.functions.E_occupied_interp(D.R_free_vec(:), D.E_free_vec(:), D.L_vec(:));

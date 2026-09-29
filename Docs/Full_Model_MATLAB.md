@@ -100,7 +100,7 @@ options = odeset('RelTol',1e-8,'AbsTol',1e-10, ...
 stores each node's microstates contiguously, followed by E_free and Pol_free.
 
 Set `CPAD_FORCE_SAVE=true` to save the sweep's MAT, CSV and PNG files under
-`SecondVersionResults/Full_EBindingNumber_vs_CAD/`. Saved matrices have one row
+`Results/EBindingNumberVsCad/<parameter set>/`. Saved matrices have one row
 per M and columns ordered as equilibrium, then each engaged-E off-rate. The
 CSV has one row per (model, M, rate), including diagnostics and error messages.
 The equilibrium reference uses the existing fsolve solver and therefore
@@ -159,8 +159,8 @@ copy of genome-wide resource conservation on that gene. The local steady RHS
 and flux are validated; residuals against unused local totals are NaN.
 
 Rebuild the lookup pipeline in order: `GeneLengthGenerateGrid`,
-`GeneLengthBuildInterpolation`, `GeneLengthAnalyze`. New artifacts carry
-`full_gene_length_` prefixes and model/pool metadata. Old equilibrium grids
+`GeneLengthBuildInterpolation`, `GeneLengthAnalyze`. New artifacts are saved as
+`Results/GeneLengthAnalysis/M<M>/{grid_data,interpolation,TCD_analysis}.mat` with model/pool metadata. Old equilibrium grids
 are rejected. the local `solve_full_genome_pools` function in `GeneLengthAnalyze.m` exploits linear occupancy scaling in
 free Pol II and solves free E on its physical interval. Interpolation is
 restricted to the grid and the length population is explicitly truncated to

@@ -11,20 +11,15 @@ fprintf('=== Gene Length Interpolation Builder ===\n');
 
 %% --- LOAD GRID DATA ---
 
-% Find the most recent grid data file
-grid_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'SecondVersionResults');
-if ~exist(grid_dir, 'dir')
-    error('Grid data directory not found. Please run GeneLengthGenerateGrid.m first.');
-end
-
-% Look for .mat files
-mat_files = dir(fullfile(grid_dir, 'full_gene_length_grid_data_*.mat'));
+% Use the most recent grid, GeneLengthAnalysis/<parameter set>/grid_data.mat;
+% the interpolation and plots are saved beside it in the same parameter set.
+analysis_dir = cpad_analysis_output_dir('GeneLengthAnalysis');
+mat_files = dir(fullfile(analysis_dir, '*', 'grid_data.mat'));
 if isempty(mat_files)
     error('No grid data files found. Please run GeneLengthGenerateGrid.m first.');
 end
-
-% Use the most recent file
 [~, newest_idx] = max([mat_files.datenum]);
+grid_dir = mat_files(newest_idx).folder;
 grid_filename = fullfile(grid_dir, mat_files(newest_idx).name);
 fprintf('Loading: %s\n', grid_filename);
 
@@ -139,7 +134,6 @@ percentile_75 = exp(mu_ln + sigma_ln*sqrt(2)*erfinv(2*0.75-1));
 
 % Create output structure
 interpolation_results = struct();
-interpolation_results.metadata.creation_date = datestr(now);
 interpolation_results.metadata.model_variant = results.metadata.model_variant;
 interpolation_results.metadata.pool_mode = results.metadata.pool_mode;
 interpolation_results.metadata.source_grid_file = grid_filename;
@@ -173,8 +167,7 @@ interpolation_results.functions.gene_length_pdf = gene_length_pdf;
 interpolation_results.original_grid = results.parameters;
 
 % Save results
-timestamp = datestr(now, 'yyyymmdd_HHMMSS');
-output_filename = fullfile(grid_dir, sprintf('full_gene_length_interpolation_%s.mat', timestamp));
+output_filename = fullfile(grid_dir, 'interpolation.mat');
 save(output_filename, 'interpolation_results', '-v7.3');
 
 fprintf('Interpolation results saved to: %s\n', output_filename);
@@ -242,7 +235,7 @@ grid on;
 hold off;
 
 % Save plot
-line_plot_filename = fullfile(grid_dir, sprintf('gene_length_vs_occupied_%s.png', timestamp));
+line_plot_filename = fullfile(grid_dir, 'gene_length_vs_occupied.png');
 saveas(gcf, line_plot_filename);
 fprintf('Gene length vs occupied resources plot saved to: %s\n', line_plot_filename);
 
@@ -280,7 +273,7 @@ colorbar;
 shading interp;
 
 % Save plot
-surface_plot_filename = fullfile(grid_dir, sprintf('interpolation_surfaces_%s.png', timestamp));
+surface_plot_filename = fullfile(grid_dir, 'interpolation_surfaces.png');
 saveas(gcf, surface_plot_filename);
 fprintf('Interpolation surfaces plot saved to: %s\n', surface_plot_filename);
 

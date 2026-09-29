@@ -136,7 +136,6 @@ fprintf('\nOrganizing results...\n');
 
 % Create results structure
 results = struct();
-results.metadata.creation_date = datestr(now);
 results.metadata.model_variant = 'full_kinetics_rapid_EH_disassembly';
 results.metadata.pool_mode = 'fixed_free_pools';
 results.metadata.grid_layout = 'ndgrid';
@@ -178,20 +177,25 @@ results.data.error_messages = error_messages;
 fprintf('Saving results...\n');
 
 % Create output directory
-output_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'SecondVersionResults');
+output_dir = cpad_analysis_output_dir('GeneLengthAnalysis', ...
+    sprintf('M%d', P_base.EBindingNumber), P_base, ...
+    struct('R_free_range', [R_free_min R_free_max], 'R_free_points', R_free_points, ...
+           'E_free_range', [E_free_min E_free_max], 'E_free_points', E_free_points, ...
+           'L_range_bp', [L_min L_max], 'L_points', L_points, ...
+           'after_PAS_length_bp', after_PAS_length, ...
+           'num_active_genes', num_active_genes));
 
 % Save MATLAB data file
-mat_filename = fullfile(output_dir, sprintf('full_gene_length_grid_data_%d.mat', P_base.EBindingNumber));
+mat_filename = fullfile(output_dir, 'grid_data.mat');
 save(mat_filename, 'results', '-v7.3');  % Use v7.3 for large files
 
 % Save text file with summary and data
-txt_filename = fullfile(output_dir, sprintf('full_gene_length_grid_data_%d.txt', P_base.EBindingNumber));
+txt_filename = fullfile(output_dir, 'grid_data.txt');
 fid = fopen(txt_filename, 'w');
 
 % Header
 fprintf(fid, '%% Gene Length Analysis - Full finite-rate grid data, fixed free pools\n');
 fprintf(fid, '%% kEoff_engaged = %g s^-1\n', P_base.kEoff_engaged);
-fprintf(fid, '%% Generated on: %s\n', results.metadata.creation_date);
 fprintf(fid, '%% Computation time: %.1f minutes\n', results.metadata.computation_time_minutes);
 fprintf(fid, '%% Success rate: %.1f%%\n', results.metadata.success_rate);
 fprintf(fid, '%% \n');

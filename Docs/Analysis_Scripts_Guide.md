@@ -19,7 +19,7 @@
 
 This guide describes the complete suite of analysis scripts for the CPA (Cleavage and Polyadenylation) Dynamics model. The scripts investigate transcription termination and alternative polyadenylation (APA) through various computational approaches.
 
-All scripts support an optional `saveData` (or `save_result`) flag at the top of the file. Set it to `true` to save results via the unified `save_analysis_results.m` utility. Results are written to `Results/<analysis_type>/`.
+All scripts support an optional `saveData` (or `save_result`) flag at the top of the file. Set it to `true` to save results via the unified `save_analysis_results.m` utility. Results are written to `Results/<script>/<parameter set>/` with a `metadata.txt`.
 
 All active MATLAB analyses use the **full finite-rate R/RHE model** via `run_full_termination_simulation`. Binding and phosphorylation profiles are computed from microstates, and `kHon` stays at its base per-E value. The working engaged-E off-rate is `P.kEoff_engaged = 0.05` s⁻¹ in `default_parameters.m`.
 
@@ -141,7 +141,7 @@ No Symbolic Math or Optimization Toolbox is needed for the active steady solvers
 - Red dashed contours at 400 bp and 800 bp when crossed by the data
 - Star marker at the base-parameter point, with a text-only `Base parameters CAD_50 = ... bp` legend in the upper-left corner
 - Open circles for unreached thresholds and crosses for failed simulations; missing CAD regions stay gray.
-- Separate output folders: `sweep_2D_kHd_kEd_CAD`, `sweep_2D_kc_kHd_CAD` and `sweep_2D_kc_kEd_CAD` under `Results/` (or `CPAD_RESULTS_ROOT` when configured).
+- Output folder: `Results/Sweep2DCad/M<M>_kEoffEngaged<v>/`, holding all three pair maps (or under `CPAD_RESULTS_ROOT` when configured).
 
 **When to use**:
 
@@ -215,7 +215,7 @@ No Symbolic Math or Optimization Toolbox is needed for the active steady solvers
 
 **Key Features**:
 
-- `saveData` flag (default: `false`); when `true`, saves to `Results/Ser2P_Eaverage_Profile/` and `Results/SupportFigures/`
+- `saveData` flag (default: `false`); when `true`, saves to `Results/PlotEBindingProfile/M<list>/`
 - x-axis in kb relative to PAS
 
 **Expected Results**:
@@ -288,7 +288,7 @@ The grid solves full finite-rate kinetics at prescribed `[R_free, E_free]` using
 
 `GeneLengthAnalyze` uses the grid's parameters and downstream window. It normalizes the length distribution over the simulated interval, eliminates free Pol II analytically, and solves E conservation with bounded `fzero` through its local `solve_full_genome_pools` function. It then computes full-model CAD profiles at the shared pools. Unreached thresholds remain NaN, with cleavage fractions, solver errors and residuals saved alongside them.
 
-Artifacts use `full_gene_length_*` filenames in `SecondVersionResults/GeneLengthAnalysis/` (or `CPAD_RESULTS_ROOT`). Old equilibrium grid/interpolation files are not reused. Grid-node reconstruction errors do not establish interpolation accuracy between nodes; increase grid resolution to assess convergence.
+Artifacts (`grid_data.mat`, `interpolation.mat`, `TCD_analysis.mat`) live in `Results/GeneLengthAnalysis/M<M>/` (or `CPAD_RESULTS_ROOT`); each step loads the newest parameter set from the previous step. Old equilibrium grid/interpolation files are not reused. Grid-node reconstruction errors do not establish interpolation accuracy between nodes; increase grid resolution to assess convergence.
 
 ## Verification
 
@@ -302,8 +302,8 @@ All scripts have a `saveData` (or `save_result` / `save_results`) flag at the to
 
 **File Organization**:
 
-- Results saved to `Results/<analysis_type>/`
-- Subfolders created automatically
+- Results saved to `Results/<script>/<parameter set>/` (e.g. `Results/Sweep2DCad/M5_kEoffEngaged0.05/`)
+- Folders created automatically; `metadata.txt`/`metadata.mat` record the full parameters
 
 **File Types Generated**:
 
@@ -313,13 +313,11 @@ All scripts have a `saveData` (or `save_result` / `save_results`) flag at the to
 **File Naming Convention** (no timestamp):
 
 ```
-CPA_main_EBinding5.png
-CPA_main_EBinding5_data.txt
-Sweep1D_kHoff_EBinding5.png
-sweep2D_kHd_kEd_CAD_EBinding1_data.txt
-ProxPASUsage_kHoff_data.txt
-EBinding_vs_CAD_N1-6_data.txt
-CPA_assembly_EBinding5_data.txt
+CpaMultipleEMain/M5/CPA_main.png
+ParameterSweep1D/M1_kc/Sweep1D_kc_data.txt
+Sweep2DCad/M1_kEoffEngaged0.05/sweep2D_kHd_kEd_CAD_data.txt
+SweepParameterPasUsage/M5_kHoff/ProxPASUsage_kHoff_data.txt
+SimulateCpaAssembly/M5/CPA_assembly_data.txt
 ```
 
 ---

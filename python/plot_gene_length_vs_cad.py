@@ -1,7 +1,6 @@
 """Run the full finite-rate counterpart of MATLAB's gene-length/CAD pipeline."""
 import argparse
 from dataclasses import asdict, replace
-from datetime import datetime
 import hashlib
 import json
 import os
@@ -138,8 +137,8 @@ def main():
     parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    results_root = Path(os.environ.get('CPAD_RESULTS_ROOT', root/'SecondVersionResults'))
-    output = args.output_dir or results_root/'python_GeneLengthAnalysis'/datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    results_root = Path(os.environ.get('CPAD_PYTHON_RESULTS_ROOT', root / 'python' / 'Results'))
+    output = args.output_dir or results_root/'GeneLengthAnalysis'/f'M{args.m}'
     run_analysis(output, args.m)
 
 

@@ -21,8 +21,8 @@ for EBindingNumber = EBindingNumbers(:)'
         plot_cad_parameter_sweep(data);
         if save_result || strcmpi(getenv('CPAD_FORCE_SAVE'), 'true')
             analysis_type = sprintf('sweep_2D_%s_%s_CAD', data.x_name, data.y_name);
-            save_analysis_results(analysis_type, data, P, ...
-                'ExtraInfo', sprintf('Full_engagedOff%.3g', P.kEoff_engaged));
+            save_analysis_results(analysis_type, data, P, 'Folder', 'Sweep2DCad', ...
+                'ParamSet', sprintf('M%d_kEoffEngaged%.3g', EBindingNumber, P.kEoff_engaged));
         end
     end
 end

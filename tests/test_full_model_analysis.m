@@ -140,8 +140,8 @@ old_figures = findall(groot, 'Type', 'figure');
 cleanup = onCleanup(@() restore_environment(output_root, old_root, old_visibility, old_figures)); %#ok<NASGU>
 setenv('CPAD_RESULTS_ROOT', output_root);
 set(groot, 'defaultFigureVisible', 'off');
-output_dir = cpad_analysis_output_dir('GeneLengthAnalysis');
-save(fullfile(output_dir, 'full_gene_length_interpolation_test.mat'), 'interpolation_results');
+output_dir = cpad_analysis_output_dir('GeneLengthAnalysis', 'test');
+save(fullfile(output_dir, 'interpolation.mat'), 'interpolation_results');
 A = run_analysis();
 end
 
