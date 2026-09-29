@@ -30,15 +30,14 @@ function P = default_parameters()
     % --- E factor binding ---
     P.kEon   = 2.5e-6;             % molecule^-1 s^-1
     P.kEoff  = 0.5;                % E factor off-rate
-    P.kEoff_engaged = 0.05;        % s^-1; full-model engaged-E detachment reference
-    % Working value used by the full-model analyses; no appendix range is supplied.
+    P.kEoff_engaged = 0.05;        % s^-1; 
  
     % --- PAS recognition (hexamer) ---
     P.kHon   = 7;                  % s^-1 per bound E
     P.kHoff  = 1;                  % s^-1
  
     % --- Cleavage ---
-    P.kc     = 0.15;               % s^-1
+    P.kc     = 0.14;               % s^-1
 
     % --- Ser2P phosphorylation ---
     P.kPon_min   = 0.01;           % Min Ser2P phosphorylation rate (at TSS)
@@ -49,11 +48,11 @@ function P = default_parameters()
     % These are working sensitivity intervals, not confidence intervals.
     % No ranges are supplied for k_in, geometry, kPon_min, kPoff or
     % kEoff_engaged; no bounds are invented for those parameters here.
-    P.ranges.kHon       = [4.02, 17.25];      % s^-1 (B.2)
+    P.ranges.kHon       = [4, 17];      % s^-1 (B.2)
     P.ranges.kHoff      = [0.05, 1.0];        % s^-1 (B.3)
     P.ranges.kEon       = [1.66e-6, 4.15e-6]; % molecule^-1 s^-1 (C)
     P.ranges.kEoff      = [0.5, 5];           % s^-1 (C)
-    P.ranges.kc         = [0.0077, 1.06];     % s^-1 (D)
+    P.ranges.kc         = [0.01, 1];     % s^-1 (D)
     P.ranges.k_e        = [3000, 5000] / 60 / P.L_a; % 3-5 kb/min (E)
     P.ranges.k_e2       = [10, 50] / P.L_a;  % bp/s -> node/s (E)
     P.ranges.kPon_slope = [0.001, 0.01];     % s^-1 per node (F)
