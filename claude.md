@@ -14,18 +14,26 @@ This is Version 2.0 of the model. The key advance over Version 1.0 is that each 
 
 - **Pol II** transcribes along a gene, modeled as a 1D lattice with node spacing `L_a = 100 bp`
 - **R**: elongating Pol II (can bind E factors along the gene)
-- **REH**: terminating Pol II that has recognized the PAS and is committed to cleavage
+- **REH**: Pol II that has recognized the PAS but has not yet assembled the full CPA machinery
 - **E factor**: a CPA assembly factor that binds Pol II CTD (Ser2P-phosphorylated); binding is modeled with explicit finite rates
 - **PAS (poly(A) signal)**: the point on the gene where REH complexes begin forming; located at `PASposition` bp from TSS
 - **Ser2P**: CTD phosphorylation state, modeled as increasing linearly from TSS with slope `kPon_slope`
-- Termination occurs when REH complexes cleave RNA at rate `kc`
+- REH complexes commit to termination at rate `kc`. `kc` is a **commitment** rate, not a
+  cleavage rate: it is the effectively irreversible assembly of the complete,
+  cleavage-competent CPA machinery (late factors recruited, DSE engaged, complex activated)
+  *before* the RNA is cut. Cleavage itself is not modeled as a separate step; it is assumed
+  fast enough after commitment to lump into `kc`. The committed state is experimentally
+  supported — Chao et al. 1999 (MCB, doi:10.1128/mcb.19.8.5588) measured resistance to
+  antisense blocking and found commitment takes ~10-20 s at a weak PAS and ≲3 s at a strong
+  one. Genome-wide cleavage half-lives are under a minute (Calvo-Roitberg et al. 2023, RNA,
+  doi:10.1261/rna.079783.123), so the lumping is an approximation, not an identity.
 
 ## Model Architecture
 
 ### Full finite-rate model
 
 All active MATLAB analyses use `run_full_termination_simulation`. Phosphorylation,
-E binding, PAS recognition, elongation and cleavage are explicit finite-rate
+E binding, PAS recognition, elongation and CPA commitment are explicit finite-rate
 reactions. There is no rapid-equilibrium closure and `P.kHon` is never rescaled.
 R states have `0 <= e <= p <= M`; recognized RHE states have `1 <= e <= p <= M`.
 Exactly one E in each RHE state is engaged with H. `kEoff_engaged` controls its
@@ -92,7 +100,7 @@ P.kEoff      = 0.5;        % E factor off-rate
 P.kEoff_engaged = 0.05;    % Independent engaged-E off-rate
 P.kHon       = 7;          % PAS recognition (hexamer) on-rate
 P.kHoff      = 1;          % Hexamer off-rate
-P.kc         = 0.15;        % Cleavage rate
+P.kc         = 0.15;        % CPA commitment rate (not cleavage; see Key Biology)
 P.kPon_min   = 0.01;       % Min Ser2P phosphorylation rate (at TSS)
 P.kPon_slope = 0.005;      % Linear slope of kPon along gene
 P.kPoff      = 1;          % Ser2P dephosphorylation rate
