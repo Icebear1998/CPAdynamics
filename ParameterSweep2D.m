@@ -5,13 +5,16 @@ EBindingNumber = 1;
 
 % --- Parameter Sweep Setup ---
 param_pairs = {{'E_total', 'kHoff'}};
+n_points1 = 8;    % grid points for param1 (x-axis)
+n_points2 = 10;   % grid points for param2 (one curve each)
 
 for pair_idx = 1:length(param_pairs)
     param1 = param_pairs{pair_idx}{1};
     param2 = param_pairs{pair_idx}{2};
     
-    param1_values = 30000:10000:100000;
-    param2_values = logspace(-2,1,10);
+    % Grids span the P.ranges intervals from default_parameters.m
+    param1_values = sweep_values_from_ranges(P, param1, n_points1);
+    param2_values = sweep_values_from_ranges(P, param2, n_points2);
 
     cutoff_matrix = NaN(length(param2_values), length(param1_values));
     max_exit_cdf = NaN(size(cutoff_matrix));

@@ -167,12 +167,12 @@ Internal transitions follow these rates per polymerase:
 | Transition | R | RHE |
 |---|---:|---:|
 | Phosphorylation, p -> p+1 if p<M | kPon(i) | kPon(i) |
-| Dephosphorylation, p -> p-1 if p>e | kPoff | kPoff |
+| Dephosphorylation, p -> p-1 if p>e | (p-e) kPoff | (p-e) kPoff |
 | E binding, e -> e+1 if e<p | (p-e) kEon E_free | (p-e) kEon E_free |
 | Ordinary E unbinding | e kEoff | (e-1) kEoff |
 
-The phosphorylation transitions have **no site multiplicity**, matching the
-current MATLAB model. Occupied phosphorylation sites are protected from
+Site formation has **no site multiplicity**; each of the `p-e` free sites is
+lost independently at `kPoff`, matching the current MATLAB model. Occupied phosphorylation sites are protected from
 dephosphorylation; the H-engaged site is therefore protected too.
 
 At every node from the PAS onward:

@@ -47,7 +47,7 @@ end
 function testReferenceParameterSweepMatchesPython(testCase)
 P = python_reference_parameters();
 P.kEoff_engaged = 0.05;
-expected = [1698.670, 996.955, 765.393, 650.695, 581.572, 536.227];
+expected = [1698.670, 1127.246, 975.185, 926.894, 912.346, 908.631];
 for M = 1:6
     [R, RHE, P_out, D] = run_full_termination_simulation(P, M);
     [~, ~, cad] = calculate_full_pas_cleavage_profile(R, RHE, P_out);
@@ -62,7 +62,7 @@ end
 
 function testDisabledAndNormalRateMatchPython(testCase)
 P = python_reference_parameters();
-for row = [1, 5; 1535.653580763, 551.494445068; 3169.511, 889.141]
+for row = [1, 5; 1535.653580763, 845.209693107; 3169.511, 1581.043]
     M = row(1);
     for rateIndex = 1:2
         P.kEoff_engaged = (rateIndex-1)*0.5;
@@ -77,8 +77,8 @@ function testZeroEngagedOffSweepConservesPools(testCase)
 % Regression: M=1 and M=2 were rejected with the looser fzero tolerance.
 P = python_reference_parameters();
 P.kEoff_engaged = 0;
-expected = [1535.653580763, 918.087826410, 713.159727216, ...
-            611.473093337, 551.494445068, 509.577334353];
+expected = [1535.653580763, 1032.912272151, 898.830651653, ...
+            857.555743681, 845.209693107, 842.071228735];
 for M = 1:6
     [R, RHE, P_out, D] = run_full_termination_simulation(P, M);
     [~, ~, cad] = calculate_full_pas_cleavage_profile(R, RHE, P_out);
@@ -117,6 +117,24 @@ for h = 1:model.sh
     expected(model.r_size+h) = -0.21;
     expected(model.states.R_index(pe(1)+1, pe(2))) = 0.21;
     expected(end-1) = 0.21;
+    verifyEqual(testCase, ode_dynamics_full_multipleE(0, X, model), expected, 'AbsTol', 1e-13);
+end
+end
+
+function testFreeSiteLossScalesWithFreeSites(testCase)
+P = isolated_parameters();
+P.kPoff = 0.3;
+[model, ~] = build_full_rate_matrices(P, 5);
+for pe = [4, 1; 2, 2; 5, 0]'
+    X = zeros(model.size+2, 1);
+    source = model.states.R_index(pe(1)+1, pe(2)+1);
+    X(source) = 2;
+    expected = zeros(size(X));
+    rate = 2*(pe(1)-pe(2))*P.kPoff;
+    if rate > 0
+        expected(source) = -rate;
+        expected(model.states.R_index(pe(1), pe(2)+1)) = rate;
+    end
     verifyEqual(testCase, ode_dynamics_full_multipleE(0, X, model), expected, 'AbsTol', 1e-13);
 end
 end
@@ -205,6 +223,9 @@ P.kEon = 2.5e-6;
 P.kHon = 4;
 P.kHoff = 2;
 P.kc = 0.13;
+P.kPon_min = 0.01;
+P.kPon_slope = 0.005;
+P.kPoff = 1;
 end
 
 function P = isolated_parameters()

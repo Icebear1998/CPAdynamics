@@ -17,7 +17,7 @@ with H. Here e counts all attached E factors, including the engaged one.
 | Reaction | Rate per polymerase |
 | --- | --- |
 | Phosphorylation, p → p+1, if p < M | kPon at that node |
-| Dephosphorylation, p → p−1, if p > e | kPoff |
+| Dephosphorylation, p → p−1, if p > e | (p−e) kPoff |
 | E binding, e → e+1 | (p−e) kEon E_free |
 | Ordinary E dissociation from R | e kEoff |
 | Ordinary E dissociation from RHE | (e−1) kEoff |
@@ -32,7 +32,8 @@ free pool; we do not track detached EH or a free H pool. This is a specific
 approximation for disassembly. Phosphorylation, E binding, recognition and
 elongation all retain their finite rates.
 
-Phosphorylation rates have no site multiplicity, matching the existing model.
+Site formation (kPon) has no multiplicity. Each of the p−e free sites is lost
+independently at kPoff; E-bound sites are protected.
 R and RHE elongate at k_e and k_e2, preserving p and e. Initiation enters
 R(p=0,e=0). Cleavage and terminal run-off return polymerase and all its E.
 After H dissociates first, all remaining E use ordinary kEoff and can recognize
@@ -148,7 +149,7 @@ The table above contains Python reference results, not measured MATLAB output.
 ## Migrated MATLAB analyses
 
 All active analysis scripts now use the full finite-rate model. The common
-working default is `kEoff_engaged = 0.05` s⁻¹; the binding-capacity comparison
+working default is `kEoff_engaged = 0.065` s⁻¹ (weak PAS); the binding-capacity comparison
 retains its explicit three-rate sweep. Full-model details provide
 `avg_E_bound`, `avg_Ser2P`, `E_bound`, and `Pol_bound` from the microstates.
 

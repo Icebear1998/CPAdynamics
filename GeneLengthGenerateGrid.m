@@ -17,6 +17,17 @@ fprintf('Generating lookup data for R_occupied and E_occupied...\n\n');
 
 % Base totals from typical simulations
 P_base = default_parameters();
+% Optional, set by a calling driver such as RunResultsAnalyses:
+% cpad_grid_overrides (struct of P fields) and cpad_grid_set_suffix (char).
+if exist('cpad_grid_overrides', 'var') && isstruct(cpad_grid_overrides)
+    override_names = fieldnames(cpad_grid_overrides);
+    for override_idx = 1:numel(override_names)
+        P_base.(override_names{override_idx}) = cpad_grid_overrides.(override_names{override_idx});
+    end
+end
+if ~exist('cpad_grid_set_suffix', 'var')
+    cpad_grid_set_suffix = '';
+end
 R_total_base = P_base.Pol_total;
 E_total_base = P_base.E_total;
 
@@ -178,7 +189,7 @@ fprintf('Saving results...\n');
 
 % Create output directory
 output_dir = cpad_analysis_output_dir('GeneLengthAnalysis', ...
-    sprintf('M%d', P_base.EBindingNumber), P_base, ...
+    sprintf('M%d%s', P_base.EBindingNumber, cpad_grid_set_suffix), P_base, ...
     struct('R_free_range', [R_free_min R_free_max], 'R_free_points', R_free_points, ...
            'E_free_range', [E_free_min E_free_max], 'E_free_points', E_free_points, ...
            'L_range_bp', [L_min L_max], 'L_points', L_points, ...

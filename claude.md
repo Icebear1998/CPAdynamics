@@ -17,7 +17,7 @@ This is Version 2.0 of the model. The key advance over Version 1.0 is that each 
 - **REH**: Pol II that has recognized the PAS but has not yet assembled the full CPA machinery
 - **E factor**: a CPA assembly factor that binds Pol II CTD (Ser2P-phosphorylated); binding is modeled with explicit finite rates
 - **PAS (poly(A) signal)**: the point on the gene where REH complexes begin forming; located at `PASposition` bp from TSS
-- **Ser2P**: CTD phosphorylation state, modeled as increasing linearly from TSS with slope `kPon_slope`
+- **Ser2P**: CTD phosphorylation state. One E-binding site `p` is two adjacent Ser2P repeats; new sites form at a rate that rises linearly from the TSS (`kPon_slope`), and each free site is lost at `kPoff` (appendix F)
 - REH complexes commit to termination at rate `kc`. `kc` is a **commitment** rate, not a
   cleavage rate: it is the effectively irreversible assembly of the complete,
   cleavage-competent CPA machinery (late factors recruited, DSE engaged, complex activated)
@@ -25,8 +25,8 @@ This is Version 2.0 of the model. The key advance over Version 1.0 is that each 
   fast enough after commitment to lump into `kc`. The committed state is experimentally
   supported — Chao et al. 1999 (MCB, doi:10.1128/mcb.19.8.5588) measured resistance to
   antisense blocking and found commitment takes ~10-20 s at a weak PAS and ≲3 s at a strong
-  one. Genome-wide cleavage half-lives are under a minute (Calvo-Roitberg et al. 2023, RNA,
-  doi:10.1261/rna.079783.123), so the lumping is an approximation, not an identity.
+  one. Genome-wide cleavage half-lives are under a minute (Torres-Ulloa, Calvo-Roitberg & Pai 2024,
+  RNA 30:256-270, doi:10.1261/rna.079783.123), so the lumping is an approximation, not an identity.
 
 ## Model Architecture
 
@@ -37,7 +37,8 @@ E binding, PAS recognition, elongation and CPA commitment are explicit finite-ra
 reactions. There is no rapid-equilibrium closure and `P.kHon` is never rescaled.
 R states have `0 <= e <= p <= M`; recognized RHE states have `1 <= e <= p <= M`.
 Exactly one E in each RHE state is engaged with H. `kEoff_engaged` controls its
-independent detachment and rapid EH disassembly; the working default is 0.05 s^-1.
+independent detachment and rapid EH disassembly; the working default is 0.1 s^-1 (range
+0.01-0.5), one conservative value for all PAS strengths (it is not rescaled with kHoff).
 
 Geometry is `P.N = floor(geneLength_bp/L_a)`, `P.PAS = floor(PASposition/L_a)`
 and `P.N_PAS = P.N-P.PAS+1`. All geometry and free pools are stored in `P`.
@@ -94,16 +95,16 @@ P.k_in       = 2;          % Pol II initiation rate
 P.k_e        = 65/100;     % Elongation rate (before PAS)
 P.k_e2       = 30/100;     % Elongation rate (after PAS, in REH)
 P.E_total    = 100000;     % Total E factor pool
-P.Pol_total  = 70000;      % Total Pol II pool
+P.Pol_total  = 100000;     % Total Pol II pool
 P.kEon       = 2.5e-6;  % E factor on-rate
 P.kEoff      = 0.5;        % E factor off-rate
-P.kEoff_engaged = 0.05;    % Independent engaged-E off-rate
+P.kEoff_engaged = 0.1;     % Engaged-E off-rate (all PAS strengths)
 P.kHon       = 7;          % PAS recognition (hexamer) on-rate
 P.kHoff      = 1;          % Hexamer off-rate
-P.kc         = 0.15;        % CPA commitment rate (not cleavage; see Key Biology)
-P.kPon_min   = 0.01;       % Min Ser2P phosphorylation rate (at TSS)
-P.kPon_slope = 0.005;      % Linear slope of kPon along gene
-P.kPoff      = 1;          % Ser2P dephosphorylation rate
+P.kc         = 0.14;        % CPA commitment rate (not cleavage; see Key Biology)
+P.kPon_min   = 0;          % No E sites form at the TSS (pairs need two marks)
+P.kPon_slope = 5e-4;       % Linear slope of kPon along gene (per node)
+P.kPoff      = 0.01;       % Loss rate per free E site (appendix F)
 P.geneLength_bp = 25000;   % Total gene length
 P.PASposition   = 20000;   % PAS position from TSS
 EBindingNumber  = 5;       % Max E factors per polymerase

@@ -14,10 +14,12 @@ def state_map(m, recognized=False):
                  for e in range(1 if recognized else 0, p + 1))
 
 
-def internal_components(m, kpon, parameters, recognized=False):
+def internal_components(m, kpon, parameters, recognized=False, per_site_loss=True):
     """Return A0, AE such that A(E_free) = A0 + E_free * AE.
 
-    Phosphorylation rates have no site multiplicity, matching current MATLAB.
+    Site formation has no multiplicity; each of the p-e free sites is lost
+    independently at kPoff, matching current MATLAB. per_site_loss=False
+    restores the legacy per-polymerase loss used by the equilibrium reference.
     In RHE only e-1 bound E factors use ordinary kEoff. The engaged E's separate
     detachment/disassembly route changes RHE to R and is built in full_model.py.
     """
@@ -36,7 +38,7 @@ def internal_components(m, kpon, parameters, recognized=False):
         if p < m:
             add(a0, source, (p + 1, e), kpon)
         if p > e:
-            add(a0, source, (p - 1, e), parameters.kPoff)
+            add(a0, source, (p - 1, e), (p - e if per_site_loss else 1) * parameters.kPoff)
             add(ae, source, (p, e + 1), (p - e) * parameters.kEon)
         exchangeable = e - int(recognized)
         if exchangeable > 0:

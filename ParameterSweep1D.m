@@ -6,12 +6,15 @@ P_default = default_parameters();
 L_a = P_default.L_a;
 
 % --- PARAMETERS TO SWEEP ---
-% Available: 'k_e', 'k_e2', 'E_total', 'Pol_total', 'kc', 'kEon', 'kEoff', 
-%            'k_in', 'kHoff', 'kHon', 'kPon_slope'
+% Available: every parameter with an entry in P.ranges (default_parameters.m):
+%            'k_e', 'k_e2', 'E_total', 'Pol_total', 'kc', 'kEon', 'kEoff',
+%            'kEoff_engaged', 'kHoff', 'kHon', 'kPon_slope', 'kPoff',
+%            plus 'k_in' (exploratory range; none in default_parameters).
 % All parameters use the full finite-rate solver.
 param_list = {'kc'};
 
 EBindingNumber = 1;
+n_points = 8;   % grid points across each P.ranges interval
 
 % Iterate over each parameter to sweep
 for param_idx = 1:length(param_list)
@@ -21,67 +24,17 @@ for param_idx = 1:length(param_list)
     param_to_sweep = param_list{param_idx};
     default_value = P.(param_to_sweep);
         
-    % Define sweep range (linear for k_e, k_e2, E_total, kc; log for others)
-    switch param_to_sweep
-        case 'k_e'
-            % Range: 1–5 kb/min = 17–83 bp/s
-            % Model unit: k_e = velocity / L_a
-            base_range = [17, 25, 33, 50, 67, 83] / L_a;
-            param_values = sort(unique([base_range, default_value]));
-
-        case 'k_e2'
-            % Range: 0.1–0.5 s^-1 = 10–50 bp/s for L_a = 100 bp
-            base_range = [10, 20, 30, 40, 50] / L_a;
-            param_values = sort(unique([base_range, default_value]));
-
-        case 'E_total'
-            % Range: 50,000–200,000 molecules
-            base_range = 50000:25000:200000;
-            param_values = sort(unique([base_range, default_value]));
-
-        case 'Pol_total'
-            % Range: 40,000–150,000 molecules
-            base_range = [40000, 60000, 80000, 100000, 120000, 150000];
-            param_values = sort(unique([base_range, default_value]));
-
-        case 'kc'
-            % Range: 0.007–0.09 s^-1 after productive-assembly/steric commitment correction
-            base_range = logspace(log10(0.01), log10(1), 10);
-            param_values = sort(unique([base_range, default_value]));
-
-        case 'k_in'
-            % Not explicitly re-estimated in the parameter appendix; keep exploratory range
-            base_range = logspace(log10(0.2), log10(10), 5);
-            param_values = sort(unique([base_range, default_value]));
-
-        case 'kEon'
-            % Range: 6.6e-7–1.7e-6 molecule^-1 s^-1
-            base_range = logspace(log10(1.5e-7), log10(5e-6), 8);
-            param_values = sort(unique([base_range, default_value]));
-
-        case 'kEoff'
-            % Range: 0.04–0.4 s^-1 after multivalent CTD-binding correction
-            base_range = logspace(log10(0.2), log10(2), 8);
-            param_values = sort(unique([base_range, default_value]));
-
-        case 'kHon'
-            % Range: 0.04–2 s^-1
-            base_range = logspace(log10(0.04), log10(2), 8);
-            param_values = sort(unique([base_range, default_value]));
-
-        case 'kHoff'
-            % Range: 0.04–4 s^-1
-            base_range = logspace(log10(0.05), log10(5), 8);
-            param_values = sort(unique([base_range, default_value]));
-
-        case 'kPon_slope'
-            % Range: 0.001–0.01 s^-1 per node
-            base_range = logspace(log10(0.001), log10(0.05), 8);
-            param_values = sort(unique([base_range, default_value]));
-
-        otherwise
-            error('Invalid parameter selected');
+    % Sweep range comes from P_default.ranges (default_parameters.m);
+    % the default value is added so it appears on the curve.
+    if strcmp(param_to_sweep, 'k_in')
+        % default_parameters supplies no range for k_in; keep exploratory range
+        base_range = logspace(log10(0.2), log10(10), 5);
+    elseif isfield(P_default.ranges, param_to_sweep)
+        base_range = sweep_values_from_ranges(P_default, param_to_sweep, n_points);
+    else
+        error('Invalid parameter selected');
     end
+    param_values = sort(unique([base_range, default_value]));
 
     % Initialize arrays
     cutoff_values = NaN(1, length(param_values));
@@ -125,7 +78,7 @@ for param_idx = 1:length(param_list)
     hold on;
     
     % Use log scale for rate constant parameters
-    log_scale_params = {'k_in', 'kEon', 'kEoff', 'kHon', 'kHoff', 'kPon_slope'};
+    log_scale_params = {'k_in', 'kEon', 'kEoff', 'kEoff_engaged', 'kHon', 'kHoff', 'kPon_slope'};
     if ismember(param_to_sweep, log_scale_params)
         set(gca, 'XScale', 'log');
     end

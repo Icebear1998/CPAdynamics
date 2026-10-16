@@ -44,7 +44,7 @@ class EngagedEOffTests(unittest.TestCase):
         self.assertAlmostEqual(derivative[-1], 0)
 
     def test_zero_rate_preserves_previous_full_model_results(self):
-        for m, expected in [(1, 1535.6535807633459), (5, 551.4944450683093)]:
+        for m, expected in [(1, 1535.6535807633459), (5, 845.2096931066867)]:
             p = replace(Parameters(), kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0)
             s = FullModel(p, m).solve_steady_state()
             self.assertAlmostEqual(cleavage_profile(s.R, s.RHE, p).cad50_bp, expected, places=6)

@@ -119,7 +119,8 @@ end
 function [A_const, A_Pon, A_Ef] = build_full_internal_rate_matrices(P, S, recognized)
 % BUILD_FULL_INTERNAL_RATE_MATRICES Local column-oriented reaction generators.
 % A = A_const + kPon*A_Pon + E_free*A_Ef. Columns sum to zero.
-% Phosphorylation has no site multiplicity.
+% Site formation has no multiplicity; each of the p-e free sites is lost
+% independently at kPoff, and E-bound sites are protected.
 % An RHE state's e-1 unengaged E factors use kEoff. Its engaged-E detachment
 % changes RHE to R and is added separately by build_full_rate_matrices.
 if recognized
@@ -143,8 +144,9 @@ for j = 1:count
     end
     if p > e
         i = lookup(p, e+1);
-        A_const(i, j) = A_const(i, j)+P.kPoff;
-        A_const(j, j) = A_const(j, j)-P.kPoff;
+        rate = (p-e)*P.kPoff;
+        A_const(i, j) = A_const(i, j)+rate;
+        A_const(j, j) = A_const(j, j)-rate;
         i = lookup(p+1, e+2);
         rate = (p-e)*P.kEon;
         A_Ef(i, j) = A_Ef(i, j)+rate;

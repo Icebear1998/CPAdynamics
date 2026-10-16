@@ -17,7 +17,7 @@ switch sweep_param_name
     case 'kc'
         sweep_param_values = [0.01, 0.05, 0.1, 0.2];
     case 'kHoff'
-        sweep_param_values = [0.1, 1, 5, 10, 50, 100];
+        sweep_param_values = [0.001, 0.1, 1, 5, 10];
     otherwise
         error('Selected sweep parameter is not defined in the switch-case block.');
 end
@@ -28,7 +28,7 @@ P.geneLength_bp = 50000;  % Extended gene for inter-PAS distance analysis
 EBindingNumber = 5;
 
 % --- SIMULATION SETUP ---
-inter_pas_distances_bp = 0:1000:30000;
+inter_pas_distances_bp = 0:100:5000;
 proximal_usage_results = NaN(length(inter_pas_distances_bp), length(sweep_param_values));
 
 max_exit_cdf = NaN(1, numel(sweep_param_values));

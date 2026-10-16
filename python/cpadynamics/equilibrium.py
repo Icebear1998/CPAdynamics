@@ -37,7 +37,7 @@ def solve_equilibrium(parameters, m, num_grid_points=100):
     means = np.zeros((num_grid_points, n, 2))
     rhs = np.zeros(len(states)); rhs[-1] = 1
     for i in range(n):
-        a0, ae = internal_components(m, p.kPon_min+p.kPon_slope*i, p)
+        a0, ae = internal_components(m, p.kPon_min+p.kPon_slope*i, p, per_site_loss=False)
         for j, ef in enumerate(grid):
             a = a0 + ef*ae
             a[-1, :] = 1

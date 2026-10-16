@@ -48,6 +48,16 @@ class FullKineticsTests(unittest.TestCase):
         self.assertEqual(a[index[(3, 2)], index[(3, 3)]], 2*p.kEoff)
         np.testing.assert_allclose(a.sum(axis=0), 0)
 
+    def test_free_site_loss_scales_with_free_sites(self):
+        p = replace(Parameters(), kPon_min=0, kPon_slope=0, kPoff=.3, kEon=0, kEoff=0)
+        states = state_map(5)
+        index = {state: i for i, state in enumerate(states)}
+        a = internal_generator(5, 0, 0, p)
+        self.assertAlmostEqual(a[index[(3, 1)], index[(4, 1)]], 3*p.kPoff)
+        self.assertAlmostEqual(a[index[(4, 0)], index[(5, 0)]], 5*p.kPoff)
+        np.testing.assert_equal(a[:, index[(2, 2)]], 0)
+        np.testing.assert_allclose(a.sum(axis=0), 0, atol=1e-14)
+
     def test_h_dissociation_preserves_bound_e(self):
         p = replace(Parameters(), geneLength_bp=200, PASposition=100,
                     k_e=0, k_e2=0, kc=0, kEon=0, kEoff=0,

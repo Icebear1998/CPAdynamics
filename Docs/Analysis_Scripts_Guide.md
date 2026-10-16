@@ -21,7 +21,7 @@ This guide describes the complete suite of analysis scripts for the CPA (Cleavag
 
 All scripts support an optional `saveData` (or `save_result`) flag at the top of the file. Set it to `true` to save results via the unified `save_analysis_results.m` utility. Results are written to `Results/<script>/<parameter set>/` with a `metadata.txt`.
 
-All active MATLAB analyses use the **full finite-rate R/RHE model** via `run_full_termination_simulation`. Binding and phosphorylation profiles are computed from microstates, and `kHon` stays at its base per-E value. The working engaged-E off-rate is `P.kEoff_engaged = 0.05` s⁻¹ in `default_parameters.m`.
+All active MATLAB analyses use the **full finite-rate R/RHE model** via `run_full_termination_simulation`. Binding and phosphorylation profiles are computed from microstates, and `kHon` stays at its base per-E value. The working engaged-E off-rate is `P.kEoff_engaged = 0.065` s⁻¹ (weak PAS) in `default_parameters.m`.
 
 No Symbolic Math or Optimization Toolbox is needed for the active steady solvers. Scripts using `parfor`/`parpool` require Parallel Computing Toolbox.
 
