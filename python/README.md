@@ -124,6 +124,37 @@ direct solution were below 1e-6, and kinetic residuals were below 1e-4.
 The M=5 dynamic CAD50 was 551.4948 bp versus 551.4944 bp from the direct solve.
 Use `--transient-seconds 50000` to run a fresh trajectory over that longer interval.
 
+## Results framework: joint 3D benchmark coverage
+
+```bash
+python3 python/run_framework_monte_carlo.py --samples 10000 --workers 4
+```
+
+This estimates the fraction of the joint `(kHd, kEd, kc)` parameter space
+meeting `CAD50 <= 500 bp`, using independent log-uniform Monte Carlo draws.
+Both M = 1 and M = 5 use the same 10,000 parameter triples (PCG64 seed
+20261020). Bounds match Figure 2C and are read from `default_parameters.m`:
+`kHd = [0.0015/17, 1/4]`, `kEd = [0.1/4.15e-6, 5/1.66e-6]` molecules,
+and `kc = [0.015, 0.6]` s^-1. Association rates remain at their defaults;
+`kHoff = kHd*kHon` and `kEoff = kEd*kEon`. These are ratio-space bounds,
+so fixing association rates does not independently constrain the resulting
+dissociation rates to their original sensitivity intervals.
+
+Each point uses the full finite-rate steady solver with local E and Pol II
+conservation and kinetic/flux checks. Unreached CAD50 values count as failures,
+with their NaNs and maximum exit CDFs retained. Numerical solver failures abort
+the run. The percentages estimate volume fractions under the specified
+log-uniform measure, not biological frequencies. Marginal 95% Wilson intervals
+describe Monte Carlo sampling uncertainty, not model or parameter uncertainty.
+The fixed sample count gives a worst-case interval half-width of approximately
+one percentage point.
+
+Per-sample results, source hashes, parameters, seed, diagnostics, prefix
+estimates, and final percentages are saved as `samples.csv` and `metadata.json`
+under `Results/ResultsFramework/draft/MonteCarlo3D/`. Use `--output-dir` or
+`CPAD_RESULTS_ROOT` to relocate the outputs. Reproduce the manuscript analysis
+with the default seed, sample count, and threshold.
+
 ## API
 
 Set `PYTHONPATH=python`, or run from the `python` directory:

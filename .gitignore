@@ -3,3 +3,6 @@ SymbolicCache/
 pyCPA/
 *.asv
 Results/
+Exports/
+Docs/docx
+Docs/papers
