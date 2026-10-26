@@ -31,7 +31,9 @@ class BindingProfileTests(unittest.TestCase):
         avg_e, avg_p = binding_profiles(model, solution)
         polymerases = solution.R.copy()
         polymerases[model.pas:] += solution.RHE
-        self.assertAlmostEqual(avg_e @ polymerases + solution.E_free, parameters.E_total, places=6)
+        # The non-spatial committed pool has no node, so it is not in the averages.
+        self.assertAlmostEqual(avg_e @ polymerases + solution.C_E_bound + solution.E_free,
+                               parameters.E_total, places=6)
         self.assertTrue(np.all((0 <= avg_e) & (avg_e <= avg_p) & (avg_p <= 5)))
 
 

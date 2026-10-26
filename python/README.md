@@ -212,8 +212,18 @@ At every node from the PAS onward:
 R(p,e)   -> RHE(p,e)    at e*kHon
 RHE(p,e) -> R(p,e)      at kHoff
 RHE(p,e) -> R(p,e-1) + free E at kEoff_engaged
-RHE(p,e) -> free pools at kc
+RHE(p,e) -> C(p,e)      at kc   (committed; CAD counts this flux)
+C(p,e)   -> free pools at k_rel
 ```
+
+C is one non-spatial committed pool per gene. It still holds its polymerase and
+all its E until release at `k_rel` (default 0.01 s^-1, about 100 s, matching
+MATLAB `default_parameters`). In C, p is frozen (no kPon or kPoff), free sites
+still bind E at `kEon`, the e-1 unengaged E leave at `kEoff`, and the engaged E
+stays until release. `k_rel=math.inf` removes C and releases at kc, the earlier
+model; the equilibrium comparisons (`run_comparison.py`, `run_engaged_e_sweep.py`)
+use that limit. `FullSolution.C_micro`, `C_total` and `C_E_bound` report the
+pool, which is absent from per-node profiles but counted in pool conservation.
 
 Recognition selects one of the `e` factors to engage H and preserves `(p,e)`.
 H dissociation preserves `(p,e)` too: it removes protection but does not itself
@@ -230,8 +240,8 @@ R(p,0), not RHE(p,0). Additional E can bind and unbind normally while the comple
 is recognized. The default `kEoff_engaged=0.05` enables this route in both
 the steady and time solvers; setting it to zero disables engaged-E loss.
 
-R elongates at `k_e`, RHE at `k_e2`, preserving `(p,e)`. Cleavage and final-node
-run-off return one polymerase and all its bound E to the free pools. H denotes
+R elongates at `k_e`, RHE at `k_e2`, preserving `(p,e)`. Release from C and
+final-node run-off return one polymerase and all its bound E to the free pools. H denotes
 PAS engagement; this implementation does not introduce a separate finite H pool.
 
 At position i (zero-based), `kPon(i) = kPon_min + kPon_slope*i`.
@@ -259,7 +269,8 @@ at the first node. The actual pool rows are precomputed from these conservation
 identities. **No local equilibrium distribution appears in this system.**
 
 The state vector is all R nodes (node-major), then all RHE nodes (node-major),
-then E_free and Pol_free. Within each node, `(p,e)` is ordered by p, then e.
+then the C states (starting at `c_offset`; none when `k_rel` is infinite), then
+E_free and Pol_free. Within each node, `(p,e)` is ordered by p, then e.
 `R_micro` and `RHE_micro` return these arrays as node-by-state matrices.
 
 The number of bound-state variables is

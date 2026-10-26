@@ -154,6 +154,73 @@ verifyEqual(testCase, distances, [100; 200]);
 verifyEqual(testCase, cad, 50, 'AbsTol', 1e-14);
 end
 
+function testCommitmentHoldsResourcesUntilRelease(testCase)
+P = isolated_parameters();
+P.kc = 2;
+P.k_rel = 0.5;
+[model, ~] = build_full_rate_matrices(P, 5);
+for h = 1:model.sh
+    e = model.states.RHE(h, 2);
+    X = zeros(model.size+2, 1);
+    X(model.r_size+h) = 3;
+    expected = zeros(size(X));
+    expected(model.r_size+h) = -6;
+    expected(model.c_offset+h) = 6; % same (p,e); nothing released yet
+    verifyEqual(testCase, ode_dynamics_full_multipleE(0, X, model), expected, 'AbsTol', 1e-13);
+    X(:) = 0;
+    X(model.c_offset+h) = 3;
+    expected(:) = 0;
+    expected(model.c_offset+h) = -1.5;
+    expected(end-1:end) = [1.5*e; 1.5];
+    verifyEqual(testCase, ode_dynamics_full_multipleE(0, X, model), expected, 'AbsTol', 1e-13);
+end
+end
+
+function testCommittedExchangeFreezesP(testCase)
+P = isolated_parameters();
+P.k_rel = 1;
+P.kEoff = 0.3;
+P.kEon = 0.01;
+P.kPoff = 5;
+P.kPon_min = 5;
+[model, ~] = build_full_rate_matrices(P, 3);
+idx = @(p, e) model.c_offset+model.states.RHE_index(p+1, e+1);
+X = zeros(model.size+2, 1);
+X(idx(3, 2)) = 1;
+X(end-1) = 10; % E_free
+dX = ode_dynamics_full_multipleE(0, X, model);
+verifyEqual(testCase, dX(idx(3, 1)), 0.3, 'AbsTol', 1e-13); % one unengaged E leaves
+verifyEqual(testCase, dX(idx(3, 3)), 0.1, 'AbsTol', 1e-13); % one free site binds E
+verifyEqual(testCase, dX(idx(3, 2)), -1.4, 'AbsTol', 1e-13);
+verifyEqual(testCase, nnz(abs(dX(1:model.c_offset)) > 0), 0); % no p change, no R/RHE
+end
+
+function testFastReleaseRecoversCommitmentRelease(testCase)
+P = default_parameters();
+for M = [1, 5]
+    P.k_rel = Inf;
+    [R0, RHE0, P0] = run_full_termination_simulation(P, M);
+    [~, ~, cad0] = calculate_full_pas_cleavage_profile(R0, RHE0, P0);
+    P.k_rel = 1e6;
+    [R1, RHE1, P1, D1] = run_full_termination_simulation(P, M);
+    [~, ~, cad1] = calculate_full_pas_cleavage_profile(R1, RHE1, P1);
+    verifyEqual(testCase, cad1, cad0, 'RelTol', 1e-4);
+    verifyEqual(testCase, P1.Ef_ss, P0.Ef_ss, 'RelTol', 1e-4);
+    verifyLessThan(testCase, abs(D1.flux_residual), 1e-6);
+end
+end
+
+function testCommittedPoolCountsAsDemand(testCase)
+P = default_parameters();
+P.k_rel = 0.01;
+[~, RHE, P_out, D] = run_full_termination_simulation(P, 5);
+verifyEqual(testCase, D.C_total, P.kc*sum(RHE)/P.k_rel, 'RelTol', 1e-8);
+verifyEqual(testCase, D.Pol_bound, sum(D.R_micro(:))+sum(RHE)+D.C_total, 'RelTol', 1e-12);
+verifyEqual(testCase, P_out.Pol_free_ss+D.Pol_bound, P.Pol_total, 'AbsTol', 1e-6);
+verifyEqual(testCase, P_out.Ef_ss+D.E_bound, P.E_total, 'AbsTol', 1e-6);
+verifyGreaterThan(testCase, D.C_E_bound, D.C_total); % engaged E plus exchanged E
+end
+
 function testZeroEHasNoRecognition(testCase)
 P = default_parameters();
 P.E_total = 0;
@@ -209,7 +276,8 @@ for M = [1, 5]
     X0 = [zeros(model.size, 1); P.E_total; P.Pol_total];
     options = odeset('RelTol', 1e-8, 'AbsTol', 1e-10, ...
         'Jacobian', @(t, X) full_model_jacobian(t, X, model));
-    [~, trajectory] = ode15s(@(t, X) ode_dynamics_full_multipleE(t, X, model), [0, 1000], X0, options);
+    % Long horizon: the committed pool relaxes on the 1/k_rel ~ 100 s scale.
+    [~, trajectory] = ode15s(@(t, X) ode_dynamics_full_multipleE(t, X, model), [0, 3000], X0, options);
     verifyEqual(testCase, trajectory(end, :)', D.state_ss, 'AbsTol', 1e-5);
 end
 end
@@ -226,6 +294,8 @@ P.kc = 0.13;
 P.kPon_min = 0.01;
 P.kPon_slope = 0.005;
 P.kPoff = 1;
+P.Pol_total = 70000; % default_parameters later moved to 100000
+P.k_rel = Inf; % fixtures release resources at commitment
 end
 
 function P = isolated_parameters()
@@ -237,4 +307,5 @@ zeroFields = {'k_in', 'k_e', 'k_e2', 'kEon', 'kEoff', 'kHon', 'kHoff', ...
 for i = 1:numel(zeroFields)
     P.(zeroFields{i}) = 0;
 end
+P.k_rel = Inf;
 end

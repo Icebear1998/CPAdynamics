@@ -3,10 +3,12 @@
 Forward transport makes the steady operator block triangular in position.
 Solving each local R/RHE block in order is exactly the full sparse solve;
 transport remains in every block. Upstream profiles can be shared between
-genes with different PAS positions. No binding equilibrium or occupancy
-interpolation is used.
+genes with different PAS positions. Committed complexes (finite k_rel) add to
+each gene's Pol II and E demand but not to its cleavage CDF. No binding
+equilibrium or occupancy interpolation is used.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import math
 
 import numpy as np
 from scipy.linalg import block_diag, lu_factor, lu_solve
@@ -83,6 +85,11 @@ class GeneLengthModel:
             self.h0.append(np.diag(self.transport) - block_diag(r0, h0) - cross
                            + np.diag(np.r_[np.zeros(self.sr), np.full(self.sh, p.kc)]))
         self.re, self.he = re, block_diag(re, he)
+        # Non-spatial committed pool: frozen p, E exchange, release at k_rel.
+        self.committed = math.isfinite(p.k_rel)
+        if self.committed:
+            c0, self.ce = internal_components(m, 0., replace(p, kPoff=0.), True)
+            self.c0 = p.k_rel*np.eye(self.sh) - c0
 
     def evaluate(self, e_free):
         """Return finite-rate occupancies and CDFs at prescribed free E."""
@@ -103,10 +110,12 @@ class GeneLengthModel:
         cleavage = np.zeros((len(self.lengths), self.post_nodes))
         terminal = np.zeros(len(self.lengths))
         factors = {}
+        committed = lu_factor(self.c0 - e_free*self.ce) if self.committed else None
         for i, pas in enumerate(self.pas):
             incoming = np.r_[p.k_e * upstream[pas], np.zeros(self.sh)]
             if pas == 0:
                 incoming[0] = 1.
+            commit_flux = np.zeros(self.sh)
             for j in range(self.post_nodes):
                 node = int(pas + j)
                 if node not in factors:
@@ -117,8 +126,13 @@ class GeneLengthModel:
                 pol[i] += local.sum()
                 bound_e[i] += self.er @ local[:self.sr] + self.eh @ local[self.sr:]
                 cleavage[i, j] = p.kc * local[self.sr:].sum()
+                commit_flux += p.kc * local[self.sr:]
                 incoming = self.transport * local
             terminal[i] = incoming.sum()
+            if committed is not None:
+                held = lu_solve(committed, commit_flux)
+                pol[i] += held.sum()
+                bound_e[i] += self.eh @ held
         total_out = cleavage.sum(axis=1) + terminal
         residual = float(np.max(np.abs(total_out - 1)))
         if residual > 1e-8:

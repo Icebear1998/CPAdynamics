@@ -24,11 +24,17 @@ class Parameters:
     # Full model only: CTD detachment of the H-engaged E, followed by rapid EH
     # disassembly.
     kEoff_engaged: float = 0.05
+    # Release of committed complexes (Pol II and their E) to the free pools,
+    # matching MATLAB default_parameters. math.inf releases at kc (no C pool).
+    k_rel: float = 0.01
 
     def __post_init__(self):
         for field in fields(self):
             value = getattr(self, field.name)
-            if not math.isfinite(value) or value < 0:
+            if field.name == 'k_rel':
+                if math.isnan(value) or value <= 0:
+                    raise ValueError('k_rel must be positive (math.inf releases at kc)')
+            elif not math.isfinite(value) or value < 0:
                 raise ValueError(f'{field.name} must be finite and nonnegative')
         if self.L_a <= 0:
             raise ValueError('L_a must be positive')

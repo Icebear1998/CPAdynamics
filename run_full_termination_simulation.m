@@ -8,6 +8,8 @@ function [R_sol, RHE_sol, P, details] = run_full_termination_simulation(P, EBind
 % D contains microstates, state maps, the full steady vector and diagnostics.
 % D.avg_E_bound and D.avg_Ser2P average over all Pol II at each node,
 % including RHE after PAS. Empty nodes have NaN averages and zero occupancy.
+% Committed complexes (finite P.k_rel) have no node: they are in D.C_micro,
+% D.C_total and D.C_E_bound, and are counted in D.Pol_bound and D.E_bound.
 %
 % [R,RHE,P_out,D] = run_full_termination_simulation(P,M,'FreePools',[R_free E_free])
 % holds BOTH free pools fixed for one gene in a genome-wide calculation.
@@ -54,7 +56,8 @@ else
 end
 X = [x; Ef; Pol_f];
 R_micro = reshape(x(1:model.r_size), model.sr, model.N)';
-RHE_micro = reshape(x(model.r_size+1:end), model.sh, model.N_PAS)';
+RHE_micro = reshape(x(model.r_size+1:model.c_offset), model.sh, model.N_PAS)';
+C_micro = x(model.c_offset+1:end)';
 R_sol = sum(R_micro, 2);
 RHE_sol = sum(RHE_micro, 2);
 P.Ef_ss = Ef;
@@ -64,6 +67,9 @@ P.model_variant = 'full_kinetics_rapid_EH_disassembly';
 
 details.R_micro = R_micro;
 details.RHE_micro = RHE_micro;
+details.C_micro = C_micro; % non-spatial committed pool; empty when k_rel = Inf
+details.C_total = sum(C_micro);
+details.C_E_bound = C_micro*model.states.RHE(1:model.c_size, 2);
 details.R_states = model.states.R;
 details.RHE_states = model.states.RHE;
 details.state_ss = X;
@@ -91,8 +97,13 @@ if isempty(free_pools)
     conservation_residuals = [details.E_conservation_residual, details.Pol_conservation_residual];
 end
 details.rhs_max_abs = norm(ode_dynamics_full_multipleE(0, X, model), inf);
+if model.c_size > 0
+    release_flux = P.k_rel*details.C_total;
+else
+    release_flux = P.kc*sum(RHE_sol);
+end
 details.flux_residual = P.k_e*R_sol(end)+P.k_e2*RHE_sol(end) ...
-                      + P.kc*sum(RHE_sol)-P.k_in*Pol_f;
+                      + release_flux-P.k_in*Pol_f;
 if any(~isfinite(X)) || min(X) < -1e-9 || ...
         max(abs([conservation_residuals, details.rhs_max_abs, details.flux_residual])) > 1e-6
     error('run_full_termination_simulation:InvalidSolution', ...

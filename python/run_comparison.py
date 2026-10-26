@@ -4,6 +4,7 @@ import csv
 from dataclasses import asdict, replace
 import hashlib
 import json
+import math
 from pathlib import Path
 import platform
 
@@ -36,7 +37,8 @@ def main():
     param_set = 'M' + '-'.join(str(m) for m in sorted(set(args.m)))
     output = args.output or repo/'python'/'Results'/'full_model'/param_set
     output.mkdir(parents=True, exist_ok=args.output is None)
-    p = Parameters()
+    # The equilibrium reference has no committed pool, so release at kc.
+    p = replace(Parameters(), k_rel=math.inf)
     parity_parameters = replace(p, kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0)
     parity = []
 
@@ -104,7 +106,8 @@ def main():
                                  function_evaluations=result.nfev))
             write_csv(output/f'transient_M{m}.csv', [dict(time_seconds=t,
                       E_free=y[-2], Pol_free=y[-1], R_total=y[:model.r_size].sum(),
-                      RHE_total=y[model.r_size:model.size].sum(),
+                      RHE_total=y[model.r_size:model.c_offset].sum(),
+                      C_total=y[model.c_offset:model.size].sum(),
                       E_residual=y[-2]+model.e_counts@y[:model.size]-p.E_total,
                       Pol_residual=y[-1]+y[:model.size].sum()-p.Pol_total)
                       for t, y in zip(result.t, result.y.T)])

@@ -4,11 +4,17 @@ The engaged E is excluded from ordinary E unbinding. Its optional, separate
 CTD-detachment route (kEoff_engaged) immediately disassembles EH, returns one E
 to the free pool, and leaves an unrecognized R with one fewer bound E.
 
-State ordering: all R nodes (node-major), all RHE nodes (node-major), free E,
+Commitment (kc) moves RHE(p,e) into one non-spatial committed pool C(p,e) that
+still holds its Pol II and E until release at k_rel. In C, p is frozen, free
+sites bind E, the e-1 unengaged E exchange at kEoff and the engaged E stays
+until release. k_rel = inf releases at commitment (no C states).
+
+State ordering: all R nodes (node-major), all RHE nodes (node-major), C, free E,
 free Pol II. Internal state maps are ordered by p, then e. No local equilibrium
 distribution or occupancy interpolant enters these equations.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import math
 import numpy as np
 from scipy import sparse
 from scipy.integrate import solve_ivp
@@ -30,6 +36,9 @@ class FullSolution:
     e_residual: float
     pol_residual: float
     rhs_max_abs: float
+    C_micro: np.ndarray  # committed pool over RHE states; empty when k_rel = inf
+    C_total: float
+    C_E_bound: float
 
 
 class FullModel:
@@ -41,9 +50,12 @@ class FullModel:
         self.n, self.pas, self.n_pas = p.geometry()
         self.sr, self.sh = len(self.r_states), len(self.rhe_states)
         self.r_size = self.n*self.sr
-        self.size = self.r_size + self.n_pas*self.sh
+        self.c_size = self.sh if math.isfinite(p.k_rel) else 0  # C uses the RHE map
+        self.c_offset = self.r_size + self.n_pas*self.sh
+        self.size = self.c_offset + self.c_size
         self.e_counts = np.r_[np.tile(np.array(self.r_states)[:, 1], self.n),
-                              np.tile(np.array(self.rhe_states)[:, 1], self.n_pas)]
+                              np.tile(np.array(self.rhe_states)[:, 1], self.n_pas),
+                              np.array(self.rhe_states)[:self.c_size, 1]]
         self.unit_source = np.zeros(self.size)
         self.unit_source[0] = 1  # initiation is exclusively into R(0,0)
 
@@ -52,6 +64,10 @@ class FullModel:
         components_rhe = [internal_components(m, p.kPon_min+p.kPon_slope*i, p, True)
                           for i in range(self.pas, self.n)]
         all_components = components_r + components_rhe
+        if self.c_size:
+            # kPon = 0 and kPoff = 0 freeze p; E binding and exchange continue.
+            c0, ce = internal_components(m, 0., replace(p, kPoff=0.), True)
+            all_components.append((c0 - p.k_rel*np.eye(self.sh), ce))
         a0 = sparse.block_diag([sparse.csr_matrix(c[0]) for c in all_components], format='csc')
         self.ae = sparse.block_diag([sparse.csr_matrix(c[1]) for c in all_components], format='csc')
 
@@ -59,7 +75,14 @@ class FullModel:
         r_transport = self._transport(self.n, self.sr, p.k_e)
         rhe_transport = self._transport(self.n_pas, self.sh, p.k_e2)
         rhe_transport -= p.kc*sparse.eye(self.n_pas*self.sh, format='csc')
-        a0 += sparse.block_diag([r_transport, rhe_transport], format='csc')
+        a0 += sparse.block_diag([r_transport, rhe_transport,
+                                 sparse.csc_matrix((self.c_size, self.c_size))], format='csc')
+        if self.c_size:
+            # Commitment at every post-PAS node keeps the complex's (p,e) state.
+            local = np.tile(np.arange(self.sh), self.n_pas)
+            a0 += sparse.coo_matrix(
+                (np.full(local.size, p.kc), (self.c_offset+local, self.r_size+np.arange(local.size))),
+                shape=(self.size, self.size)).tocsc()
 
         # R(p,e) -> RHE(p,e) selects one of e bound E; H off preserves counts.
         r_lookup = {state: i for i, state in enumerate(self.r_states)}
@@ -84,7 +107,8 @@ class FullModel:
         self.a0.eliminate_zeros()
         self.ae.eliminate_zeros()
 
-        # Pool rows account for association, dissociation, cleavage and run-off.
+        # Pool rows account for association, dissociation, release (at kc
+        # when there is no C pool) and run-off.
         weights = sparse.csr_matrix(self.e_counts[None, :])
         self.e_release0 = -np.asarray((weights@self.a0).toarray()).ravel()
         self.e_release1 = -np.asarray((weights@self.ae).toarray()).ravel()
@@ -130,13 +154,15 @@ class FullModel:
         if y.shape != (self.size+2,) or not np.isfinite(y).all():
             raise ValueError('State has incorrect shape or nonfinite entries')
         r = y[:self.r_size].reshape(self.n, self.sr)
-        rhe = y[self.r_size:self.size].reshape(self.n_pas, self.sh)
+        rhe = y[self.r_size:self.c_offset].reshape(self.n_pas, self.sh)
+        c = y[self.c_offset:self.size]
         return FullSolution(
             y.copy(), r.copy(), rhe.copy(), r.sum(axis=1), rhe.sum(axis=1),
             float(y[-2]), float(y[-1]),
             float(y[-2]+self.e_counts@y[:self.size]-self.parameters.E_total),
             float(y[-1]+y[:self.size].sum()-self.parameters.Pol_total),
-            float(np.max(np.abs(self.rhs(0, y)))))
+            float(np.max(np.abs(self.rhs(0, y)))),
+            c.copy(), float(c.sum()), float(self.e_counts[self.c_offset:self.size]@c))
 
     def solve_steady_state(self):
         """Solve ALL finite-rate equations at steady state, without time separation.

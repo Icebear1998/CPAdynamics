@@ -3,6 +3,7 @@ import argparse
 from dataclasses import asdict, replace
 import hashlib
 import json
+import math
 from pathlib import Path
 import platform
 
@@ -24,7 +25,7 @@ def main():
         parser.error('Relative off-rates must be finite and nonnegative')
     ratios = sorted(set([0.] + args.relative_off_rates))
     capacities = sorted(set(args.m))
-    p0 = Parameters()
+    p0 = replace(Parameters(), k_rel=math.inf)  # compared with the equilibrium reference
     repo = Path(__file__).resolve().parents[1]
     param_set = 'M' + '-'.join(str(m) for m in capacities)
     output = args.output or repo/'python'/'Results'/'engaged_E_dissociation'/param_set

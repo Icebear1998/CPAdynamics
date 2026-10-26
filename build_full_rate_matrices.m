@@ -4,9 +4,18 @@ function [model, P] = build_full_rate_matrices(P, EBindingNumber)
 % contiguous. A(E_free) = model.A0 + E_free*model.AE acts on x.
 % No local equilibrium, symbolic calculations or global variables are used.
 % kEoff_engaged defaults to zero if absent (the earlier full-model limit).
+% Commitment (kc) moves RHE(p,e) into one non-spatial committed pool C(p,e)
+% that still holds Pol II and E; C releases both at k_rel. In C, p is frozen,
+% free sites still bind E and the e-1 unengaged E exchange at kEoff. The
+% engaged E stays until release. k_rel absent or Inf releases at commitment
+% (no C states), the earlier full-model limit.
 if ~isfield(P, 'kEoff_engaged')
     P.kEoff_engaged = 0;
 end
+if ~isfield(P, 'k_rel')
+    P.k_rel = Inf;
+end
+validateattributes(P.k_rel, {'numeric'}, {'scalar', 'real', 'positive', 'nonnan'}, mfilename, 'k_rel');
 rateFields = {'k_in', 'k_e', 'k_e2', 'kEon', 'kEoff', 'kHon', 'kHoff', ...
               'kc', 'kPon_min', 'kPon_slope', 'kPoff', 'kEoff_engaged', ...
               'E_total', 'Pol_total'};
@@ -31,9 +40,13 @@ model.N_PAS = P.N_PAS;
 model.sr = S.sr;
 model.sh = S.sh;
 model.r_size = P.N*S.sr;
-model.size = model.r_size+P.N_PAS*S.sh;
+model.h_size = P.N_PAS*S.sh;
+model.c_size = S.sh*isfinite(P.k_rel); % C uses the RHE (p,e) map
+model.c_offset = model.r_size+model.h_size;
+model.size = model.c_offset+model.c_size;
 model.k_in = P.k_in;
-model.e_counts = [repmat(S.R(:, 2), P.N, 1); repmat(S.RHE(:, 2), P.N_PAS, 1)];
+model.e_counts = [repmat(S.R(:, 2), P.N, 1); repmat(S.RHE(:, 2), P.N_PAS, 1); ...
+                  S.RHE(1:model.c_size, 2)];
 
 [R_const, R_Pon, R_Ef] = build_full_internal_rate_matrices(P, S, false);
 [H_const, H_Pon, H_Ef] = build_full_internal_rate_matrices(P, S, true);
@@ -45,8 +58,21 @@ A_R = kron(speye(P.N), R_const) + kron(spdiags(kPon, 0, P.N, P.N), R_Pon) ...
 A_H = kron(speye(P.N_PAS), H_const) ...
       + kron(spdiags(kPon(P.PAS:end), 0, P.N_PAS, P.N_PAS), H_Pon) ...
       + kron(T_H, speye(S.sh)) - P.kc*speye(P.N_PAS*S.sh);
-model.A0 = blkdiag(A_R, A_H);
-model.AE = blkdiag(kron(speye(P.N), R_Ef), kron(speye(P.N_PAS), H_Ef));
+if model.c_size > 0
+    P_frozen = P;
+    P_frozen.kPoff = 0; % kPon is excluded below, so p is frozen in C
+    [C_const, ~, C_Ef] = build_full_internal_rate_matrices(P_frozen, S, true);
+    A_C = C_const-P.k_rel*speye(S.sh);
+    % Commitment at every post-PAS node keeps the complex's (p,e) state.
+    A_commit = P.kc*repmat(speye(S.sh), 1, P.N_PAS);
+else
+    A_C = sparse(0, 0);
+    C_Ef = sparse(0, 0);
+    A_commit = sparse(0, model.h_size);
+end
+model.A0 = blkdiag(A_R, A_H, A_C);
+model.A0(model.c_offset+1:end, model.r_size+1:model.c_offset) = A_commit;
+model.AE = blkdiag(kron(speye(P.N), R_Ef), kron(speye(P.N_PAS), H_Ef), C_Ef);
 
 % Each RHE state has three cross-population reactions (two entries each).
 count = 6*P.N_PAS*S.sh;

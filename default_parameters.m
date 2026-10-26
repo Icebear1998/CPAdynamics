@@ -41,6 +41,13 @@ function P = default_parameters()
     % --- Cleavage ---
     P.kc     = 0.14;               % s^-1
 
+    % --- Release after commitment ---
+    % Committed complexes keep Pol II and E until released at k_rel. ~100 s
+    % matches transcript release from the 3' end (63 s, Boireau 2007; 116 s,
+    % Coulon 2014), when the engaged E leaves. The later Pol II release by
+    % the Xrn2 torpedo (~2.5 min more) is not modeled. Inf = release at kc.
+    P.k_rel  = 0.01;               % s^-1
+
     % --- Ser2P phosphorylation ---
     % One site p = two adjacent Ser2P repeats (appendix F). kPoff = 0.01
     % (mark half-life ~2.3 min) sits just above the inhibitor-based estimate
@@ -59,10 +66,11 @@ function P = default_parameters()
     P.ranges.kEoff      = [0.1, 5];           % s^-1 (C); avidity / in vivo residence to single CID
     P.ranges.kEoff_engaged = [0.01, 0.5]; % s^-1 (C); firm hold by H to no hold (kEoff)
     P.ranges.kc         = [0.015, 0.6];    % s^-1 (D); in vivo cleavage timing to holo-CstF affinity
+    P.ranges.k_rel      = [0.003, 0.02];   % s^-1; ~5 min torpedo Pol II release to ~50 s
     P.ranges.k_e        = [3000, 5000] / 65 / P.L_a; % ~46-77 bp/s (~2.8-4.6 kb/min) (E)
     P.ranges.k_e2       = [10, 50] / P.L_a;  % bp/s -> node/s (E)
-    P.ranges.kPon_slope = [1e-4, 2e-3];      % s^-1 per node (F); E-site 50% at ~20 to ~4 kb
-    P.ranges.kPoff      = [0.0016, 0.02];  % s^-1 (F); inhibitor lower bound to 2x the working value
+    P.ranges.kPon_slope = [1e-4, 2e-2];      % s^-1 per node (F); E-site 50% at ~20 to ~4 kb
+    P.ranges.kPoff      = [0.0016, 0.05];  % s^-1 (F); inhibitor lower bound to 2x the working value
     P.ranges.E_total    = [50000, 200000];   % molecules (G)
     P.ranges.Pol_total  = [25000, 140000];   % nuclear molecules (G)
 

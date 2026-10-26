@@ -1,4 +1,5 @@
 """Scientific regression tests: run with PYTHONPATH=python python3 -m unittest discover -s python/tests -v."""
+import math
 import unittest
 from dataclasses import replace
 
@@ -106,11 +107,13 @@ class FullKineticsTests(unittest.TestCase):
         self.assertAlmostEqual(derivative[-2], 3*p.k_e2)
         self.assertAlmostEqual(derivative[-1], p.k_e2)
 
-    def test_cleavage_at_pas_returns_all_resources(self):
+    def test_cleavage_at_pas_returns_all_resources_without_committed_pool(self):
         p = replace(Parameters(), geneLength_bp=200, PASposition=100,
                     k_e=0, k_e2=0, kEon=0, kEoff=0, kHoff=0,
-                    kPon_min=0, kPon_slope=0, kPoff=0, kHon=0, k_in=0, kEoff_engaged=0)
+                    kPon_min=0, kPon_slope=0, kPoff=0, kHon=0, k_in=0, kEoff_engaged=0,
+                    k_rel=math.inf)
         model = FullModel(p, 5)
+        self.assertEqual(model.c_size, 0)
         y = np.zeros(model.size + 2)
         source = model.r_size + model.rhe_states.index((3, 3))
         y[source] = 2
@@ -118,6 +121,60 @@ class FullKineticsTests(unittest.TestCase):
         self.assertAlmostEqual(derivative[source], -2*p.kc)
         self.assertAlmostEqual(derivative[-2], 6*p.kc)
         self.assertAlmostEqual(derivative[-1], 2*p.kc)
+
+    def test_commitment_holds_resources_until_release(self):
+        p = replace(Parameters(), geneLength_bp=300, PASposition=200,
+                    k_e=0, k_e2=0, kEon=0, kEoff=0, kHoff=0, kc=2, k_rel=.5,
+                    kPon_min=0, kPon_slope=0, kPoff=0, kHon=0, k_in=0, kEoff_engaged=0)
+        model = FullModel(p, 5)
+        for j in range(model.n_pas):
+            for h, (_, e) in enumerate(model.rhe_states):
+                with self.subTest(node=j, state=model.rhe_states[h]):
+                    y = np.zeros(model.size + 2)
+                    y[model.r_size+j*model.sh+h] = 3
+                    expected = np.zeros_like(y)
+                    expected[model.r_size+j*model.sh+h] = -6
+                    expected[model.c_offset+h] = 6  # same (p,e); nothing released yet
+                    np.testing.assert_allclose(model.rhs(0, y), expected, atol=1e-13)
+        for h, (_, e) in enumerate(model.rhe_states):
+            y = np.zeros(model.size + 2)
+            y[model.c_offset+h] = 3
+            expected = np.zeros_like(y)
+            expected[model.c_offset+h] = -1.5
+            expected[-2:] = [1.5*e, 1.5]
+            np.testing.assert_allclose(model.rhs(0, y), expected, atol=1e-13)
+
+    def test_committed_pool_freezes_p_and_exchanges_e(self):
+        p = replace(Parameters(), geneLength_bp=200, PASposition=100,
+                    k_e=0, k_e2=0, kc=0, kHoff=0, kHon=0, k_in=0, kEoff_engaged=0,
+                    kEon=.01, kEoff=.3, kPon_min=5, kPon_slope=0, kPoff=5, k_rel=1)
+        model = FullModel(p, 3)
+        index = {state: model.c_offset+i for i, state in enumerate(model.rhe_states)}
+        y = np.zeros(model.size + 2)
+        y[index[(3, 2)]] = 1
+        y[-2] = 10
+        derivative = model.rhs(0, y)
+        self.assertAlmostEqual(derivative[index[(3, 1)]], .3)  # unengaged E leaves
+        self.assertAlmostEqual(derivative[index[(3, 3)]], .1)  # free site binds E
+        self.assertAlmostEqual(derivative[index[(3, 2)]], -1.4)
+        np.testing.assert_equal(derivative[:model.c_offset], 0)
+
+    def test_fast_release_recovers_release_at_commitment(self):
+        for m in (1, 5):
+            with self.subTest(M=m):
+                p = replace(Parameters(), k_rel=math.inf)
+                old = FullModel(p, m).solve_steady_state()
+                new = FullModel(replace(p, k_rel=1e6), m).solve_steady_state()
+                self.assertAlmostEqual(cleavage_profile(new.R, new.RHE, p).cad50_bp,
+                                       cleavage_profile(old.R, old.RHE, p).cad50_bp, delta=0.05)
+                self.assertAlmostEqual(new.E_free/old.E_free, 1, places=4)
+
+    def test_committed_pool_counts_as_demand(self):
+        p = Parameters()
+        s = FullModel(p, 5).solve_steady_state()
+        self.assertAlmostEqual(s.C_total/(p.kc*s.RHE.sum()/p.k_rel), 1, places=8)
+        self.assertGreater(s.C_E_bound, s.C_total)  # engaged E plus exchanged E
+        self.assertAlmostEqual(s.Pol_free+s.R.sum()+s.RHE.sum()+s.C_total, p.Pol_total, places=5)
 
     def test_full_steady_state_is_physical_and_satisfies_dynamic_equations(self):
         for m in range(1, 8):
@@ -159,7 +216,8 @@ class FullKineticsTests(unittest.TestCase):
             with self.subTest(M=m):
                 model = FullModel(p, m)
                 steady = model.solve_steady_state()
-                result = model.integrate(1000, t_eval=[0, 1000], rtol=1e-8, atol=1e-10)
+                # Long horizon: the committed pool relaxes on the 1/k_rel ~ 100 s scale.
+                result = model.integrate(3000, t_eval=[0, 3000], rtol=1e-8, atol=1e-10)
                 final = model.summarize(result.y[:, -1])
                 np.testing.assert_allclose(final.state, steady.state, atol=1e-6, rtol=1e-6)
                 self.assertLess(final.rhs_max_abs, 1e-7)

@@ -40,6 +40,15 @@ Exactly one E in each RHE state is engaged with H. `kEoff_engaged` controls its
 independent detachment and rapid EH disassembly; the working default is 0.1 s^-1 (range
 0.01-0.5), one conservative value for all PAS strengths (it is not rescaled with kHoff).
 
+Commitment (`kc`) moves RHE(p,e) into one non-spatial committed pool C(p,e) that
+still holds its Pol II and E until release at `P.k_rel` (default 0.01 s^-1, about
+100 s, matching transcript release from the 3' end; range 0.003-0.02). In C, p is
+frozen, free sites still bind E at kEon, the e-1 unengaged E leave at kEoff, and the
+engaged E stays until release. CAD still counts the `kc` flux only. C has no node,
+so it is absent from R/RHE profiles and per-node averages but included in
+`details.Pol_bound`/`details.E_bound` (`details.C_micro`, `C_total`, `C_E_bound`).
+`k_rel = Inf` (or absent) gives the earlier release-at-commitment model.
+
 Geometry is `P.N = floor(geneLength_bp/L_a)`, `P.PAS = floor(PASposition/L_a)`
 and `P.N_PAS = P.N-P.PAS+1`. All geometry and free pools are stored in `P`.
 
@@ -102,6 +111,7 @@ P.kEoff_engaged = 0.1;     % Engaged-E off-rate (all PAS strengths)
 P.kHon       = 7;          % PAS recognition (hexamer) on-rate
 P.kHoff      = 1;          % Hexamer off-rate
 P.kc         = 0.14;        % CPA commitment rate (not cleavage; see Key Biology)
+P.k_rel      = 0.01;        % Release of committed Pol II + E (Inf = at kc)
 P.kPon_min   = 0;          % No E sites form at the TSS (pairs need two marks)
 P.kPon_slope = 5e-4;       % Linear slope of kPon along gene (per node)
 P.kPoff      = 0.01;       % Loss rate per free E site (appendix F)

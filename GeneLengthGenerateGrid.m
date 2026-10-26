@@ -225,6 +225,9 @@ fprintf(fid, '%% Base Parameters:\n');
 fprintf(fid, '%% L_a = %g, k_in = %g, kEon = %g, kEoff = %g\n', P_base.L_a, P_base.k_in, P_base.kEon, P_base.kEoff);
 fprintf(fid, '%% k_e = %g, k_e2 = %g, kHon = %g, kHoff = %g\n', P_base.k_e, P_base.k_e2, P_base.kHon, P_base.kHoff);
 fprintf(fid, '%% kc = %g, EBindingNumber = %g\n', P_base.kc, P_base.EBindingNumber);
+if isfield(P_base, 'k_rel')
+    fprintf(fid, '%% k_rel = %g (committed-pool release; Inf = release at kc)\n', P_base.k_rel);
+end
 fprintf(fid, '%% \n');
 
 % Data columns

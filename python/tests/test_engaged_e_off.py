@@ -1,5 +1,6 @@
 """The H-engaged E can detach, followed by rapid EH disassembly."""
 from dataclasses import replace
+import math
 import unittest
 
 import numpy as np
@@ -45,7 +46,8 @@ class EngagedEOffTests(unittest.TestCase):
 
     def test_zero_rate_preserves_previous_full_model_results(self):
         for m, expected in [(1, 1535.6535807633459), (5, 845.2096931066867)]:
-            p = replace(Parameters(), kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0)
+            # Earlier results release resources at commitment (no committed pool).
+            p = replace(Parameters(), kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0, k_rel=math.inf)
             s = FullModel(p, m).solve_steady_state()
             self.assertAlmostEqual(cleavage_profile(s.R, s.RHE, p).cad50_bp, expected, places=6)
 
@@ -65,7 +67,8 @@ class EngagedEOffTests(unittest.TestCase):
         for m in (1, 5):
             model = FullModel(p, m)
             steady = model.solve_steady_state()
-            result = model.integrate(1000, t_eval=[0, 1000], rtol=1e-8, atol=1e-10)
+            # Long horizon: the committed pool relaxes on the 1/k_rel ~ 100 s scale.
+            result = model.integrate(3000, t_eval=[0, 3000], rtol=1e-8, atol=1e-10)
             final = model.summarize(result.y[:, -1])
             np.testing.assert_allclose(final.state, steady.state, rtol=1e-6, atol=1e-6)
             self.assertLess(final.rhs_max_abs, 1e-7)

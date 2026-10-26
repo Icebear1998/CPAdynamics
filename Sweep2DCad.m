@@ -16,14 +16,21 @@ P = default_parameters();
 %% Compute, plot and save each pair
 for EBindingNumber = EBindingNumbers(:)'
     sweeps = run_cad_parameter_sweeps(P, EBindingNumber, nPoints, percent_cleavage);
-    for sweep_index = 1:numel(sweeps)
-        data = sweeps(sweep_index);
-        plot_cad_parameter_sweep(data);
-        if save_result || strcmpi(getenv('CPAD_FORCE_SAVE'), 'true')
+    fig = plot_cad_parameter_sweeps(sweeps);
+    if save_result || strcmpi(getenv('CPAD_FORCE_SAVE'), 'true')
+        param_set = sprintf('M%d_kEoffEngaged%.3g', EBindingNumber, P.kEoff_engaged);
+        for sweep_index = 1:numel(sweeps)
+            data = sweeps(sweep_index);
             analysis_type = sprintf('sweep_2D_%s_%s_CAD', data.x_name, data.y_name);
             save_analysis_results(analysis_type, data, P, 'Folder', 'Sweep2DCad', ...
-                'ParamSet', sprintf('M%d_kEoffEngaged%.3g', EBindingNumber, P.kEoff_engaged));
+                'ParamSet', param_set, 'SavePlot', false);
         end
+        % One combined figure for all three maps
+        output_dir = cpad_analysis_output_dir('Sweep2DCad', param_set, P, ...
+            struct('analysis_type', 'sweep_2D_CAD_combined'));
+        plot_filename = fullfile(output_dir, 'sweep2D_CAD_combined.png');
+        saveas(fig, plot_filename);
+        fprintf('Plot saved to: %s\n', plot_filename);
     end
 end
 fprintf('All CAD sweeps completed.\n');
@@ -155,16 +162,36 @@ catch ME
 end
 end
 
-function fig = plot_cad_parameter_sweep(data)
-% PLOT_CAD_PARAMETER_SWEEP Plot one result from run_cad_parameter_sweeps.
-% Display is capped at 1600 bp like pyCPA/viz/plot_all.py; raw CAD is kept.
+function fig = plot_cad_parameter_sweeps(sweeps)
+% PLOT_CAD_PARAMETER_SWEEPS Plot all results from run_cad_parameter_sweeps
+% side by side in one figure with a shared CAD colorbar.
+
+first = sweeps(1);
+fig = figure('Name', sprintf('CAD sweeps, M = %d', first.EBindingNumber), ...
+    'Position', [50 100 1800 600]);
+n = numel(sweeps);
+gap = 0.06;
+panel_width = (0.84 - gap * (n - 1)) / n;
+for sweep_index = 1:n
+    left = 0.06 + (sweep_index - 1) * (panel_width + gap);
+    ax = axes('Parent', fig, 'Position', [left 0.14 panel_width 0.72]);
+    draw_cad_panel(ax, sweeps(sweep_index));
+end
+% One colorbar for all panels (they share the same color limits)
+cb = colorbar(ax, 'Position', [0.925 0.14 0.012 0.72]);
+cb.Label.String = sprintf('CAD_{%g} (bp; display capped at %g)', ...
+    first.percent_cleavage, 2000);
+sgtitle(fig, sprintf('Full model CAD_{%g} (M = %d, engaged E off = %.3g s^{-1})', ...
+    first.percent_cleavage, first.EBindingNumber, first.kEoff_engaged));
+end
+
+function draw_cad_panel(ax, data)
+% DRAW_CAD_PANEL Draw one CAD map from run_cad_parameter_sweeps into ax.
+% Display is capped at 2000 bp; raw CAD is kept.
 % Gray regions have no measured CAD. Markers distinguish unreached
 % thresholds (open circles) from solver failures (crosses).
 
 display_cap = 2000;
-fig = figure('Name', sprintf('CAD: %s vs %s, M = %d', ...
-    data.x_name, data.y_name, data.EBindingNumber), 'Position', [100 100 900 700]);
-ax = axes('Parent', fig);
 hold(ax, 'on');
 [X, Y] = meshgrid(data.x_values, data.y_values);
 cad = data.CAD_matrix;
@@ -175,7 +202,7 @@ if ~isempty(finite_cad)
     contourf(ax, X, Y, displayed_cad, linspace(0, display_cap, 21), ...
         'LineStyle', 'none');
     % Use uncapped values for target contours; never infer CAD from NaNs.
-    for level = [400 800]
+    for level = [200 600]
         if min(finite_cad) < level && max(finite_cad) > level
             [C, h] = contour(ax, X, Y, cad, [level level], 'r--', 'LineWidth', 2.5);
             clabel(C, h, 'FontSize', 10, 'Color', 'r');
@@ -189,9 +216,6 @@ if exist('turbo', 'builtin') || exist('turbo', 'file')
 else
     colormap(ax, jet(256));
 end
-cb = colorbar(ax);
-cb.Label.String = sprintf('CAD_{%g} (bp; display capped at %g)', ...
-    data.percent_cleavage, display_cap);
 
 censored = isnan(cad) & isfinite(data.max_exit_cdf_matrix);
 failed = ~cellfun(@isempty, data.error_matrix);
@@ -221,8 +245,6 @@ base_legend = plot(ax, NaN, NaN, 'LineStyle', 'none', 'Marker', 'none', ...
 legend(ax, [base_legend legend_handles], 'Location', 'northwest', 'Interpreter', 'tex');
 xlabel(ax, parameter_label(data.x_name), 'FontSize', 14);
 ylabel(ax, parameter_label(data.y_name), 'FontSize', 14);
-title(ax, sprintf('Full model CAD_{%g} (M = %d, engaged E off = %.3g s^{-1})', ...
-    data.percent_cleavage, data.EBindingNumber, data.kEoff_engaged));
 hold(ax, 'off');
 end
 

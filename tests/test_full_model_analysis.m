@@ -57,7 +57,8 @@ P = testCase.TestData.P;
 [R, RHE, P_sim, D] = run_full_termination_simulation(P, 3);
 populations = R+[zeros(P_sim.PAS-1, 1); RHE];
 verifySize(testCase, D.avg_E_bound, [P_sim.N 1]);
-verifyEqual(testCase, sum(D.avg_E_bound.*populations), D.E_bound, 'AbsTol', 1e-9);
+% The non-spatial committed pool has no node, so it is not in the averages.
+verifyEqual(testCase, sum(D.avg_E_bound.*populations)+D.C_E_bound, D.E_bound, 'AbsTol', 1e-9);
 verifyEqual(testCase, sum(D.avg_Ser2P.*populations), ...
     sum(D.R_micro*D.R_states(:, 1))+sum(D.RHE_micro*D.RHE_states(:, 1)), 'AbsTol', 1e-9);
 verifyGreaterThanOrEqual(testCase, D.avg_E_bound, zeros(P_sim.N, 1));

@@ -87,18 +87,29 @@ verifyEqual(testCase, [sweeps.y_base], [P.kEoff/P.kEon, P.kHoff/P.kHon, P.kEoff/
 end
 
 function testPlotAndSaveEveryPair(testCase)
-for data = testCase.TestData.sweeps
-    figure_name = sprintf('CAD: %s vs %s, M = %d', ...
-        data.x_name, data.y_name, data.EBindingNumber);
-    fig = findall(groot, 'Type', 'figure', 'Name', figure_name);
-    fig = setdiff(fig, testCase.TestData.originalFigures);
-    assertNumElements(testCase, fig, 1);
-    ax = findobj(fig, 'Type', 'axes');
+% All pairs share one combined figure: one panel per pair, left to right.
+sweeps = testCase.TestData.sweeps;
+display_cap = 2000;
+figure_name = sprintf('CAD sweeps, M = %d', sweeps(1).EBindingNumber);
+fig = findall(groot, 'Type', 'figure', 'Name', figure_name);
+fig = setdiff(fig, testCase.TestData.originalFigures);
+assertNumElements(testCase, fig, 1);
+axes_list = findobj(fig, 'Type', 'axes');
+assertNumElements(testCase, axes_list, numel(sweeps));
+positions = vertcat(axes_list.Position);
+[~, order] = sort(positions(:, 1));
+axes_list = axes_list(order);
+output_dir = fullfile(testCase.TestData.outputRoot, 'Sweep2DCad', ...
+    sprintf('M%d_kEoffEngaged%.3g', sweeps(1).EBindingNumber, sweeps(1).kEoff_engaged));
+verifyNumElements(testCase, dir(fullfile(output_dir, 'sweep2D_CAD_combined.png')), 1);
+for k = 1:numel(sweeps)
+    data = sweeps(k);
+    ax = axes_list(k);
     verifyEqual(testCase, ax.XScale, 'log');
     verifyEqual(testCase, ax.YScale, 'log');
-    verifyEqual(testCase, ax.CLim, [0 1600]);
-    plot_legend = findobj(fig, 'Type', 'legend');
-    assertNumElements(testCase, plot_legend, 1);
+    verifyEqual(testCase, ax.CLim, [0 display_cap]);
+    plot_legend = ax.Legend;
+    assertNotEmpty(testCase, plot_legend);
     verifyEqual(testCase, plot_legend.Location, 'northwest');
     verifyTrue(testCase, startsWith(plot_legend.String{1}, ...
         sprintf('Base parameters CAD_{%g} = ', data.percent_cleavage)));
@@ -106,12 +117,10 @@ for data = testCase.TestData.sweeps
     if any(isfinite(data.CAD_matrix(:)))
         assertNumElements(testCase, contours, 1);
         expected_display = data.CAD_matrix;
-        expected_display(expected_display > 1600) = 1600;
+        expected_display(expected_display > display_cap) = display_cap;
         verifyEqual(testCase, contours.ZData, expected_display);
     end
 
-    output_dir = fullfile(testCase.TestData.outputRoot, 'Sweep2DCad', ...
-        sprintf('M%d_kEoffEngaged%.3g', data.EBindingNumber, data.kEoff_engaged));
     verifyTrue(testCase, isfile(fullfile(output_dir, 'metadata.txt')));
     file_prefix = sprintf('sweep2D_%s_%s_CAD', data.x_name, data.y_name);
     files = dir(fullfile(output_dir, [file_prefix '_data.txt']));
@@ -122,6 +131,5 @@ for data = testCase.TestData.sweeps
     verifyTrue(testCase, contains(content, 'full_kinetics_rapid_EH_disassembly'));
     verifyTrue(testCase, contains(content, 'max_exit_cdf_matrix'));
     verifyTrue(testCase, contains(content, 'rhs_residual_matrix'));
-    verifyNumElements(testCase, dir(fullfile(output_dir, [file_prefix '.png'])), 1);
 end
 end
