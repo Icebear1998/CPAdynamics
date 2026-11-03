@@ -3,9 +3,6 @@
 % Uses flux-based termination profile to calculate proximal site usage
 save_results = true;
 
-% % MODIFIED: Start a parallel pool of workers if one is not already running.
-% if isempty(gcp('nocreate')); parpool; end
-
 % --- CONFIGURATION: CHOOSE THE PARAMETER TO SWEEP ---
 sweep_param_name = 'kHoff';
 
@@ -19,7 +16,7 @@ switch sweep_param_name
     case 'kHoff'
         sweep_param_values = [0.001, 0.1, 1, 5, 10];
     otherwise
-        error('Selected sweep parameter is not defined in the switch-case block.');
+        error('Selected sweep parameter is not defined in the switch-case b lock.');
 end
 
 % --- BASE PARAMETERS ---
@@ -28,15 +25,14 @@ P.geneLength_bp = 50000;  % Extended gene for inter-PAS distance analysis
 EBindingNumber = 5;
 
 % --- SIMULATION SETUP ---
-inter_pas_distances_bp = 0:100:5000;
+% Log-spaced distances (a log axis cannot show 0 bp)
+inter_pas_distances_bp = unique(round(logspace(log10(50), log10(15000), 50)));
 proximal_usage_results = NaN(length(inter_pas_distances_bp), length(sweep_param_values));
 
 max_exit_cdf = NaN(1, numel(sweep_param_values));
 rhs_residuals = NaN(1, numel(sweep_param_values));
 
 % --- PARAMETER SWEEP LOOP ---
-
-% MODIFIED: Changed 'for' to 'parfor' to distribute iterations across workers.
 for p_idx = 1:length(sweep_param_values)
     % Create a copy of the parameters for this iteration.
     P_run = P;
@@ -57,7 +53,7 @@ for p_idx = 1:length(sweep_param_values)
     proximal_usage_results(:, p_idx) = interp1([0; distances_bp(:)], ...
         [0; exit_cdf(:)], inter_pas_distances_bp(:), 'linear', NaN);
 end
-disp('All parallel simulations complete.');
+disp('All simulations complete.');
 
 % --- PLOT THE RESULTS ---
 figure('Position', [100, 100, 800, 600]);
@@ -65,7 +61,7 @@ hold on;
 colors = lines(length(sweep_param_values));
 
 for p_idx = 1:length(sweep_param_values)
-    semilogx(inter_pas_distances_bp, proximal_usage_results(:, p_idx) * 100, ...
+    plot(inter_pas_distances_bp, proximal_usage_results(:, p_idx) * 100, ...
          'LineWidth', 2.5, 'Color', colors(p_idx,:), ...
          'DisplayName', sprintf('%s = %.3g', strrep(sweep_param_name, '_', '\_'), sweep_param_values(p_idx)));
 end
@@ -74,7 +70,9 @@ xlabel('Inter-PAS distance (bp) (log scale)', 'FontSize', 12, 'FontWeight', 'bol
 ylabel('Proximal site usage (%)', 'FontSize', 12, 'FontWeight', 'bold');
 %title(sprintf('Proximal PAS Usage vs %s (EBindingNumber=%d)', strrep(sweep_param_name, '_', ' '), EBindingNumber), ...
       %'FontSize', 14, 'FontWeight', 'bold');
-grid on; 
+set(gca, 'XScale', 'log');
+xlim([min(inter_pas_distances_bp) max(inter_pas_distances_bp)]);
+grid on;
 legend('show', 'Location', 'best', 'FontSize', 11); 
 set(gca, 'FontSize', 11); 
 box on;

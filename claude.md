@@ -72,7 +72,7 @@ All active analyses and tests use the full finite-rate helpers in the project ro
 | `CpaMultipleEMain.m`       | Single comprehensive run; plots R/REH profiles and Ser2P/AvgE       |
 | `ParameterSweep1D.m`       | Sweep one parameter, plot TCD (50% cutoff position)                 |
 | `ParameterSweep2D.m`       | Sweep two parameters simultaneously                                 |
-| `SweepParameterPasUsage.m` | Proximal PAS usage vs inter-PAS distance (parallel, `parfor`)       |
+| `SweepParameterPasUsage.m` | Proximal PAS usage vs inter-PAS distance (serial, log x-axis)       |
 | `EBindingNumberVsCad.m`    | TCD vs EBindingNumber sweep                                         |
 | `Sweep2DCad.m`       | Pairwise CAD maps: kHd-kEd, kHd-kc and kEd-kc               |
 | `PlotEBindingProfile.m`    | Avg E binding + Ser2P profiles for multiple EBindingNumbers         |

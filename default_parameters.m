@@ -24,12 +24,12 @@ function P = default_parameters()
     P.k_e2   = 30 / P.L_a;        % Elongation rate (after PAS, in REH)
 
     % --- Pool sizes ---
-    P.E_total   = 100000;          % Total E factor pool
-    P.Pol_total = 100000;           % Total Pol II pool
+    P.E_total   = 75000;          % Total E factor pool
+    P.Pol_total = 75000;           % Total Pol II pool
 
     % --- E factor binding ---
     P.kEon   = 2.5e-6;             % molecule^-1 s^-1
-    P.kEoff  = 0.5;                % E factor off-rate
+    P.kEoff  = 1;                % E factor off-rate
     % Engaged-E CTD detachment. Conservative estimate between a firm hold
     % by H and none (= kEoff); one value for all PAS strengths (appendix C).
     P.kEoff_engaged = 0.1;         % s^-1
@@ -39,14 +39,14 @@ function P = default_parameters()
     P.kHoff  = 1;                  % s^-1; weak PAS (Kd ~2 uM, appendix B)
  
     % --- Cleavage ---
-    P.kc     = 0.14;               % s^-1
+    P.kc     = 0.2;               % s^-1
 
     % --- Release after commitment ---
     % Committed complexes keep Pol II and E until released at k_rel. ~100 s
     % matches transcript release from the 3' end (63 s, Boireau 2007; 116 s,
     % Coulon 2014), when the engaged E leaves. The later Pol II release by
     % the Xrn2 torpedo (~2.5 min more) is not modeled. Inf = release at kc.
-    P.k_rel  = 0.01;               % s^-1
+    P.k_rel  = 0.05;               % s^-1
 
     % --- Ser2P phosphorylation ---
     % One site p = two adjacent Ser2P repeats (appendix F). kPoff = 0.01
@@ -66,7 +66,7 @@ function P = default_parameters()
     P.ranges.kEoff      = [0.1, 5];           % s^-1 (C); avidity / in vivo residence to single CID
     P.ranges.kEoff_engaged = [0.01, 0.5]; % s^-1 (C); firm hold by H to no hold (kEoff)
     P.ranges.kc         = [0.015, 0.6];    % s^-1 (D); in vivo cleavage timing to holo-CstF affinity
-    P.ranges.k_rel      = [0.003, 0.02];   % s^-1; ~5 min torpedo Pol II release to ~50 s
+    P.ranges.k_rel      = [0.003, 0.1];   % s^-1; ~5 min torpedo Pol II release to ~50 s
     P.ranges.k_e        = [3000, 5000] / 65 / P.L_a; % ~46-77 bp/s (~2.8-4.6 kb/min) (E)
     P.ranges.k_e2       = [10, 50] / P.L_a;  % bp/s -> node/s (E)
     P.ranges.kPon_slope = [1e-4, 2e-2];      % s^-1 per node (F); E-site 50% at ~20 to ~4 kb
