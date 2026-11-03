@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from cpadynamics import Parameters, FullModel, cleavage_profile
+from cpadynamics import Parameters, FullModel, baseline_2026_09_15_parameters, cleavage_profile
 
 
 class EngagedEOffTests(unittest.TestCase):
@@ -47,7 +47,8 @@ class EngagedEOffTests(unittest.TestCase):
     def test_zero_rate_preserves_previous_full_model_results(self):
         for m, expected in [(1, 1535.6535807633459), (5, 845.2096931066867)]:
             # Earlier results release resources at commitment (no committed pool).
-            p = replace(Parameters(), kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0, k_rel=math.inf)
+            p = baseline_2026_09_15_parameters(kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0,
+                                               k_rel=math.inf)
             s = FullModel(p, m).solve_steady_state()
             self.assertAlmostEqual(cleavage_profile(s.R, s.RHE, p).cad50_bp, expected, places=6)
 

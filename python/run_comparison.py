@@ -11,7 +11,7 @@ import platform
 import numpy as np
 import scipy
 
-from cpadynamics import Parameters, FullModel, cleavage_profile, solve_equilibrium
+from cpadynamics import FullModel, baseline_2026_09_15_parameters, cleavage_profile, solve_equilibrium
 
 
 TARGETS = {1: 1191, 2: 728, 3: 571, 4: 490, 5: 442, 6: 407}
@@ -38,7 +38,8 @@ def main():
     output = args.output or repo/'python'/'Results'/'full_model'/param_set
     output.mkdir(parents=True, exist_ok=args.output is None)
     # The equilibrium reference has no committed pool, so release at kc.
-    p = replace(Parameters(), k_rel=math.inf)
+    # The supplied MATLAB targets come from the 2026-09-15 baseline.
+    p = baseline_2026_09_15_parameters(k_rel=math.inf)
     parity_parameters = replace(p, kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0)
     parity = []
 

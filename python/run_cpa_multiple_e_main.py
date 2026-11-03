@@ -29,7 +29,7 @@ def run_analysis(output_dir, capacity=5, parameters=None):
         raise ValueError('capacity must be a positive integer')
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    parameter_source = ('default_parameters.m, working values checked 2026-09-15'
+    parameter_source = ('default_parameters.m, Python defaults synced 2026-10-27'
                         if parameters is None else 'Explicit parameters supplied to run_analysis')
     parameters = working_parameters() if parameters is None else parameters
     model = FullModel(parameters, capacity)

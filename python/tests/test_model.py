@@ -5,7 +5,8 @@ from dataclasses import replace
 
 import numpy as np
 
-from cpadynamics import Parameters, FullModel, cleavage_profile, solve_equilibrium
+from cpadynamics import (Parameters, FullModel, baseline_2026_09_15_parameters,
+                         cleavage_profile, solve_equilibrium)
 from cpadynamics.states import internal_generator, state_map
 
 
@@ -13,7 +14,7 @@ class MatlabParityTests(unittest.TestCase):
     def test_supplied_matlab_cad_values(self):
         for m, expected in enumerate([1191, 728, 571, 490, 442, 407], 1):
             with self.subTest(M=m):
-                p = replace(Parameters(), kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0)
+                p = baseline_2026_09_15_parameters(kHon=4, kHoff=2, kc=0.13, kEoff_engaged=0)
                 solution = solve_equilibrium(p, m)
                 profile = cleavage_profile(solution.R, solution.RHE, p)
                 self.assertLess(abs(profile.cad50_bp - expected), 0.5)
@@ -35,7 +36,7 @@ class MatlabParityTests(unittest.TestCase):
 
 class FullKineticsTests(unittest.TestCase):
     def test_m1_generator_matches_three_state_equations(self):
-        p = Parameters()
+        p = baseline_2026_09_15_parameters()  # kPoff = 1 in the expected matrix
         a = internal_generator(1, 0.7, 40000, p)
         expected = [[-.7, 1, 0], [.7, -1.1, .5], [0, .1, -.5]]
         np.testing.assert_allclose(a, expected, atol=1e-14)

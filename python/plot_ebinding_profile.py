@@ -100,7 +100,7 @@ def run_profiles(output_dir, capacities=(1, 5, 10)):
     manifest = dict(
         model_variant='full_kinetics_rapid_EH_disassembly',
         parameters=asdict(parameters), binding_numbers=list(capacities),
-        parameter_source='default_parameters.m, working values on 2026-09-14',
+        parameter_source='default_parameters.m, Python defaults synced 2026-10-27',
         average_convention='Population-weighted over R and RHE at each node',
         plot_window='TSS to PAS, inclusive; distance from TSS in kb',
         raw_profile_coordinates='Full gene; position relative to PAS in kb',

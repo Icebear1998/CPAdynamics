@@ -10,7 +10,7 @@ import platform
 import numpy as np
 import scipy
 
-from cpadynamics import Parameters, FullModel, cleavage_profile, solve_equilibrium
+from cpadynamics import FullModel, baseline_2026_09_15_parameters, cleavage_profile, solve_equilibrium
 from run_comparison import TARGETS, write_csv
 
 
@@ -25,7 +25,8 @@ def main():
         parser.error('Relative off-rates must be finite and nonnegative')
     ratios = sorted(set([0.] + args.relative_off_rates))
     capacities = sorted(set(args.m))
-    p0 = replace(Parameters(), k_rel=math.inf)  # compared with the equilibrium reference
+    # Compared with the equilibrium reference, which uses the 2026-09-15 baseline.
+    p0 = baseline_2026_09_15_parameters(k_rel=math.inf)
     repo = Path(__file__).resolve().parents[1]
     param_set = 'M' + '-'.join(str(m) for m in capacities)
     output = args.output or repo/'python'/'Results'/'engaged_E_dissociation'/param_set

@@ -1,5 +1,5 @@
-"""Parameters matching the MATLAB baseline supplied on 2026-09-15."""
-from dataclasses import dataclass, fields
+"""Parameters matching MATLAB default_parameters.m (synced 2026-10-27)."""
+from dataclasses import dataclass, fields, replace
 import math
 
 
@@ -12,18 +12,18 @@ class Parameters:
     k_e: float = 0.65
     k_e2: float = 0.30
     E_total: float = 100000.0
-    Pol_total: float = 70000.0
+    Pol_total: float = 100000.0
     kEon: float = 2.5e-6
     kEoff: float = 0.5
     kHon: float = 7.0  # base rate PER E; never overwritten by an effective rate
     kHoff: float = 1.0
-    kc: float = 0.15
-    kPon_min: float = 0.01
-    kPon_slope: float = 0.005
-    kPoff: float = 1.0
+    kc: float = 0.14
+    kPon_min: float = 0.0  # no E sites at the TSS (pairs need two marks)
+    kPon_slope: float = 5e-4
+    kPoff: float = 0.01  # loss rate per free E site (appendix F)
     # Full model only: CTD detachment of the H-engaged E, followed by rapid EH
     # disassembly.
-    kEoff_engaged: float = 0.05
+    kEoff_engaged: float = 0.1
     # Release of committed complexes (Pol II and their E) to the free pools,
     # matching MATLAB default_parameters. math.inf releases at kc (no C pool).
     k_rel: float = 0.01
@@ -47,6 +47,18 @@ class Parameters:
         n = math.floor(self.geneLength_bp / self.L_a)
         pas = math.floor(self.PASposition / self.L_a) - 1
         return n, pas, n - pas
+
+
+# The MATLAB baseline supplied on 2026-09-15. The six supplied MATLAB CAD50
+# values and earlier regression numbers were computed from it, so parity
+# checks pin these values instead of the current defaults.
+BASELINE_2026_09_15 = dict(Pol_total=70000.0, kc=0.15, kPon_min=0.01,
+                           kPon_slope=0.005, kPoff=1.0, kEoff_engaged=0.05)
+
+
+def baseline_2026_09_15_parameters(**overrides):
+    """Return the 2026-09-15 baseline, with explicit overrides applied last."""
+    return replace(Parameters(), **{**BASELINE_2026_09_15, **overrides})
 
 
 def working_parameters():

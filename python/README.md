@@ -60,8 +60,9 @@ from TSS to PAS (inclusive), with distance from TSS in kb on the x-axis.
 Both averages include R and RHE populations. The full gene is still simulated;
 raw CSVs retain the full profiles and their coordinates relative to PAS.
 All analysis entry points use the same defaults as `default_parameters.m`:
-`kEon=2.5e-6`, `kEoff=0.5`, `kEoff_engaged=0.05`, `kHon=7`,
-`kHoff=1`, `kc=0.15`, `k_e=0.65`, and `k_e2=0.3`. The profile command saves
+`kEon=2.5e-6`, `kEoff=0.5`, `kEoff_engaged=0.1`, `kHon=7`,
+`kHoff=1`, `kc=0.14`, `k_rel=0.01`, `k_e=0.65`, `k_e2=0.3`, `Pol_total=100000`,
+`kPon_min=0`, `kPon_slope=5e-4` and `kPoff=0.01`. The profile command saves
 PNG/SVG figures, profile CSVs, microstates and a parameter/diagnostics manifest
 under `python/Results/EBindingProfile/` and prints the
 absolute path. Use `--output-dir PATH` or `CPAD_PYTHON_RESULTS_ROOT` to change its location.
@@ -75,7 +76,9 @@ PYTHONPATH=python python3 -m unittest discover -s python/tests -v
 ```
 
 Using explicit historical inputs (`kHon=4`, `kHoff=2`, `kc=0.13`,
-`kEoff_engaged=0`), the comparison first verifies the equilibrium reference against all six supplied
+`kEoff_engaged=0`) on the 2026-09-15 MATLAB baseline
+(`baseline_2026_09_15_parameters()`, which pins the old `Pol_total`, `kPon_*`
+and `kPoff`), the comparison first verifies the equilibrium reference against all six supplied
 MATLAB CAD50 values: **1191, 728, 571, 490, 442, 407 bp** for M=1..6. Each must
 agree within 0.5 bp, the precision of the supplied numbers, before full-model
 calculations run. MATLAB itself was unavailable during implementation; this is
@@ -237,7 +240,7 @@ free-protein pool; the event removes recognition, not the transcript.
 
 There is no RHE state with e=0. When the last E detaches, the destination is
 R(p,0), not RHE(p,0). Additional E can bind and unbind normally while the complex
-is recognized. The default `kEoff_engaged=0.05` enables this route in both
+is recognized. The default `kEoff_engaged=0.1` enables this route in both
 the steady and time solvers; setting it to zero disables engaged-E loss.
 
 R elongates at `k_e`, RHE at `k_e2`, preserving `(p,e)`. Release from C and
@@ -378,6 +381,7 @@ regime the extra loss pathway lengthens CAD, moving it farther from the
 original equilibrium reference. This reflects the chosen rapid-disassembly
 mechanism and does not establish a measured biological off-rate.
 
-The current default full model gives **CAD50 = 355.4668 bp at M=5**,
-matching the MATLAB output supplied on 2026-09-15. Historical numerical results
+The current default full model (Python defaults synced to `default_parameters.m`
+on 2026-10-27, including `k_rel=0.01`) gives **CAD50 = 927.0 bp at M=1 and
+404.2 bp at M=5**. These values have not yet been checked against a MATLAB run. Historical numerical results
 above retain their original parameter inputs and are not current-default predictions.
